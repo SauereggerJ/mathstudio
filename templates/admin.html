@@ -143,7 +143,6 @@
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
         loadLogs();
-        // Periodically refresh logs
         setInterval(loadLogs, 10000);
     });
 
@@ -154,9 +153,9 @@
             document.getElementById('stat-total-books').textContent = data.total_books.toLocaleString();
             document.getElementById('stat-total-size').textContent = data.total_size_gb.toFixed(1) + ' GB';
             document.getElementById('stat-total-cats').textContent = data.categories.length;
-        } catch (e) { 
-            console.error('Failed to load stats:', e);
-            document.getElementById('stat-total-books').textContent = 'Error';
+        } catch (e) {
+            console.error(e);
+            document.getElementById('stat-total-books').textContent = 'ERR';
         }
     }
 
@@ -180,7 +179,7 @@
                 });
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
-        } catch (e) { console.error('Failed to load logs:', e); }
+        } catch (e) { console.error(e); }
     }
 
     function logToConsole(msg, type = '') {
