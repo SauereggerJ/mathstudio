@@ -19,7 +19,7 @@ from utils import load_api_key
 DB_FILE = "library.db"
 GEMINI_API_KEY = load_api_key()
 EMBEDDING_MODEL = "models/gemini-embedding-001"
-LLM_MODEL = "gemini-2.0-flash"
+LLM_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
