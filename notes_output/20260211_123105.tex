@@ -1,0 +1,39 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\begin{document}
+
+\title{Continuity 1}
+\author{}
+\date{}
+\maketitle
+
+\section*{Definitions and Propositions}
+
+\noindent\textbf{Definition:}
+Let $f\colon X \to Y$ be a function between metric spaces $(X, d_X)$ and $(Y, d_Y)$. Then $f$ is continuous at $x_0 \in X$ if for each neighborhood $V$ of $f(x_0)$ in $Y$, there is a neighborhood $U$ of $x_0$ in $X$ such that $f(U) \subseteq V$.
+
+The function $f\colon X \to Y$ is continuous if it is continuous at each point of $X$.
+
+\vspace{0.5cm}
+\noindent\textbf{Proposition: $(\varepsilon, \delta)$}
+A function $f\colon X \to Y$ is continuous at $x_0 \in X$ if and only if for each $\varepsilon > 0$, there is some $\delta := \delta(x_0, \varepsilon) > 0$ with the property that
+$$
+d(f(x), f(x_0)) < \varepsilon \quad \forall x \in X \colon d(x_0, x) < \delta \quad (*)$$
+
+\section*{Proof}
+
+\noindent\textbf{Proof:}
+\begin{enumerate}
+    \item Let $f$ be $(\varepsilon, \delta)$-continuous and $\varepsilon > 0$.
+    By the definition of continuity, $B_Y(f(x_0), \varepsilon)$ is a neighborhood of $f(x_0)$. Then there exists a $U$ of $x_0$ such that $f(U) \subseteq B_Y(f(x_0), \varepsilon)$, but for this $U$ exists a $\delta > 0$ such that $B_X(x_0, \delta) \subset U$ so we have
+    $$f(B_X(x_0, \delta)) \subseteq f(U) \subseteq B_Y(f(x_0), \varepsilon)$$
+    which translates to the statement $(*)$.
+    
+    \item Now suppose $(*)$ is true, and $V \in \mathcal{N}(f(x_0))$. Choose a $\varepsilon > 0$ such that $B_Y(f(x_0), \varepsilon) \subset V$, then with $(*)$ we have $U := B_X(x_0, \delta)$ with $f(U) \subseteq B_Y(f(x_0), \varepsilon) \subset V$.
+\end{enumerate}
+\begin{center}
+    \includegraphics[width=0.8\textwidth]{diagram.png} % Placeholder for the diagram
+\end{center}
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.70)\n  \item \textbf{Basic Analysis I} by James K. Peterson (Match: 0.68)\n  \item \textbf{Real Analysis} by Patrick Fitzpatrick (Match: 0.67)\n\end{itemize}\n
+\end{document}

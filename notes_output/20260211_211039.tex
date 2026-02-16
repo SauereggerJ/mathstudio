@@ -1,0 +1,49 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{Vector Space Axiom Proofs and Function Spaces}
+\maketitle
+\setcounter{enumi}{4}
+\item) Show that in the definition of a vector space, the additive inverse condition can be replaced with the condition that: $\mathbf{0}v = \mathbf{0}$ for all $v \in V$.
+
+With $\mathbf{0}v = \mathbf{0}$ for all $v \in V$ follows:
+
+$$
+(1 - 1)v = 0 \\
+v + (-1)v = 0 \quad \text{and therefore for}
+$$
+$$w := (-1)v \quad \text{with} \quad v+w = \mathbf{0} \quad \text{for all } v \in V \text{ exists.}
+$$
+
+\item) Let $\infty$ and $-\infty$ denote two distinct objects, neither of which is in $\mathbb{R}$. Define an addition and multiplication on $\mathbb{R} \cup \{\infty, -\infty\}$ as you could guess from the notation:
+
+$$
+\mathbf{0} = \begin{cases} -\infty : & t < 0 \\ 0 : & t = 0 \\ \infty : & t > 0 \end{cases} \quad \quad t \cdot (-\infty) = \begin{cases} \infty : & t < 0 \\ 0 : & t = 0 \\ -\infty : & t > 0 \end{cases}
+$$
+
+$$
+t + \infty = \infty + t = \infty
+$$
+$$
+t + (-\infty) = (-\infty) + t = (-\infty) + (-\infty) = -\infty
+$$
+$$
+\infty + (-\infty) = (-\infty) + \infty = 0
+$$
+$$
+\infty + (\infty - \infty) = \infty \quad (\infty + \infty) - \infty = 0
+$$
+so this addition is not associative.
+
+\item) Suppose $S$ is a nonempty set. Let $V^S$ denote the set of functions from $S$ to $V$. Define a natural addition and scalar multiplication on $V^S$ and show that $V^S$ is a vector space with these definitions:
+
+$$
+f, g \in V^S : f: S \to V, \quad g: S \to V
+$$
+$$
+(f+g)(x) := f(x) + g(x) \quad \quad (\lambda f)(x) := \lambda f(x)
+$$
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Groups, Matrices, and Vector Spaces} by James B. Carrell (Match: 0.68)\n  \item \textbf{Prüfungstraining Lineare Algebra : Band I} by Thomas C. T. Michaels (Match: 0.67)\n  \item \textbf{Lineare Algebra 1} by Menny-Akka (Match: 0.67)\n\end{itemize}\n
+\end{document}

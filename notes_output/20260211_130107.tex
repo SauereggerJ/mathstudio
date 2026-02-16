@@ -1,0 +1,35 @@
+\documentclass{amsart}
+\usepackage{amsmath, amssymb}
+\title{Proof of the Lemma / Proposition}
+\author{}
+\date{}
+\begin{document}
+
+\noindent\textbf{Proof of the Lemma:}
+
+Let $U \subset X$, and suppose first that $U$ satisfies the basis criterion.
+Let $V = \bigcup \{B \in \mathcal{B} : B \subset U \}$.
+
+Then $V \in \mathcal{T}$, because $V$ is a union of sets of $\mathcal{B}$. Thus if $U=V$ it will follow that $U \in \mathcal{T}$.
+
+$V \subset U$ because $V$ is a union of subsets of $U$.
+
+To show that $U \subset V$, let $x \in U$ be an arbitrary element. Since $U$ satisfies the basis criterion, there must exist a $B \in \mathcal{B}$ such that $x \in B \subset U$, and therefore $x \in V$.
+
+Conversely, suppose that $U \in \mathcal{T}$. This means
+$$U = \bigcup_{\alpha \in A} B_{\alpha} \quad \text{with } B_{\alpha} \in \mathcal{B}.$$ 
+In other words, $x \in U$ if and only if $x \in B$ for some $B \in \mathcal{B}$. In particular, $x \in B \subset U$, so $U$ satisfies the basis criterion. $\square$
+
+\vspace{0.5cm}
+\noindent\textbf{Proof of the Proposition:}
+
+1) Suppose $U_1, U_2 \in \mathcal{T}$. Then, for any $x \in U_1 \cap U_2$, there exists (because of the basis criterion) $B_1, B_2 \in \mathcal{B}$ such that $x \in B_1 \subset U_1$ and $x \in B_2 \subset U_2$. For these two elements of $\mathcal{B}$ there exists a $B_3 \in \mathcal{B}$ such that $x \in B_3 \subset B_1 \cap B_2 \subset U_1 \cap U_2$. Thus $U_1 \cap U_2$ satisfies the basis criterion, so it is also in $\mathcal{T}$.
+
+Induction shows this is also true for $\bigcap_{i=1}^n U_i$ with $U_i \in \mathcal{T}$.
+
+2) $X$ is per definition $X = \bigcup_{B \in \mathcal{B}} B$, and therefore a union of elements of $\mathcal{B}$, and so $X \in \mathcal{T}$.
+
+3) $U_{\alpha} \in \mathcal{T}$ for all $\alpha \in A$. $U = \bigcup_{\alpha \in A} U_{\alpha}$ is a union of unions of elements of $\mathcal{B}$, and therefore also in $\mathcal{T}$.
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.66)\n  \item \textbf{Basic Analysis I} by James K. Peterson (Match: 0.66)\n  \item \textbf{Lecture Notes} by Topologie - Andreas Kriegl (Match: 0.66)\n\end{itemize}\n
+\end{document}

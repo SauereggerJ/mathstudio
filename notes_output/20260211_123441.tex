@@ -1,0 +1,35 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb}
+\begin{document}
+
+\noindent\textbf{Theorem:} A continuous function $f$ defined on an interval $[a, b]$ takes on absolute minimum and absolute maximum values.
+
+For some $x_0, x_1 \in [a, b]$ and for all $x \in [a, b]$ we have
+$$f(x_0) \leq f(x) \leq f(x_1)$$
+
+\noindent\textbf{Proof:}
+\begin{itemize}
+    \item $M = \text{least upper bound from } f(t) \text{ as } t \text{ varies in } [a, b]$
+    $$M = \sup\{f(x) : x \in [a, b]\}$$
+    This $M$ exists, because $M$ is bounded and not empty.
+    \item Consider the set $X = \{x \in [a, b] : \sup V_x < M\}$, with
+    $$V_x = \{y \in \mathbb{R} : \text{ for some } t \in [a, x] \text{ we have } y = f(t)\}$$
+    \begin{itemize}
+        \item $-V_x$ is the set of all images of $f$ from $a$ until $x$.
+        \item $-X$ is the set of all points in $[a, b]$, such that all elements from $a$ to $x$ have images under $f$ that are smaller than $M$, more so even $\sup V_x < M$.
+    \end{itemize}
+    \item Case 1: $f(a) = M$. Then $f$ takes on a maximum at $a$ and the theorem is proved.
+    \item Case 2: $f(a) < M$. Then $a \in X$ and therefore $X \neq \emptyset$ and because $X$ is bounded by $b$, $X$ has a least upper bound.
+    Define $c = \sup X$.
+    
+    If $f(c) < M$, we choose $\varepsilon > 0$ with $\varepsilon < M - f(c)$.
+    By continuity at $c$, there exists a $\delta > 0$ such that
+    $$|t - c| < \delta \implies |f(t) - f(c)| < \varepsilon$$
+    Thus $\sup V_c < M$.
+    If $c < b$ this implies there exist points $t$ to the right of $c$ at which $\sup V_t < M$, contrary to the fact that $c$ is the $\sup$ of such points.
+    Therefore $c = b$, which implies that $M < M$, a contradiction.
+    So $f(c)$ is not less than $M$, and so $f(c) = M$, and $f$ assumes its maximum at $c$.
+\end{itemize}
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.68)\n  \item \textbf{Problems in real analysis} by Teodora-Liliana Rădulescu (Match: 0.67)\n  \item \textbf{Mathematical Analysis} by Tom M. Apostol (Match: 0.67)\n\end{itemize}\n
+\end{document}

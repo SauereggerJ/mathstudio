@@ -1,0 +1,24 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{T is surjective iff there exists S such that TS = id_W}
+\maketitle
+\setcounter{enumi}{19}
+\noindent 20.\ \text{Suppose } W \text{ is finite dimensional and } T \in \mathcal{L}(V, W). \text{ Prove that } T \text{ is surjective if and only if there exists } S \in \mathcal{L}(W, V) \text{ such that } TS \text{ is the identity operation on } W. \\
+\noindent \text{Proof:} \\
+\noindent \Rightarrow) (T \text{ is surjective}): \text{ range}(T) = W \\ 
+\text{Let } B_W = \{w_1, \dots, w_n\} \text{ be a basis of } W. \text{ Then because range}(T) = W, \text{ for every } w_i \in B_W \text{ there exists a } v_i \in V \text{ with } T(v_i) = w_i. \\
+\text{Define } S: \\ 
+S w_i = v_i, \\ 
+S \text{ is in } \mathcal{L}(W, V) \text{ and with this definition} \\ 
+TS(w) = T(a_1 S(w_1) + \dots + a_n S(w_n)) \\ 
+&= a_1 T S(w_1) + \dots + a_n T S(w_n) \\ 
+&= a_1 w_1 + \dots + a_n w_n = \\ 
+\text{therefore } TS(w) = \text{id}_W \\ 
+\noindent \Leftarrow (S \text{ exists\dots}): \\ 
+ w = T(S w), \text{ but this implies } v = S w : T(v) = w \text{ and} \\ 
+\text{therefore range}(T) = W \\ 
+\begin{flushright} \qed \end{flushright}
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear algebra problem book} by Paul R. Halmos (Match: 0.63)\n  \item \textbf{Linear Algebra Done Right} by Sheldon Axler (Match: 0.62)\n  \item \textbf{Linear Algebra} by Meckes & Meckes (Match: 0.62)\n\end{itemize}\n
+\end{document}

@@ -1,0 +1,66 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{Interior and Closed Sets in Metric Spaces}
+\maketitle
+\section*{The Interior of a Set in a Metric Space $(M,d)$}
+
+\begin{definition} 
+Let $A \subseteq M$. A point $x \in A$ is an interior point of $A$ if there exists an open set $U$ such that $x \in U \subseteq A$.
+\end{definition}
+
+The interior of $A$, $\text{int}(A)$, is the set of all interior points of $A$.
+
+\textbf{Example:}
+$$
+\text{int}(\mathbb{R}^n) = \mathbb{R}^n, \quad \text{int}((0,1)) = (0,1), \quad \text{int}(\Gamma \cup \{1\}) = (0,1),
+$$
+$$
+\text{int}(\mathbb{Z}) = \emptyset. \text{ If } A \subseteq \mathbb{R} \text{ is any set such that } d \text{ is the discrete metric, } \text{int}(A) = A.
+$$
+
+\begin{lemma} 
+The interior of $A \subseteq M$ is the union of all open subsets of $A$.
+\end{lemma}
+
+\textbf{Proof:} Let $\mathcal{B}$ call the union of all open subsets of $A$.
+If $x \in \text{int}(A) \implies \exists$ open $U$ such that $x \in U \subseteq A$.
+If $x \in \mathcal{B} \implies x$ lies in one element of $\mathcal{B} \implies x \in \text{int}(A)$.
+
+\begin{corollary} 
+$\text{int}(A)$ is open.
+\end{corollary}
+
+\begin{corollary} 
+$A$ is open $\iff \text{int}(A) = A$.
+\end{corollary}
+
+\textbf{Proof:}
+$(\Rightarrow)$: Suppose $A$ is open. Then for all $x \in A$, $x \in A \subseteq A$.
+So $x \in \text{int}(A)$. Thus $A \subseteq \text{int}(A)$. Since $\text{int}(A) \subseteq A$, we have $\text{int}(A) \subseteq A$.
+$(\Leftarrow)$: If $A = \text{int}(A)$ and $\text{int}(A)$ is open $\implies A$ is open.
+
+\section*{Closed Sets in a Metric Space $(M,d)$}
+
+\begin{definition} 
+Let $(M,d)$ be a metric space. A set $B \subseteq M$ is closed if its complement $M \setminus B$ is open.
+\end{definition}
+
+\begin{lemma} 
+In a metric space $(M,d)$:
+\begin{enumerate}
+    \item $M$ and $\emptyset$ are closed.
+    \item If $A_{\lambda}$ is closed for each index $\lambda \in \Lambda$, then $\bigcap_{\lambda \in \Lambda} A_{\lambda}$ is closed.
+    \item If $A_1, \dots, A_N$ are closed, then $\bigcup_{k=1}^N A_k$ is closed.
+\end{enumerate}
+\end{lemma}
+
+\textbf{Proof:}
+\begin{enumerate}
+    \item $M^c = \emptyset$; $\emptyset^c = M$.
+    \item $A_{\lambda}$ closed $\implies A_{\lambda}^c$ open. $\bigcap_{\lambda \in \Lambda} A_{\lambda} = \left(\bigcup_{\lambda \in \Lambda} A_{\lambda}^c\right)^c$ closed;
+    \item $A_1, \dots, A_N$ closed $\implies \bigcap_{i=1}^N A_i^c$ open; $\bigcup_{i=1}^N A_i = \left(\bigcap_{i=1}^N A_i^c\right)^c$ closed.
+\end{enumerate}
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.69)\n  \item \textbf{Introduction to Real Analysis} by Christopher Heil (Match: 0.68)\n  \item \textbf{Real Analysis} by Patrick Fitzpatrick (Match: 0.67)\n\end{itemize}\n
+\end{document}

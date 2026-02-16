@@ -1,0 +1,25 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\begin{document}
+
+\section*{Proposition}
+Let $\mathcal{B}$ be a basis in a set $X$, and let $\mathcal{T}$ be the collection of all unions of $\mathcal{B}$. Then $\mathcal{T}$ is a topology on $X$.
+
+\subsection*{For the proof we first observe}
+
+\textbf{Remark:}
+Suppose $\mathcal{B}$ is a basis of $X$. Then the collection $\mathcal{T}$ defined in the proposition is precisely the set of all subsets of $X$ that satisfy:
+
+\begin{itemize}
+    \item For every $x \in \mathcal{T}$, there exists $B \in \mathcal{B}$ such that $x \in B \subset \mathcal{T}$. (Note: The inclusion $B \subset \mathcal{T}$ seems to be a transcription error in the original note, likely meaning $x \in B \subset U$ for some $U \in \mathcal{T}$, or perhaps $x \in B \subset U$ where $U$ is the set being tested for membership in $\mathcal{T}$. Given the context of the basis criterion below, the intended structure is usually that the set $U$ containing $x$ is covered by a basis element $B$. I will transcribe the visible text exactly but use the standard form for the basis criterion definition in the Lemma).
+\end{itemize}
+
+\subsection*{Basis criterion with respect to $\mathcal{B}$}
+Given $X$ and a collection $\mathcal{B}$ of subsets of $X$, we say that a subset $U \subset X$ satisfies the basis criterion with respect to $\mathcal{B}$ if, for every $x \in U$, there exists $B \in \mathcal{B}$ such that $x \in B \subset U$.
+
+\subsection*{Lemma:}
+Suppose $\mathcal{B}$ is a basis of $X$. Then the collection $\mathcal{T}$ defined in the proposition is precisely the set of all subsets of $X$ that satisfy the basis criterion with respect to $\mathcal{B}$.
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Basic Analysis I} by James K. Peterson (Match: 0.68)\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.68)\n  \item \textbf{Lecture Notes} by Topologie (2018) - Andreas Cap (Match: 0.68)\n\end{itemize}\n
+\end{document}

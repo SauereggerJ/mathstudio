@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header>
+    <h1>Math Studio Library</h1>
+    <p>Search over {{ count }} books and documents</p>
+</header>
+
+<div class="search-box">
+    <div style="display: flex; gap: 10px; width: 100%;">
+        <select id="searchField" class="btn btn-secondary" style="width: auto; background: white; color: #374151; border: 1px solid #d1d5db;">
+            <option value="all">All Fields</option>
+            <option value="paper">Papers Only</option>
+            <option value="title">Title Only</option>
+            <option value="author">Author Only</option>
+            <option value="index">Index Only</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search for 'Topology', 'Spivak', etc..." autofocus style="flex-grow: 1;">
+        <button id="searchBtn" class="btn btn-primary" style="padding: 0 1.5rem;">
+            <i class="fas fa-search"></i> Search
+        </button>
+    </div>
+    <div class="search-options" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
+        <label class="d-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem;">
+            <input type="checkbox" id="cb_fts" checked> <i class="fas fa-align-left text-muted"></i> Fulltext
+        </label>
+        <label class="d-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem;">
+            <input type="checkbox" id="cb_vec" checked> <i class="fas fa-braille text-muted"></i> Semantic/Vector
+        </label>
+        <label class="d-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem;">
+            <input type="checkbox" id="cb_trans"> <i class="fas fa-language text-muted"></i> AI Translate
+        </label>
+        <label class="d-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem;">
+            <input type="checkbox" id="cb_rank"> <i class="fas fa-magic text-muted"></i> AI Rerank
+        </label>
+    </div>
+    
+    <!-- Harvester Section -->
+    <div class="harvester-section" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #d1d5db;">
+        <details>
+            <summary style="cursor: pointer; color: #4b5563; font-weight: 500; list-style: none;">
+                <i class="fas fa-satellite-dish" style="margin-right: 5px;"></i> Research Harvester (ArXiv)
+            </summary>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <input type="text" id="harvestInput" placeholder="ArXiv Query (e.g. cat:math.DG AND au:Tao)" style="flex-grow: 1;">
+                <input type="number" id="harvestLimit" value="10" min="1" max="100" style="width: 80px;" title="Limit">
+                <button id="harvestBtn" class="btn btn-secondary">
+                    <i class="fas fa-cloud-download-alt"></i> Fetch
+                </button>
+            </div>
+            <div id="harvestStatus" class="small text-muted mt-2"></div>
+        </details>
+    </div>
+
+    <div id="expansion-info" class="mt-2 text-muted small" style="display: none;"></div>
+    <div id="total-count" class="mt-2 text-primary" style="font-weight: bold; display: none;"></div>
+</div>
+
+<div id="results" class="results-list">
+    <!-- Results will appear here -->
+    <div class="empty-state">Enter a mathematical concept...</div>
+</div>
+
+<div id="loading-indicator" style="display: none; text-align: center; padding: 20px;">
+    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const searchField = document.getElementById('searchField');
+    const resultsContainer = document.getElementById('results');
+    const expansionInfo = document.getElementById('expansion-info');
+    const totalCountInfo = document.getElementById('total-count');
+    const loadingIndicator = document.getElementById('loading-indicator');
+
+    const cb_fts = document.getElementById('cb_fts');
+    const cb_vec = document.getElementById('cb_vec');
+    const cb_trans = document.getElementById('cb_trans');
+    const cb_rank = document.getElementById('cb_rank');
+
+    // Harvester Elements
+    const harvestInput = document.getElementById('harvestInput');
+    const harvestBtn = document.getElementById('harvestBtn');
+    const harvestLimit = document.getElementById('harvestLimit');
+    const harvestStatus = document.getElementById('harvestStatus');
+
+    let currentPage = 1;
+    let currentQuery = '';
+    let currentField = 'all';
+    let isLoading = false;
+    let hasMoreResults = true;
+    let totalResults = 0;
+
+    function performSearch(resetPage = true) {
+        const query = searchInput.value.trim();
+        const field = searchField.value;
+
+        if (resetPage) {
+            currentPage = 1;
+            resultsContainer.innerHTML = '';
+            hasMoreResults = true;
+            totalResults = 0;
+            totalCountInfo.style.display = 'none';
+        }
+        
+        currentQuery = query;
+        currentField = field;
+
+        if (query.length === 0) {
+            resultsContainer.innerHTML = '<div class="empty-state">Enter a search term...</div>';
+            expansionInfo.style.display = 'none';
+            totalCountInfo.style.display = 'none';
+            return;
+        }
+
+        fetchResults(query, field, currentPage);
+    }
+
+    searchBtn.addEventListener('click', () => performSearch(true));
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            performSearch(true);
+        }
+    });
+
+    // Harvester Logic
+    harvestBtn.addEventListener('click', async () => {
+        const query = harvestInput.value.trim();
+        const limit = harvestLimit.value;
+        if (!query) return;
+
+        harvestStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Harvesting metadata from ArXiv...';
+        harvestBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/harvest', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query, limit})
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                harvestStatus.innerHTML = `<span class="text-success"><i class="fas fa-check"></i> ${data.message}</span>`;
+            } else {
+                harvestStatus.innerHTML = `<span class="text-danger"><i class="fas fa-times"></i> Error: ${data.error}</span>`;
+            }
+        } catch (e) {
+            harvestStatus.innerHTML = `<span class="text-danger"><i class="fas fa-times"></i> Network Error</span>`;
+        } finally {
+            harvestBtn.disabled = false;
+        }
+    });
+
+    // Infinite Scroll Logic
+    window.addEventListener('scroll', () => {
+        if (isLoading || !hasMoreResults) return;
+
+        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+        
+        // Load more when scrolled near bottom
+        if (scrollTop + clientHeight >= scrollHeight - 300) {
+            currentPage++;
+            fetchResults(currentQuery, currentField, currentPage);
+        }
+    });
+
+    async function fetchResults(query, field, page) {
+        if (isLoading) return;
+        isLoading = true;
+        
+        if (page === 1) {
+             resultsContainer.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Library is being searched...</div>';
+             expansionInfo.style.display = 'none';
+        } else {
+             loadingIndicator.style.display = 'block';
+        }
+
+        try {
+            const limit = 20;
+            const fts = cb_fts.checked;
+            const vec = cb_vec.checked;
+            const trans = cb_trans.checked;
+            const rank = cb_rank.checked;
+
+            const url = `/api/search?q=${encodeURIComponent(query)}&field=${field}&limit=${limit}&page=${page}&fts=${fts}&vec=${vec}&trans=${trans}&rank=${rank}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.error || 'Unknown server error');
+
+            if (page === 1) {
+                resultsContainer.innerHTML = ''; // Clear loading spinner
+                totalResults = data.total_count || 0;
+                totalCountInfo.innerText = `🔍 Found ${totalResults} items`;
+                totalCountInfo.style.display = 'block';
+                
+                if (data.expanded_query) {
+                    expansionInfo.innerHTML = `<i class="fas fa-expand-arrows-alt"></i> Expanded query: <strong>${escapeHtml(data.expanded_query)}</strong>`;
+                    expansionInfo.style.display = 'block';
+                }
+            }
+
+            if (data.results.length === 0) {
+                hasMoreResults = false;
+                if (page === 1) {
+                    resultsContainer.innerHTML = '<div class="empty-state">No matching documents found.</div>';
+                }
+            } else {
+                renderResults(data.results);
+                if (data.results.length < limit) {
+                    hasMoreResults = false;
+                }
+            }
+
+        } catch (error) {
+            console.error('Error fetching results:', error);
+            if (page === 1) {
+                resultsContainer.innerHTML = `<div class="error" style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 1rem; border-radius: 8px;">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Search Failed:</strong> ${error.message}
+                </div>`;
+            }
+        } finally {
+            isLoading = false;
+            loadingIndicator.style.display = 'none';
+        }
+    }
+
+    // Global store for bibtex to avoid escaping hell in attributes
+    window.bibtexStore = {};
+
+    function renderResults(items) {
+        // We append to existing content
+        // Need to offset index for bibtex store key unique ID
+        const startIdx = Object.keys(window.bibtexStore).length;
+
+        const html = items.map((item, i) => {
+            const index = startIdx + i;
+            const isPaper = (item.type === 'paper');
+            const icon = isPaper ? '<i class="fas fa-file-alt text-danger"></i>' : '<i class="fas fa-book text-primary"></i>';
+            const typeLabel = isPaper ? 'ArXiv Paper' : 'Book';
+            
+            // Build metadata line: Author • Year • Publisher
+            const metaParts = [];
+            if (item.author) metaParts.push(escapeHtml(item.author));
+            if (item.year) metaParts.push(item.year);
+            if (item.publisher && !isPaper) metaParts.push(escapeHtml(item.publisher));
+            if (isPaper && item.category) metaParts.push(`<span class="badge bg-light text-dark border">${item.category}</span>`);
+            const metaLine = metaParts.join(' &bull; ');
+
+            // Store bibtex for this result
+            window.bibtexStore[index] = item.bibtex;
+
+            // Rank logic
+            let rankHtml = '';
+            if (item.ai_rank) {
+                rankHtml = `<div class="score-badge" style="background: #e0e7ff; color: #4338ca;">
+                    <i class="fas fa-robot"></i> AI Rank: #${item.ai_rank}
+                </div>`;
+            } else if (item.score) {
+                const matchPct = Math.round(item.score * 100);
+                rankHtml = `<div class="score-badge">
+                    <i class="fas fa-bullseye"></i> Match: ${matchPct}% 
+                    ${item.found_by ? `<small style="margin-left:5px; opacity: 0.8;">(${item.found_by})</small>` : ''}
+                </div>`;
+            }
+
+            // Action Buttons
+            let buttons = '';
+            if (isPaper) {
+                buttons = `
+                    <a href="${item.pdf_url}" target="_blank" class="btn-flat">
+                        <i class="fas fa-external-link-alt"></i> ArXiv PDF
+                    </a>
+                `;
+            } else {
+                buttons = `
+                    <a href="/book/${item.id}?q=${encodeURIComponent(currentQuery)}" class="btn-flat">
+                        <i class="fas fa-info-circle"></i> Details
+                    </a>
+                    ${item.path.toLowerCase().endsWith('.djvu') 
+                        ? `<a href="/view-pdf/${item.id}" target="_blank" class="btn-flat"><i class="fas fa-file-pdf"></i> View PDF</a>`
+                        : `<a href="/open/${encodeURI(item.path)}" target="_blank" class="btn-flat"><i class="fas fa-external-link-alt"></i> Open</a>`
+                    }
+                    <a href="/open/${encodeURI(item.path)}" download class="btn-flat"><i class="fas fa-download"></i> Download</a>
+                `;
+            }
+            
+            // BibTeX button (common)
+            buttons += `
+                <button onclick="copyStoredBibtex(this, ${index})" class="btn-flat" style="color: #0056D4;">
+                    <i class="fas fa-quote-right"></i> BibTeX
+                </button>
+            `;
+
+            return `
+            <div class="book-card" style="${isPaper ? 'border-left: 4px solid #ef4444;' : ''}">
+                <div class="book-cover-mini" style="display: flex; align-items: center; justify-content: center; background: #f3f4f6;">
+                    ${isPaper ? '<i class="fas fa-file-pdf fa-3x text-muted"></i>' : `<img src="${item.cover_url}" alt="Cover" onerror="this.style.display='none'">`}
+                </div>
+                <div class="book-content">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            ${rankHtml}
+                            <span class="badge ${isPaper ? 'bg-danger' : 'bg-primary'} text-white" style="font-size: 0.7rem;">${typeLabel}</span>
+                        </div>
+                        <div class="book-title">${icon} ${escapeHtml(item.title)}</div>
+                        <div class="book-meta-line">${metaLine}</div>
+                        ${item.isbn ? `<div style="font-size: 0.8rem; color: #888; margin-bottom: 8px;">ISBN: ${item.isbn}</div>` : ''}
+                        
+                        ${item.ai_reason ? `<div class="ai-reason" style="font-size: 0.85rem; font-style: italic; color: #4338ca; margin-bottom: 10px; background: #f5f3ff; padding: 5px 10px; border-left: 3px solid #4338ca;">💬 AI: ${escapeHtml(item.ai_reason)}</div>` : ''}
+                        
+                        ${item.index_matches ? `
+                        <div style="margin-bottom: 10px; padding: 10px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px;">
+                            <div class="text-warning small mb-1" style="font-weight: bold;">
+                                <i class="fas fa-list-ol"></i> Found in Index:
+                            </div>
+                            <div class="small text-dark" style="font-family: monospace;">${item.index_matches}</div>
+                        </div>
+                        ` : ''}
+
+                        ${item.snippet ? `<div class="book-snippet">...${item.snippet}...</div>` : ''}
+                        ${item.summary && isPaper ? `<div class="book-snippet" style="font-style: italic;">${escapeHtml(item.summary.substring(0, 200))}...</div>` : ''}
+                    </div>
+                    <div class="book-footer">
+                        ${buttons}
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+        
+        resultsContainer.insertAdjacentHTML('beforeend', html);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    window.copyStoredBibtex = (btn, index) => {
+        const text = window.bibtexStore[index];
+        if (!text) return;
+        
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        setTimeout(() => btn.innerHTML = originalText, 2000);
+    };
+</script>
+{% endblock %}

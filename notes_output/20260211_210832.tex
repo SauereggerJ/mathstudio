@@ -1,0 +1,29 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb}
+\begin{document}
+
+\noindent 16.) $\dim V = \dim \operatorname{range}(T) \leq \dim W$
+
+\medskip
+\noindent $\dim V \leq \dim W:$ There exists a basis $B_V$ of $V$ and $B_W$ a basis of $W$, with $|B_V| \leq |B_W|$, define $T(b_{i_V}) = b_{i_W}$ for all $b_{i_V} \in B_V$, where $b_{i_W} \in B_W$.
+
+\noindent $T$ is injective:
+$$
+T(v) = 0 \implies v = 0
+$$
+Let $v = a_1 b_{1V} + \dots + a_m b_{mV}$.
+$$
+T(a_1 b_{1V} + \dots + a_m b_{mV}) = a_1 b_{1W} + \dots + a_m b_{mW} = 0
+$$
+Since $b_{1W}, \dots, b_{mW}$ are linearly independent, so $a_1 = \dots = a_m = 0$ and $v = 0$, and $\dim \operatorname{null}(T) = 0$ and $T$ injective.
+
+\vspace{1cm}
+
+\noindent 17.) Suppose $V$ and $W$ are both finite-dimensional. Prove that there exists a surjective linear map from $V$ onto $W$ if and only if $\dim V \geq \dim W$.
+
+\noindent $\Rightarrow:$ $\dim V = \dim \operatorname{null} T + \dim \operatorname{range} T = \dim \operatorname{null} T + \dim W$, and since $\dim \operatorname{null} T \geq 0$, follow $\dim V \geq \dim W$.
+
+\noindent $\Leftarrow:$ Same idea as in 16.)
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear algebra problem book} by Paul R. Halmos (Match: 0.68)\n  \item \textbf{Groups, Matrices, and Vector Spaces} by James B. Carrell (Match: 0.68)\n  \item \textbf{Lineare Algebra 1} by Menny-Akka (Match: 0.67)\n\end{itemize}\n
+\end{document}

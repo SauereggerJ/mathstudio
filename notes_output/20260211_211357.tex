@@ -1,0 +1,67 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{Linear Independence Exercises}
+\maketitle
+\setcounter{section}{7}\section*{Problem 8}
+Suppose $\{v_1, v_2, v_3, v_4\}$ is linearly independent in $V$. Prove that the list $\{v_1-v_2, v_2-v_3, v_3-v_4, v_4\}$ is also linearly independent.
+
+\subsection*{Solution:}
+We set the linear combination to zero:
+$$
+0 = \alpha_1 (v_1-v_2) + \alpha_2 (v_2-v_3) + \alpha_3 (v_3-v_4) + \alpha_4 v_4
+$$
+Distributing and collecting terms for each $v_i$:
+$$
+0 = \alpha_1 v_1 + (\alpha_2 - \alpha_1) v_2 + (\alpha_3 - \alpha_2) v_3 + (\alpha_4 - \alpha_3) v_4
+$$
+Because $\{v_1, v_2, v_3, v_4\}$ is linearly independent, we must have all coefficients equal to zero:
+$$
+\alpha_1 = 0 \\
+\alpha_2 - \alpha_1 = 0 \\
+\alpha_3 - \alpha_2 = 0 \\
+\alpha_4 - \alpha_3 = 0
+$$
+From the first equation, $\alpha_1 = 0$. Substituting this into the second gives $\alpha_2 = 0$. Continuing this process shows that $\alpha_1 = \alpha_2 = \alpha_3 = \alpha_4 = 0$.
+
+Thus, the list $\{v_1-v_2, v_2-v_3, v_3-v_4, v_4\}$ is linearly independent.
+
+\section*{Problem 9}
+Prove or give a counterexample: If $\{v_1, v_2, \ldots, v_n\}$ is a linearly independent list of vectors in $V$, then the list $\{5v_1-4v_2, v_2, v_3, \ldots, v_n\}$ is linearly independent.
+
+\subsection*{Solution:}
+We set the linear combination to zero:
+$$
+\alpha_1 (5v_1-4v_2) + \alpha_2 v_2 + \alpha_3 v_3 + \cdots + \alpha_n v_n = 0
+$$
+Rearranging terms:
+$$
+5\alpha_1 v_1 + (\alpha_2 - 4\alpha_1) v_2 + \alpha_3 v_3 + \cdots + \alpha_n v_n = 0
+$$
+With the linear independence of $\{v_1, v_2, \ldots, v_n\}$, it follows that all coefficients must be zero:
+$$
+5\alpha_1 = 0 \\
+\alpha_2 - 4\alpha_1 = 0 \\
+\alpha_3 = 0 \\
+\vdots \\
+\alpha_n = 0
+$$
+From $5\alpha_1 = 0$, we get $\alpha_1 = 0$. Substituting into the second equation gives $\alpha_2 - 4(0) = 0$, so $\alpha_2 = 0$. The rest follow immediately ($\alpha_3 = \cdots = \alpha_n = 0$).
+
+So $\alpha_1 = \alpha_2 = \cdots = \alpha_n = 0$, and the list is therefore linearly independent.
+
+\section*{Problem 11}
+Prove or give a counterexample: If $\{v_1, \ldots, v_m\}$ and $\{w_1, \ldots, w_m\}$ are linearly independent lists of vectors in $V$, then the list $\{v_1+w_1, v_2+w_2, \ldots, v_m+w_m\}$ is linearly independent.
+
+\subsection*{Solution: Counterexample}
+Let $m=1$. Let $V = \mathbb{R}^2$. Let $\{v_1\} = \{(1, 0)\}$ and $\{w_1\} = \{(-1, 0)\}$.
+Both lists $\{v_1\}$ and $\{w_1\}$ are linearly independent (since they are single non-zero vectors).
+
+Consider the new list $\{v_1+w_1\}$.
+$$v_1 + w_1 = (1, 0) + (-1, 0) = (0, 0)$$
+Since $v_1+w_1 = 0$, the list $\{v_1+w_1\}$ is linearly dependent (the scalar 1 times the vector is zero).
+
+Alternatively, using the notation from the handwritten image for $m=1$: If we take $v_1 = -w_1$, then $v_1+w_1=0$, which is linearly dependent. The assertion is false.
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear algebra problem book} by Paul R. Halmos (Match: 0.71)\n  \item \textbf{Linear Algebra} by Seymour Lipschutz (Match: 0.69)\n  \item \textbf{Groups, Matrices, and Vector Spaces} by James B. Carrell (Match: 0.69)\n\end{itemize}\n
+\end{document}

@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb}
+\begin{document}
+
+\section*{Column-Row Factorization}
+
+Suppose $A$ is an $m \times n$ matrix with entries in a field $F$ and column rank $c \ge 1$.
+Then there exist an $m \times c$ matrix $C$ and a $c \times n$ matrix $R$, both with entries in $F$, such that $A = CR$.
+
+\textbf{Proof:}
+
+The list $A_{:,1}, A_{:,2}, \ldots, A_{:,n}$ of columns of $A$ can be reduced thus to a basis of the span of the columns of $A$.
+This basis has the length $c$.
+The $c$ columns in this basis can be put together to form an $m \times c$ matrix $C$.
+If $k \in \{1, \ldots, n\}$, then column $k$ of $A$ is a linear combination of the columns of $C$. Make the coefficients of this linear combination the $k$-th column of an $c \times n$ matrix that we call $R$. Then $A = CR$.
+
+Suppose $A \in F^{m \times n}$. Then the column rank of $A$ equals the row rank of $A$.
+
+\textbf{Proof:}
+Let $c$ denote the column rank of $A$. Let $A = CR$ be the column-row factorization of $A$.
+Then every row of $A$ is then a linear combination of the rows of $R$.
+Because $R$ has $c$ rows, this implies that the row rank of $A$ is less or equal to the column rank $c$ of $A$.
+To prove the inequality in the other direction, apply the result in the previous paragraph to $A^T$, getting:
+$$\text{column rank of } A = \text{row rank of } A^T$$ 
+$$\le \text{column rank of } A^T$$ 
+$$\le \text{row rank of } A.$$
+Thus the column rank of $A$ equals the row rank of $A$.
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Second Course in Linear Algebra} by Stephan Ramon Garcia, Roger A. Horn (Match: 0.69)\n  \item \textbf{Groups, Matrices, and Vector Spaces} by James B. Carrell (Match: 0.68)\n  \item \textbf{Prüfungstraining Lineare Algebra : Band I} by Thomas C. T. Michaels (Match: 0.68)\n\end{itemize}\n
+\end{document}

@@ -1,0 +1,45 @@
+\documentclass{article}
+\usepackage{amsmath}
+
+\begin{document}
+
+\section*{Bounded Sets}
+
+Let $Y \subseteq X$, where $X$ is a metric space with metric function $d$.
+
+$Y$ is called bounded in $X$ if
+\begin{equation*}
+  \exists M > 0 : d(x, y) \leq M \text{ for all } x, y \in Y.
+\end{equation*}
+
+The diameter of $Y$, denoted $\text{diam}(Y)$, is defined as:
+\begin{equation*}
+  \text{diam}(Y) = \sup_{x, y \in Y} d(x, y),
+\end{equation*}
+and is finite.
+
+\textbf{Notes:}
+\begin{enumerate}
+    \item $\forall a \in X \land r > 0 : B(a, r)$ and $\overline{B}(a, r)$ are bounded.
+    \item $Y \subseteq X$ bounded $\Leftrightarrow \exists x_0 \in X \land r > 0 : Y \subseteq B_X(x_0, r)$.
+    \item $Y \subseteq \mathbb{R}$ bounded $\Leftrightarrow \exists M > 0 : |y| \leq M : \forall y \in Y$.
+\end{enumerate}
+
+\section*{Normed Vector Spaces}
+
+Let $E$ be a vector space over $\mathbb{R}$ or $\mathbb{C}$. A function $\| \cdot \| : E \rightarrow \mathbb{R}^+$ is called a norm, if:
+
+\begin{itemize}
+    \item[N1] $\|x\| = 0 \Leftrightarrow x = 0$.
+    \item[N2] $\|\lambda x\| = |\lambda| \|x\|$, $x \in E, \lambda \in \mathbb{R} / \mathbb{C}$.
+    \item[N3] $\|x + y\| \leq \|x\| + \|y\|$, $x, y \in E$.
+\end{itemize}
+
+\textbf{Notes:}
+\begin{enumerate}
+    \item $d: E \times E \rightarrow \mathbb{R}^+$, $(x, y) \mapsto \|x - y\|$ is a metric on $E$.
+    \item The reversed triangle inequality: $\|x - y\| \geq |\|x\| - \|y\||$ holds.
+\end{enumerate}
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Calculus On Normed Vector Spaces} by Rodney Coleman (Match: 0.71)\n  \item \textbf{Lecture Notes} by Topologie - Andreas Kriegl (Match: 0.70)\n  \item \textbf{Basic Analysis III} by James K. Peterson (Match: 0.70)\n\end{itemize}\n
+\end{document}

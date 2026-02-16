@@ -1,0 +1,35 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\title{24.10. Axler}
+\begin{document}
+\section*{24.10. Axler}
+
+\textbf{Lemma:} Suppose that $P, s \in \mathcal{P}(\mathbb{F})$, with $s \neq 0$. Then there exist unique polynomials $q, r \in \mathcal{P}(\mathbb{F})$ such that:
+$$\begin{equation*}
+P = sq + r
+\end{equation*}$$ 
+and $\deg r < \deg s$.
+
+\textbf{Proof:} Let $n = \deg p$ and $m = \deg s$. If $m > n$, take $q=0$ and $r=p$.
+Thus assume $n \geq m$.
+The list $\{1, z, \dots, z^{m-1}\}$ is linearly independent in $\mathcal{P}_n(\mathbb{F})$, also the list $\{1, z, \dots, z^n\}$ is a basis of $\mathcal{P}_n(\mathbb{F})$. Hence, it is a basis of $\mathcal{P}_n(\mathbb{F})$. Because $p \in \mathcal{P}_n(\mathbb{F})$ there exist unique constants $a_0, \dots, a_n \in \mathbb{F}$ such that
+$$p = a_0 + a_1 z + \dots + a_{m-1} z^{m-1} + b_0 s + b_1 z s + \dots + b_{n-m} z^{n-m} s$$
+where the first part is $r$ and the second part is $qs$. (Note: the handwriting suggests a slight reinterpretation of the coefficients $a_i$ and $b_i$ grouping, leading to the structure below based on the standard Division Algorithm proof structure where one constructs $r$ and $qs$. Let's follow the visible structure which seems to imply $p$ is written as a sum of two parts.)
+
+Let's re-examine the structure implied by the underlining/grouping in the image:
+$$p = \underbrace{a_0 + a_1 z + \dots + a_{m-1} z^{m-1}}_{\text{This part seems to be part of } r 	ext{ or related}} + \underbrace{b_0 s + b_1 z s + \dots + b_{n-m} z^{n-m} s}_{qs} \quad \text{where } b_i \in \mathbb{F}$$ 
+
+Let $q = b_0 + b_1 z + \dots + b_{n-m} z^{n-m}$. Since $p \in \mathcal{P}_n(\mathbb{F})$ and $s \in \mathcal{P}_m(\mathbb{F})$, then $\deg(qs) \leq (n-m) + m = n$. If we define $r = p - qs$, then $r \in \mathcal{P}_n(\mathbb{F})$.
+
+We need $\deg r < \deg s = m$. If $r \neq 0$, let $k = \deg r$. If $k \geq m$, we could perform another step of division, contradicting minimality/uniqueness.
+
+We are led to find $q, r$ such that $p = sq + r$ and $\deg r < \deg s$. The coefficients $b_0, b_1, \dots, b_{n-m} \in \mathbb{F}$ are determined by comparing leading terms, leading to the uniqueness of $q$ and $r$.
+
+We assert that $p = sq + r$ with $\deg r < \deg s$.
+
+The uniqueness of $q, r \in \mathcal{P}(\mathbb{F})$ follows from the uniqueness of the constants $a_0, a_1, \dots, a_{m-1} \in \mathbb{F}$ and $b_0, b_1, \dots, b_{n-m} \in \mathbb{F}$.
+
+\textbf{Theorem?}: Every nonconstant polynomial with complex coefficients has a zero in $\mathbb{C}$.
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Abstract Algebra} by Paul B. Garrett (Match: 0.70)\n  \item \textbf{Algebra Notes from the Underground} by Paolo Aluffi (Match: 0.68)\n  \item \textbf{Abstract Algebra (3rd Ed)} by Dummit & Foote (Match: 0.67)\n\end{itemize}\n
+\end{document}

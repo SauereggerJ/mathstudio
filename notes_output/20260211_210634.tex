@@ -1,0 +1,55 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb}
+\begin{document}
+
+\title{Eigenvalues \& Eigenvectors 1}
+\author{}
+\date{}
+\maketitle
+
+\noindent\textbf{Def.:} A linear map from a vector space to itself is called an operator.
+
+\noindent\textbf{Def.:} Suppose $T \in \mathcal{L}(V)$. A subspace $U$ of $V$ is called invariant under $T$ if $T(U) \subseteq U$ for all $U \in U$.
+
+\noindent\textbf{Def.:} Suppose $T \in \mathcal{L}(V)$. A number $\lambda \in \mathbb{F}$ is called an eigenvalue of $T$ if there exists $v \in V$ such that $v \neq 0$ and $Tv = \lambda v$. The vector $v$ is called the corresponding eigenvector.
+
+\vspace{0.5cm}
+
+\noindent\textbf{Prop.:} Suppose $V$ is finite-dimensional, $T \in \mathcal{L}(V)$, and $\lambda \in \mathbb{F}$. Then the following are equivalent:
+\begin{enumerate}
+    \item $\lambda$ is an eigenvalue of $T$.
+    \item $T - \lambda I$ is not injective.
+    \item $T - \lambda I$ is not surjective.
+    \item $T - \lambda I$ is not invertible.
+\end{enumerate}
+
+\noindent\textbf{Proof:} (a) and (b) are equivalent because $Tv = \lambda v$ is equivalent to the equation $(T - \lambda I)v = 0$.
+(b), (c), (d) are equivalent because $V$ is finite-dimensional.
+
+\vspace{0.5cm}
+
+\noindent\textbf{Def.:} Suppose $T \in \mathcal{L}(V)$ and $\lambda \in \mathbb{F}$ is an eigenvalue of $T$. A vector $v \in V$ is called an eigenvector of $T$ corresponding to $\lambda$ if $v \neq 0$ and $Tv = \lambda v$.
+
+\vspace{0.5cm}
+
+\noindent\textbf{Prop.:} Suppose $T \in \mathcal{L}(V)$. Then every list of eigenvectors of $T$ corresponding to distinct eigenvalues of $T$ is linearly independent.
+
+\noindent\textbf{Proof:} Assume there exists a linearly dependent list of the given kind, and denote $m$ as the minimal number of such vectors. Thus there exist $a_1, \ldots, a_m$ such that $\sum_{i=1}^{m} a_i v_i = 0$, but none of them $0$ (because of the minimality of $m$). Apply $T - \lambda_m I$ to both sides of the equation $\sum_{i=1}^{m} a_i (Tv_i - I\lambda_m v_i) = \sum_{i=1}^{m} a_i (\lambda_i v_i - \lambda_m v_i) = \sum_{i=1}^{m} a_i v_i (\lambda_i - \lambda_m)$.
+Because the eigenvalues are distinct but $\lambda_k - \lambda_m = 0$ we get $\sum_{i=1}^{m-1} a_i v_i (\lambda_i - \lambda_m)$, hence then $v_1, \ldots, v_{m-1}$ is linearly dependent, in contradiction to the minimality of $m$.
+
+\vspace{0.5cm}
+
+\noindent\textbf{Prop.:} Operators can not have more eigenvalues than the dimension of the vector space:
+Suppose $V$ is finite dimensional. Then each operator on $V$ has at most $\dim V$ distinct eigenvalues.
+
+\noindent\textbf{Proof:} Let $T \in \mathcal{L}(V)$. Suppose $\lambda_1, \ldots, \lambda_m$ are distinct eigenvalues of $T$. Let $v_1, \ldots, v_m$ be corresponding eigenvectors. Then the proposition above implies $v_1, \ldots, v_m$ are linearly independent and this implies $m \leq \dim V$.
+
+\vspace{0.5cm}
+
+\noindent\textbf{Prop.:} Suppose $T \in \mathcal{L}(V)$ and $p \in \mathbb{P}(\mathbb{F})$. Then $\text{null}(p(T))$ and $\text{range}(p(T))$ are invariant under $T$.
+
+\noindent\textbf{Proof:} Suppose $v \in \text{null}(p(T))$. Then $p(T)v = 0$. Thus $(p(T))(Tv) = T(p(T)v) = T(0) = 0$.
+Suppose $v \in \text{range}(p(T))$. Then there exists $w \in V$ such that $v = p(T)w$. Thus $Tv = T(p(T)w) = p(T)(Tw)$.
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Lineare Algebra 1} by Menny-Akka (Match: 0.74)\n  \item \textbf{Linear algebra problem book} by Paul R. Halmos (Match: 0.73)\n  \item \textbf{Linear Algebra} by Meckes & Meckes (Match: 0.73)\n\end{itemize}\n
+\end{document}

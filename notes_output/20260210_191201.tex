@@ -1,0 +1,50 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\begin{document}
+
+\section*{Series 3}
+
+The geometric series $\sum_{k=0}^{\infty} a^k$ where $a \in \mathbb{K}$ converges for $|a|<1$ to $\frac{1}{1-a}$.
+
+\textbf{Proof:}
+
+\begin{enumerate}
+    \item \textbf{Lemma:} The sequence $a^n$ converges for $|a|<1$ to $0$.
+    \begin{proof}
+        If $a^n$ converges, it converges to $0$ or $a=1$, because $\lim_{n\to\infty} a^n = \lim_{n\to\infty} a^{n+1} = a \cdot \lim_{n\to\infty} a^n$.
+        Because $|a|<1$: $|a^{n+1}| < |a^n|$ and so $|a^n|$ is monotonically decreasing. Because $|a^n|$ is also bounded, it converges to its infimum: $\lim_{n\to\infty} |a^n| \to 0$. But this yields $a^n \to 0$.
+    \end{proof}
+    
+    \item \textbf{Lemma:} $\sum_{k=0}^{n} a^k = \frac{1-a^{n+1}}{1-a}$.
+    \begin{proof}
+        $(1-a) \sum_{k=0}^{n} a^k = \sum_{k=0}^{n} a^k - \sum_{k=0}^{n} a^{k+1} = 1-a^{n+1}$.
+    \end{proof}
+    
+    So $s_n = \sum_{k=0}^{n} a^k = \frac{1-a^{n+1}}{1-a}$ if $|a|<1$: $\lim_{n\to\infty} \frac{1-a^{n+1}}{1-a} = \frac{1}{1-a}$.
+\end{enumerate}
+
+\textbf{Theorem (Root Test):} Let $\sum x_k$ be a series in $\mathbb{E}$ and $\alpha := \lim_{k\to\infty} \sqrt[k]{|x_k|}$.
+
+Then following holds:
+\begin{enumerate}
+    \setcounter{enumi}{2}
+    \item $\sum x_k$ converges absolutely if $\alpha < 1$.
+    \item $\sum x_k$ diverges if $\alpha > 1$.
+    \item $\sum x_k$ converges or diverges if $\alpha = 1$ (both cases exist).
+\end{enumerate}
+
+\textbf{Proof:}
+\begin{enumerate}
+    \setcounter{enumi}{0}
+    \item If $\alpha < 1$, then the intervall $(\alpha, 1)$ is not empty and we can choose some $q \in (\alpha, 1)$. $\alpha$ is the greatest cluster point of the sequence $(\sqrt[k]{|x_k|})$. Hence there is some $K$ such that $\sqrt[k]{|x_k|} < q$ for all $k \ge K$, that is, for all $k \ge K$ we have $|x_k| < q^k$. Therefore the geometric series $\sum q^k$ is a convergent majorant for $\sum x_k$, and $\sum x_k$ converges absolutely.
+    
+    \item If $\alpha > 1$, then there are infinitely many $k \in \mathbb{N}$ such that $\sqrt[k]{|x_k|} \ge 1$. Thus $|x_k| \ge 1$ for infinitely many $k \in \mathbb{N}$. In particular, $(x_k)$ is not a null sequence and the series $\sum x_k$ diverges.
+    
+    \item As example: $\sum x_k$ with $x_k := (-\frac{1}{k})^{k+1}/k$, for this series we have:
+    $$\sqrt[k]{|x_k|} = \sqrt[k]{\frac{1}{k}} = \frac{1}{\sqrt[k]{k}} \to 1 \quad (k\to\infty).$$ 
+    Thus $\alpha = \limsup_{k\to\infty} \sqrt[k]{|x_k|} = 1$. This series converges by the Leibniz criterion but $\sum |x_k|$ diverges and $\alpha=1$ still.
+\end{enumerate}
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Analysis I} by H. Amann (Match: 0.69)\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.68)\n  \item \textbf{Analysis I Script} by ETH (Match: 0.67)\n\end{itemize}\n
+\end{document}

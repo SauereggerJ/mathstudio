@@ -1,0 +1,37 @@
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+Sei $f(x)$ eine auf einem gegebenen Intervall $I$ definierte reelle Funktion.
+Falls $f(x)$ konvex ist gilt $f'(x)$ ist wachsend, entsprechendes f\"ur konkav und fallend.
+
+\textbf{Beweis:}
+
+Sei $a, b \in I$ mit $a < b$, so gilt es eine Folge $x_n \to a$ und eine Folge $y_n \to b$
+in $I$ so dass $a \le x_n < x_0 < y_0 < y_n \le b$ dann gilt
+
+$$\frac{f(x_n)-f(a)}{x_n-a} < \frac{f(x_0)-f(a)}{x_0-a} < \frac{f(y_0)-f(x_0)}{y_0-x_0} < \frac{f(y_n)-f(y_0)}{y_n-y_0} < \frac{f(y_n)-f(b)}{y_n-b}$$
+
+Durch $n \to \infty$ erh\"alt man
+
+$$f'(a) < \frac{f(x_0)-f(a)}{x_0-a} < \frac{f(y_0)-f(x_0)}{y_0-x_0} \le f'(b)$$
+
+also ist $f$ in $I$ streng monoton wachsend.
+
+Die Umkehrung dieser Aussage ist auch richtig.
+
+\textbf{Beweis:}
+Es seien $a, x, b \in I$ mit $a < x < b$. Mit dem Mittelwertsatz gilt es dann
+ein $\xi \in (a, x)$ und ein $\eta \in (x, b)$ mit:
+
+$$\frac{f(x)-f(a)}{x-a} = f'(\xi) \quad \text{und} \quad \frac{f(b)-f(x)}{b-x} = f'(\eta).$$
+
+also mit der strengen Monotonie von $f'$ gilt:
+$$\frac{f(x)-f(a)}{x-a} < \frac{f(b)-f(x)}{b-x} \quad \text{und}$$ 
+
+somit ist $f$ konvex.
+
+$0,3$ ist schon sehr fein, also gut zum klein schreiben.
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Tutorium Analysis 1 und Lineare Algebra 1} by Florian Modler, Martin Kreh (Match: 0.67)\n  \item \textbf{Grundkurs Analysis 2} by Klaus Fritzsche (Match: 0.67)\n  \item \textbf{Analysis I} by H. Amann (Match: 0.67)\n\end{itemize}\n
+\end{document}

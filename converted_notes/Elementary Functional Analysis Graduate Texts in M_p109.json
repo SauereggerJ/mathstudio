@@ -1,0 +1,44 @@
+{
+  "title": "Note from Elementary Functional Analysis Graduate Texts in Mathematics (p. 109)",
+  "original_filename": "Elementary Functional Analysis Graduate Texts in M_p109",
+  "created": "2026-02-16 14:16",
+  "tags": [
+    "auto-note",
+    "Elementary Functional Analysis Graduate Texts in Mathematics"
+  ],
+  "recommendations": [
+    {
+      "id": 472,
+      "title": "A Companion to Analysis",
+      "author": "Thomas W. Koerner",
+      "score": 0.8
+    },
+    {
+      "id": 837,
+      "title": "Ultrafilters Throughout Mathematics",
+      "author": "Isaac Goldbring",
+      "score": 0.8
+    },
+    {
+      "id": 652,
+      "title": "Complex Made Simple",
+      "author": "David C. Ullrich",
+      "score": 0.8
+    },
+    {
+      "id": 356,
+      "title": "A First Course in Sobolev Spaces",
+      "author": "Giovanni Leoni",
+      "score": 0.8
+    },
+    {
+      "id": 338,
+      "title": "Basic Analysis IV",
+      "author": "James K. Peterson",
+      "score": 0.8
+    }
+  ],
+  "pages": [
+    109
+  ]
+}

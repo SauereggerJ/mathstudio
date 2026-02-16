@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{Continuity of Power Series and Composition}
+\maketitle
+\section*{1.7. Proposition:}
+Let \(\alpha = \sum_{k=0}^{\infty} a_k x^k\) be a power series with positive radius of convergence \(\rho a\). Then the function \(\alpha\) represented by \(\alpha\) is continuous on ${\mathbb{R}} / B_{\rho}$.
+
+\textbf{Proof:} Let \(x_0 \in \mathbb{R} B_{\rho}\), \(\varepsilon > 0\), and assume \(|x_0| < \rho\). The series $\sum_{k=0}^{\infty} a_k x^k$ converges. \newline Therefore exists a \(K \in \mathbb{N}\), such that $\sum_{k=K+1}^{\infty} |a_k| \rho^k < \frac{\varepsilon}{4}$, thus for \(|x| \leq r\), we have
+$$
+|\alpha(x) - \alpha(x_0)| \leq \left|\sum_{k=0}^{K} a_k x^k - \sum_{k=0}^{K} a_k x_0^k\right| + \sum_{k=K+1}^{\infty} |a_k| |x|^k + \sum_{k=K+1}^{\infty} |a_k| |x_0|^k \leq \dots
+$$
+$$
+|\rho(x) - \rho(x_0)| + \frac{\varepsilon}{2} \quad \text{with } \rho(x) := \sum_{k=0}^{K} a_k x^k \text{ and} 
+$$
+because \(\rho(x)\) is a polynomial it is continuous and there is some \(\delta \in (0, \rho - |x_0|)\) such that \(|\rho(x) - \rho(x_0)| < \frac{\varepsilon}{2}\), \(|x - x_0| < \delta\). Therefore we have:
+$$|\alpha(x) - \alpha(x_0)| < \varepsilon \quad \text{for all } |x - x_0| < \delta.$$ Since \(B(x_0, \delta) \subseteq \mathbb{R} B_{\rho}\) we have proved the claim. \hfill $\blacksquare$
+
+\section*{1.8. Theorem:}
+Let \(X, Y\) and \(Z\) be metric spaces. Suppose that \(f: X \to Y\) is continuous at \(x \in X\) and \(g: Y \to Z\) is continuous at \(f(x) \in Y\). Then the composition \(g \circ f: X \to Z\) is continuous at \(x\).
+
+\textbf{Proof:} Let \(U_z\) be a neighborhood of an element of \(Z\) with \(g(y) = z\), then there exists a neighborhood in \(Y\), \(U_y\) around \(y\) with \(g(U_y) \subset U_z\).
+For this \(U_y\) with \(y = f(x)\) exists a neighborhood of \(x\), \(U_x\) with \(f(U_x) \subset U_y\).
+Therefore: \(g \circ f(U_x) \subset U_z\).
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Analysis I} by H. Amann (Match: 0.71)\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.70)\n  \item \textbf{Analysis 1} by Alessio Figalli (Match: 0.70)\n\end{itemize}\n
+\end{document}

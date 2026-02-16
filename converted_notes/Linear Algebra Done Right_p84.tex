@@ -1,0 +1,56 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\begin{document}
+
+64 Chapter 3 Linear Maps
+
+The next result shows that no linear map from a finite-dimensional vector
+space to a “bigger” vector space can be surjective, where “bigger” is measured by
+dimension.
+
+3.24 linear map to a higher-dimensional space is not surjective
+Suppose $V$ and $W$ are finite-dimensional vector spaces such that
+$\text{dim } V < \text{dim } W$. Then no linear map from $V$ to $W$ is surjective.
+
+Proof Let $T \in \mathcal{L}(V, W)$. Then
+$\text{dim range } T = \text{dim } V - \text{dim null } T$
+$\leq \text{dim } V$
+$< \text{dim } W$,
+where the equality above comes from the fundamental theorem of linear maps
+(3.21). The inequality above states that $\text{dim range } T < \text{dim } W$. This means that
+$\text{range } T$ cannot equal $W$. Thus $T$ is not surjective.
+
+As we will soon see, 3.22 and 3.24 have important consequences in the theory
+of linear equations. The idea is to express questions about systems of linear
+equations in terms of linear maps. Let’s begin by rephrasing in terms of linear
+maps the question of whether a homogeneous system of linear equations has a
+nonzero solution.
+
+Homogeneous, in this context, means
+that the constant term on the right side
+of each equation below is 0.
+
+Fix positive integers $m$ and $n$, and let
+$A_{j, k} \in \mathbb{F}$ for $j = 1 , …, m$ and $k = 1 , …, n$.
+Consider the homogeneous system of lin-\near equations
+$$\sum_{k = 1}^{n} A_{1, k} x_k = 0$$
+$$\vdots$$
+$$\sum_{k = 1}^{n} A_{m, k} x_k = 0.$$
+Clearly $x_1 = \cdots = x_n = 0$ is a solution of the system of equations above; the
+question here is whether any other solutions exist.
+
+Define $T\colon \mathbb{F}^n \to \mathbb{F}^m$ by
+3.25 $T(x_1, …, x_n) = (\sum_{k = 1}^{n} A_{1, k} x_k, …, \sum_{k = 1}^{n} A_{m, k} x_k)$.
+
+The equation $T(x_1, …, x_n) = 0$ (the 0 here is the additive identity in $\mathbb{F}^m$, namely,
+the list of length $m$ of all 0’s) is the same as the homogeneous system of linear
+equations above.
+
+Thus we want to know if $\text{null } T$ is strictly bigger than $\{0\}$, which is equivalent
+to $T$ not being injective (by 3.15). The next result gives an important condition
+for ensuring that $T$ is not injective.
+
+\end{document}

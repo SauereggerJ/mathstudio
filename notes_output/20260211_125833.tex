@@ -1,0 +1,37 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\title{Boundary of a Set in $(M,d)$}
+\author{}
+\date{}
+\begin{document}
+\maketitle
+
+\section*{Boundary of a Set in $(M,d)$}
+
+\noindent\textbf{Definition:} For a given set $A \subset M$, the boundary of $A$ is
+$$\partial A = \overline{A} \cap \overline{\left(A^c\right)}$$
+(Interpreting $\text{cl}(A)$ as $\overline{A}$)
+
+\vspace{0.5cm}
+\noindent\textbf{Examples:}
+$$\partial M = \emptyset, \quad \partial \mathbb{Z} = \emptyset, \quad \partial \mathbb{Q} = \mathbb{R}$$
+
+\vspace{0.5cm}
+\noindent\textbf{Lemma 1:} $x \in \partial A \iff \forall \varepsilon > 0, B_{\varepsilon}(x) \cap A \neq \emptyset \text{ and } B_{\varepsilon}(x) \cap A^c \neq \emptyset$.
+
+\noindent\textbf{Proof (for $\Rightarrow$):}
+$$x \in \partial A \iff x \in \overline{A} \text{ and } x \in \overline{\left(A^c\right)}$$
+Since $x \in \overline{A}$ means that for every $\varepsilon > 0$, $B_{\varepsilon}(x) \cap A \neq \emptyset$, and $x \in \overline{\left(A^c\right)}$ means that for every $\varepsilon > 0$, $B_{\varepsilon}(x) \cap A^c \neq \emptyset$.
+
+\vspace{0.5cm}
+\noindent\textbf{Lemma 2:} $\partial A = \overline{A} \setminus \text{int}(A) = \overline{A} \cap (\text{int}(A))^c$.
+
+\noindent\textbf{Proof (for $\Leftarrow$ direction of showing $\overline{A} \cap (\text{int}(A))^c$):}
+We use the fact that $(\text{int}(A))^c = \overline{\left(A^c\right)}$ because
+$$x \in (\text{int}(A))^c \iff x \notin \text{int}(A)$$
+$$\iff \forall \varepsilon > 0: B_{\varepsilon}(x) \cap A^c \neq \emptyset$$
+$$\iff x \in \overline{A^c}$$
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.67)\n  \item \textbf{Measure Theory and Fine Properties of Functions} by Gariepy & Evans (Match: 0.66)\n  \item \textbf{Real Analysis} by Patrick Fitzpatrick (Match: 0.66)\n\end{itemize}\n
+\end{document}

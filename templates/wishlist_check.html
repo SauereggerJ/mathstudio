@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Wishlist Checker - Math Studio{% endblock %}
+
+{% block content %}
+<div style="display: flex; gap: 2rem; height: calc(100vh - 100px);">
+    <!-- Left Panel: Input -->
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        <h2 style="margin-top: 0;">📚 Wishlist Checker</h2>
+        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
+            Paste your book list below (one title/author per line).
+            The system will check which ones are already in your library.
+        </p>
+
+        <textarea id="bookList" placeholder="Example:
+Paul Halmos - Finite Dimensional Vector Spaces
+Topology by Munkres
+Rudin Real and Complex Analysis"
+            style="flex: 1; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; font-family: monospace; resize: none; margin-bottom: 1rem;"></textarea>
+
+        <button onclick="checkWishlist()" id="checkBtn"
+            style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <i class="fas fa-search"></i> Analyze List
+        </button>
+    </div>
+
+    <!-- Right Panel: Results -->
+    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <h2 style="margin-top: 0;">Analysis Result</h2>
+
+        <!-- Stats Bar -->
+        <div id="statsBar" style="display: flex; gap: 1rem; margin-bottom: 1rem; display: none;">
+            <div style="background: #dcfce7; color: #166534; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem;">
+                ✅ Found: <span id="countFound" style="font-weight: bold;">0</span>
+            </div>
+            <div style="background: #fee2e2; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem;">
+                ❌ Missing: <span id="countMissing" style="font-weight: bold;">0</span>
+            </div>
+        </div>
+
+        <div id="resultsArea" style="flex: 1; overflow-y: auto; padding-right: 5px; display: none;">
+
+            <!-- Missing Section -->
+            <div style="margin-bottom: 2rem;">
+                <h3
+                    style="color: #ef4444; font-size: 1.1rem; border-bottom: 2px solid #fee2e2; padding-bottom: 0.5rem;">
+                    Possibly Missing
+                </h3>
+                <ul id="listMissing" style="list-style: none; padding: 0;">
+                    <!-- Items go here -->
+                </ul>
+                <button onclick="copyMissing()" class="btn-small" style="margin-top: 0.5rem; font-size: 0.8rem;">
+                    <i class="fas fa-copy"></i> Copy Missing List
+                </button>
+            </div>
+
+            <!-- Found Section -->
+            <div>
+                <h3
+                    style="color: #22c55e; font-size: 1.1rem; border-bottom: 2px solid #dcfce7; padding-bottom: 0.5rem;">
+                    Already in Library
+                </h3>
+                <ul id="listFound" style="list-style: none; padding: 0;">
+                    <!-- Items go here -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" style="display: none; flex: 1; align-items: center; justify-content: center; color: #64748b;">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p style="margin-top: 1rem;">Checking library...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState"
+            style="flex: 1; display: flex; align-items: center; justify-content: center; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 8px;">
+            Input a list to see results
+        </div>
+    </div>
+</div>
+
+<script>
+    async function checkWishlist() {
+        const text = document.getElementById('bookList').value;
+        if (!text.trim()) return;
+
+        const btn = document.getElementById('checkBtn');
+        const loading = document.getElementById('loading');
+        const resultsArea = document.getElementById('resultsArea');
+        const emptyState = document.getElementById('emptyState');
+        const statsBar = document.getElementById('statsBar');
+
+        // UI Reset
+        btn.disabled = true;
+        loading.style.display = 'flex';
+        resultsArea.style.display = 'none';
+        emptyState.style.display = 'none';
+        statsBar.style.display = 'none';
+
+        document.getElementById('listFound').innerHTML = '';
+        document.getElementById('listMissing').innerHTML = '';
+
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        try {
+            const response = await fetch('/api/v1/tools/check-wishlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lines: lines })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert("Server Error: " + data.error);
+                emptyState.style.display = 'flex';
+                emptyState.innerHTML = `<span style="color:red">Error: ${data.error}</span>`;
+                return;
+            }
+
+            if (!data.found || !data.missing) {
+                alert("Invalid server response format.");
+                return;
+            }
+
+            // Render Found
+            const foundList = document.getElementById('listFound');
+            data.found.forEach(item => {
+                const li = document.createElement('li');
+                li.style.cssText = "padding: 8px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;";
+                li.innerHTML = `
+                <div>
+                    <a href="/book/${item.id}" target="_blank" style="color: #0f172a; text-decoration: none; font-weight: 500; hover: text-decoration: underline;">
+                        ${item.title}
+                    </a>
+                    <div style="font-size: 0.8rem; color: #64748b;">${item.author}</div>
+                </div>
+                <span style="font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">Match: ${Math.round(item.score * 100)}%</span>
+            `;
+                foundList.appendChild(li);
+            });
+
+            // Render Missing
+            const missingList = document.getElementById('listMissing');
+            data.missing.forEach(line => {
+                const li = document.createElement('li');
+                li.style.cssText = "padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;";
+                li.textContent = line;
+                missingList.appendChild(li);
+            });
+
+            // Update Stats
+            document.getElementById('countFound').textContent = data.found.length;
+            document.getElementById('countMissing').textContent = data.missing.length;
+
+            statsBar.style.display = 'flex';
+            resultsArea.style.display = 'block';
+
+        } catch (e) {
+            alert("Error checking wishlist: " + e);
+            emptyState.style.display = 'flex';
+            emptyState.textContent = "Error occurred.";
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    }
+
+    function copyMissing() {
+        const list = document.getElementById('listMissing');
+        // Extract text content from li elements
+        const text = Array.from(list.children).map(li => li.textContent).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Copied missing books to clipboard!");
+        });
+    }
+</script>
+
+<style>
+    .btn-small {
+        background: white;
+        border: 1px solid #cbd5e1;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #475569;
+    }
+
+    .btn-small:hover {
+        background: #f8fafc;
+    }
+</style>
+{% endblock %}

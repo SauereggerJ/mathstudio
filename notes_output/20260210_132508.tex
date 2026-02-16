@@ -1,0 +1,29 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+
+\begin{document}
+
+\section*{Inner Product Spaces}
+
+Let $E$ be a vector space over $\mathbb{R}$ or $\mathbb{C}$. A function $(\cdot | \cdot) : E \times E \to \mathbb{R} \setminus \mathbb{C}$ is called a scalar product or inner product on $E$ if:
+\begin{itemize}
+    \item[SP1] $(x|y) = \overline{(y|x)}$
+    \item[SP2] $(\lambda x + \mu y | z) = \lambda (x|z) + \mu (y|z)$
+    \item[SP3] $(x|x) \geq 0$ and $(x|x) = 0 \Leftrightarrow x = 0$
+\end{itemize}
+
+Notes:
+\begin{enumerate}
+    
+    \item Cauchy-Schwarz Inequality: $|(x|y)|^2 \leq (x|x)(y|y)$
+    \item $||x|| := \sqrt{(x|x)}$ is a norm on $E$, the norm induced from the scalar product $(\cdot | \cdot)$.
+    \item $|(x,y)| \leq ||x|| ||y||$
+    \item $2(||x||^2 + ||y||^2) = ||x+y||^2 + ||x-y||^2$, $x, y \in E$
+    \item $(x \pm y | x \pm y) = (x|x) \pm \text{Re}(x|y) + (y,y)$
+\end{enumerate}
+
+Two elements in an inner product space are called orthogonal if $(x|y) = 0$. A subset $M \subseteq E$ is called an orthogonal system if $(x|y) = 0$ for all $x, y \in M$ with $x \neq y$. An orthogonal system is called orthonormal if $||x|| = 1$ for all $x \in M$.
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear Algebra} by Seymour Lipschutz (Match: 0.69)\n  \item \textbf{Introduction to Real Analysis} by Christopher Heil (Match: 0.69)\n  \item \textbf{Real Analysis} by Patrick Fitzpatrick (Match: 0.69)\n\end{itemize}\n
+\end{document}

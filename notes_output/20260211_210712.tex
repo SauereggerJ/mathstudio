@@ -1,0 +1,43 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\title{Eigenvalues and Eigenvectors}
+\author{}
+\date{}
+\begin{document}
+\section*{Eigenvalues and Eigenvectors}
+
+\noindent\textbf{Theorem:} Every operator on a finite-dimensional nonzero complex vector space has an eigenvalue.
+
+\noindent\textbf{Proof:} Suppose $V$ is a finite-dimensional complex vector space of dimension $n>0$ and $T \in \mathcal{L}(V)$.
+Choose $v+0 \in V$, then the list $\{v, Tv, \dots, T^n v\}$ because the dimension of $V$ is $n$ is linearly dependent: $v, Tv, \dots, T^n v$
+There exists $k \in \{1, \dots, n\}$ such that $T^k v$ is a linear combination of $\{v, Tv, \dots, T^{k-1} v\}$. Since $\dim(V)=n$, the list $\{v, Tv, \dots, T^n v\}$ is linearly dependent, and the length of this list is $n+1$, and the dimension of $V$ is $n$.
+Therefore,
+$$\sum_{k=0}^{n} a_k T^k v = 0 \quad \text{with some } a_k \neq 0.$$
+This defines a polynomial $p(T)$ with $p(T)v = 0$, if there are more possible $p(t)$ we choose the one with the smallest degree.
+Because of the fundamental theorem of algebra there exists $\lambda \in \mathbb{C}$ with $p(\lambda)=0$, and so we can write $p(z) = (z-\lambda)q(z)$,
+and $p(T)v = (T - \lambda I) \cdot q(T)v = 0$, but because $q(T)$ is of smaller degree
+as $p(T)$, $q(T)v \neq 0$ and so $(T - \lambda I)q(T)v = 0$. This implies $x$ is an
+eigenvalue and $q(T)v$ is the associated eigenvector. $q(T)v$ is an eigenvector.
+
+\noindent\textbf{Theorem:} For every $T \in \mathcal{L}(V)$ of a finite dimensional vector space yields a unique monic polynomial $p$ with smallest degree and $p(T)=0$ and $\dim V \ge \text{degree } p$.
+
+\noindent\textbf{Proof:} Suppose $\dim(V)=n$. We prove the theorem through induction over the dimension of $V$.
+1) $n=0$: because for $\dim V=0$, $I$ is the null operator, we have $p=I$.
+2) We now take on the case of $\dim V>0$ and know therefore that for every vector space not with dimension smaller than $V$ and for every operator defined on them the theorem holds.
+Let's start with a vector $v \in V$, $v \neq 0$ and define the list $v, Tv, \dots, T^n v$. This
+list is linearly dependent and with the linear dependence lemma we find
+a $m \le n$ such that $\alpha_0 v + \alpha_1 Tv + \dots + \alpha_{m-1} T^{m-1} v + \alpha_m T^m v = T^m v$ and
+so with $p(z) = z^m + \alpha_{m-1} z^{m-1} + \dots + \alpha_0$ we have a polynomial of degree $m \le \dim V$
+with $p(T)(v) = 0$. Observe that for all $k \in \mathbb{N}$ we have
+$$p(T^k(v)) = T^k(p(v)) = T^k(0) = 0$$
+and that the list $\{v, \dots, T^{m-1}v\}$ is linearly independent, this means
+$\dim \text{null}(p(T)) \ge m$ and therefore $\text{range}(p(T)) \le n-m$. Because
+$\text{range}(p(T))$ is invariant under $T$, we can define an operator $T|_{\text{range}(p(T))}$
+on the subspace $\text{range}(p(T))$. Because of $\text{range}(p(T)) = \dim V - \dim(\text{null}(p(T)) \le n-m$
+we can use the induction hypothesis and have a polynomial $s(t)$ with degree $s \le n-m$ and $s(T) = 0$ for all $v \in \text{range}(p(T))$.
+When we now define $q(z) = s(p(z))$ we have $s \cdot p(T)(v) = s(T) \cdot p(T)(v) = 0$
+Thus $sp$ is a monic polynomial with degree smaller than or equal then $n$ and
+$sp(T)=0$, this proves the existence of the polynomial.
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear Algebra Done Right} by Sheldon Axler (Match: 0.73)\n  \item \textbf{Linear Algebra} by Meckes & Meckes (Match: 0.72)\n  \item \textbf{Lineare Algebra 1} by Menny-Akka (Match: 0.72)\n\end{itemize}\n
+\end{document}

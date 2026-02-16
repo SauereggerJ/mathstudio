@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        .match-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 2rem;
+        }
+
+        .match-item {
+            background: white;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--primary-color);
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            font-family: serif;
+            line-height: 1.6;
+        }
+
+        .match-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .match-page {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #3730a3;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: sans-serif;
+            margin-right: 0.5rem;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+
+        .details-header {
+            margin-bottom: 3rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="/" class="btn btn-secondary" style="margin-bottom: 2rem; display: inline-block;">&larr; Back to
+            Search</a>
+
+        <div class="details-header" style="display: flex; gap: 2rem; align-items: flex-start;">
+            <div style="flex-grow: 1;">
+                <h1>{{ title }}</h1>
+                <h2 style="color: var(--text-muted); font-weight: 400;">{{ author }}</h2>
+                <div class="book-meta">
+                    {% if year %}<span class="meta-tag">{{ year }}</span>{% endif %}
+                    {% if publisher %}<span class="meta-tag">{{ publisher }}</span>{% endif %}
+                    {% if isbn %}<span class="meta-tag">ISBN: {{ isbn }}</span>{% endif %}
+                </div>
+
+                {% if summary %}
+                <div
+                    style="margin-top: 1.5rem; background: #f3f4f6; padding: 1rem; border-radius: 6px; border-left: 4px solid #3b82f6;">
+                    <h4 style="margin-top: 0; color: #1f2937;">Summary</h4>
+                    <p style="margin: 0; color: #4b5563; line-height: 1.6;">{{ summary }}</p>
+                </div>
+                {% endif %}
+
+                <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    {% if level %}
+                    <span class="meta-tag" style="background: #e0f2fe; color: #0369a1;">Level: {{ level }}</span>
+                    {% endif %}
+
+                    {% if msc_code %}
+                    <span class="meta-tag" style="background: #f0fdf4; color: #15803d;">MSC: {{ msc_code }}</span>
+                    {% endif %}
+
+                    {% if exercises and exercises != 'Nein' %}
+                    <span class="meta-tag" style="background: #fff7ed; color: #c2410c;">Exercises: {{ exercises
+                        }}</span>
+                    {% endif %}
+
+                    {% if solutions and solutions != 'N/A' %}
+                    <span class="meta-tag" style="background: #fff7ed; color: #c2410c;">Solutions: {{ solutions
+                        }}</span>
+                    {% endif %}
+
+                    {% if reference_url %}
+                    <a href="{{ reference_url }}" target="_blank" class="meta-tag"
+                        style="background: #f3f4f6; color: #4b5563; text-decoration: none;">External Reference
+                        &nearr;</a>
+                    {% endif %}
+                </div>
+
+                {% if tags %}
+                <div style="margin-top: 0.5rem;">
+                    <span style="font-size: 0.85rem; color: #6b7280; margin-right: 0.5rem;">Tags:</span>
+                    <span style="color: #374151; font-style: italic;">{{ tags }}</span>
+                </div>
+                {% endif %}
+
+                {% if index_matches %}
+                <div
+                    style="margin-top: 1.5rem; background: #fffbeb; padding: 1rem; border-radius: 6px; border-left: 4px solid #f59e0b;">
+                    <h4 style="margin-top: 0; color: #92400e;"><i class="fas fa-list-ol"></i> Index Matches</h4>
+                    <p style="margin: 0; color: #b45309; line-height: 1.6; font-family: monospace;">{{ index_matches }}
+                    </p>
+                </div>
+                {% endif %}
+
+                <div style="margin-top: 1.5rem;">
+
+                    {% if path.lower().endswith('.djvu') %}
+
+                    <a href="/view-pdf/{{ id }}" target="_blank" class="btn btn-primary"
+                        onclick="this.innerHTML='Converting... please wait';">Convert & View PDF</a>
+
+                    {% else %}
+
+                    <a href="/open/{{ path }}" target="_blank" class="btn btn-primary">Open in Browser</a>
+
+                    {% endif %}
+
+                    <a href="/open/{{ path }}" download class="btn btn-secondary">Download</a>
+
+                    <button onclick="openExternal('{{ path }}')" class="btn btn-secondary" id="extBtn">Open Locally
+                        (Host)</button>
+
+                    <button onclick="document.getElementById('fileInput').click()" class="btn btn-secondary" style="background: #059669; color: white; border: none;">📤 Replace File</button>
+<input type="file" id="fileInput" style="display: none;" onchange="replaceFile(this)">
+                    <button onclick="reindexBook()" class="btn btn-secondary" id="reindexBtn"
+                        style="background: #4f46e5; color: white; border: none;">♻️ AI Reindex</button>
+
+                    <button onclick="deleteBook()" class="btn btn-secondary" id="deleteBtn"
+                        style="background: #dc2626; color: white; border: none; margin-left: 0.5rem;">🗑️ Delete Book</button>
+                </div>
+            </div>
+            {% if cover_url %}
+            <div style="flex: 0 0 200px;">
+                <img src="{{ cover_url }}" alt="Cover"
+                    style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+
+                <!-- AI Note Taker Panel -->
+                <div
+                    style="margin-top: 1.5rem; background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #bbf7d0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <h4
+                        style="margin: 0 0 0.8rem 0; color: #15803d; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>✨</span> AI Note Taker
+                    </h4>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="number" id="notePage" placeholder="Page"
+                            style="width: 100%; padding: 6px; border: 1px solid #bbf7d0; border-radius: 4px; font-size: 0.9rem;">
+                        <button onclick="createNote()" id="convertBtn"
+                            style="background: #166534; color: white; padding: 6px 12px; font-size: 0.9rem; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Convert</button>
+                    </div>
+                    <div id="noteStatus" style="font-size: 0.8rem; color: #166534; min-height: 1.2em;"></div>
+
+                    <!-- Result Area (Hidden initially) -->
+                    <div id="noteResult" style="display: none; margin-top: 1rem;">
+                        <textarea id="noteText"
+                            style="width: 100%; height: 150px; font-family: monospace; font-size: 0.8rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical; margin-bottom: 0.5rem;"></textarea>
+                        <button onclick="copyNote()" class="btn btn-secondary"
+                            style="width: 100%; font-size: 0.8rem; padding: 4px;">Copy to Clipboard</button>
+                    </div>
+                </div>
+
+                <!-- Bibliography Hunter Panel -->
+                <div
+                    style="margin-top: 1.5rem; background: #fef3c7; padding: 1rem; border-radius: 8px; border: 1px solid #fcd34d; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <h4
+                        style="margin: 0 0 0.8rem 0; color: #92400e; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>📚</span> Bibliography Hunter
+                    </h4>
+                    <button onclick="scanBibliography()" id="bibScanBtn"
+                        style="width: 100%; background: #b45309; color: white; padding: 8px 12px; font-size: 0.9rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Scan
+                        Bibliography</button>
+                    <div id="bibStatus"
+                        style="font-size: 0.8rem; color: #92400e; min-height: 1.2em; margin-top: 0.5rem;"></div>
+                    <div id="bibResults" style="display: none; margin-top: 1rem;">
+                        <div style="background: white; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.5rem;">
+                            <div
+                                style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: #374151;">
+                                <span>Total: <span id="bibTotal">0</span></span>
+                                <span style="color: #059669;">Owned: <span id="bibOwned">0</span></span>
+                                <span style="color: #dc2626;">Missing: <span id="bibMissing">0</span></span>
+                            </div>
+                        </div>
+                        <details style="background: white; border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem;">
+                            <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #059669;">
+                                Owned Books (<span id="bibOwnedCount">0</span>)</summary>
+                            <div id="bibOwnedList"
+                                style="margin-top: 0.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                            </div>
+                        </details>
+                        <details style="background: white; border-radius: 4px; padding: 0.5rem;">
+                            <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #dc2626;">
+                                Missing Books (<span id="bibMissingCount">0</span>)</summary>
+                            <div id="bibMissingList"
+                                style="margin-top: 0.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div style="margin-bottom: 3rem;">
+            <h3>Page Previews</h3>
+            <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;">
+                {% for i in range(1, 6) %}
+                <div
+                    style="flex: 0 0 auto; width: 150px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; background: #eee;">
+                    <img src="/static/thumbnails/{{ id }}/page_{{ i }}.png"
+                        onerror="this.parentElement.style.display='none'"
+                        style="width: 100%; height: auto; display: block;" alt="Page {{ i }}">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if chapters %}
+        <div style="margin-bottom: 3rem;">
+            <h3>Table of Contents</h3>
+            <div
+                style="background: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; max-height: 500px; overflow-y: auto;">
+                {% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
+                <div
+                    style="margin-left: {{ c_level * 1.5 }}rem; margin-bottom: 0.5rem; border-bottom: 1px dashed #e5e7eb; padding-bottom: 0.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span
+                            style="color: {{ '#111827' if c_level == 0 else '#4b5563' }}; font-weight: {{ '600' if c_level == 0 else '400' }};">
+                            {% if c_page %}
+                            <a href="/open/{{ path }}#page={{ c_page }}" target="_blank"
+                                style="text-decoration: none; color: inherit; hover: text-decoration: underline;">{{
+                                c_title }}</a>
+                            {% else %}
+                            {{ c_title }}
+                            {% endif %}
+                        </span>
+                        {% if c_page %}
+                        <span style="color: var(--text-muted); font-size: 0.85rem;">Page {{ c_page }}</span>
+                        {% endif %}
+                    </div>
+                    {% if c_topics or c_msc %}
+                    <div style="font-size: 0.75rem; color: #6b7280; margin-top: 2px;">
+                        {% if c_msc %}<span
+                            style="background: #f0fdf4; padding: 0 4px; border-radius: 2px; margin-right: 5px; color: #15803d;">{{
+                            c_msc }}</span>{% endif %}
+                        {% if c_topics %}<span style="font-style: italic;">{{ c_topics }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if similar_books %}
+        <div style="margin-bottom: 3rem;">
+            <h3>Similar Books / Same Topic</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+                {% for s_id, s_title, s_author, s_path in similar_books %}
+                <a href="/book/{{ s_id }}" style="text-decoration: none; color: inherit;">
+                    <div class="match-item" style="border-left-color: #10b981; height: 100%; box-sizing: border-box;">
+                        <div class="match-title">{{ s_title }}</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">{{ s_author }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if query %}
+        <h3>Found {{ matches|length }} matches for "{{ query }}":</h3>
+        <ul class="match-list">
+            {% for match in matches %}
+            <li class="match-item">
+                <span class="match-page">Page {{ match.page }}</span> ...{{ match.snippet|safe }}...
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    <script>
+        async function openExternal(path) {
+            try {
+                await fetch(`/api/open-external?path=${encodeURIComponent(path)}`);
+            } catch (e) {
+                console.error("Failed to open external:", e);
+                alert("Failed to open file in external viewer.");
+            }
+        }
+
+        async function createNote() {
+            const pageInput = document.getElementById('notePage');
+            const page = pageInput.value;
+            const statusDiv = document.getElementById('noteStatus');
+            const resultDiv = document.getElementById('noteResult');
+            const noteText = document.getElementById('noteText');
+            const btn = document.getElementById('convertBtn');
+
+            if (!page) {
+                statusDiv.textContent = "Please enter a page number.";
+                statusDiv.style.color = "#ef4444";
+                return;
+            }
+
+            // UI Loading State
+            btn.disabled = true;
+            btn.textContent = "Processing...";
+            statusDiv.textContent = "Extracting & generating markdown...";
+            statusDiv.style.color = "#166534";
+            resultDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/v1/tools/pdf-to-note', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            statusDiv.textContent = "Error: " + data.error;
+            statusDiv.style.color = "#ef4444";
+        } else {
+            statusDiv.textContent = "Success! Note saved.";
+            statusDiv.style.color = "#166534";
+            noteText.value = data.content;
+            resultDiv.style.display = 'block';
+        }
+            } catch (e) {
+            statusDiv.textContent = "Network error occurred.";
+            statusDiv.style.color = "#ef4444";
+            console.error(e);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Convert";
+        }
+        }
+
+        function copyNote() {
+            const noteText = document.getElementById('noteText');
+            noteText.select();
+            document.execCommand('copy');
+            const statusDiv = document.getElementById('noteStatus');
+            statusDiv.textContent = "Copied to clipboard!";
+            setTimeout(() => {
+                statusDiv.textContent = "Success! Note saved.";
+            }, 2000);
+        }
+
+        async function scanBibliography() {
+            const btn = document.getElementById('bibScanBtn');
+            const statusDiv = document.getElementById('bibStatus');
+
+            btn.disabled = true;
+            btn.textContent = "Scanning...";
+            statusDiv.textContent = "Opening results in new window...";
+            statusDiv.style.color = "#92400e";
+
+            try {
+                // Create a form and submit it to open results in new window
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/api/v1/tools/bib-scan';
+                form.target = '_blank';  // Open in new window/tab
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'book_id';
+                input.value = {{ id }};
+
+            form.appendChild(input);
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+
+            statusDiv.textContent = "Results opened in new window";
+            statusDiv.style.color = "#059669";
+
+        } catch (e) {
+            statusDiv.textContent = "Error: " + e.message;
+            statusDiv.style.color = "#dc2626";
+            console.error(e);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Scan Bibliography";
+        }
+        }
+        async function reindexBook() {
+            if (!confirm("Are you sure you want to AI Reindex this book? This will overwrite current metadata.")) return;
+
+            const btn = document.getElementById('reindexBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = "Indexing...";
+
+            try {
+                const response = await fetch('/api/v1/books/{{ id }}/reindex', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ai_care: true })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert("Success: " + data.message);
+                    location.reload();
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (e) {
+                alert("Network Error: " + e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async function deleteBook() {
+            if (!confirm("CRITICAL: Are you sure you want to delete this book? The file will be moved to Archive and all database records (including bookmarks) will be removed. This cannot be easily undone.")) return;
+
+            const btn = document.getElementById('deleteBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = "Deleting...";
+
+            try {
+                const response = await fetch('/api/v1/books/{{ id }}', {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert("Success: " + data.message);
+                    window.location.href = "/"; // Redirect to home
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (e) {
+                alert("Network Error: " + e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async function replaceFile(input) {
+            if (!input.files || input.files.length === 0) return;
+            
+            const file = input.files[0];
+            if (!confirm(`Are you sure you want to replace the current file with "${file.name}"? The system will verify the page count match before proceeding.`)) {
+                input.value = '';
+                return;
+            }
+
+            const btn = document.querySelector('button[onclick*="fileInput"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = "Uploading & Verifying...";
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/v1/books/{{ id }}/replace', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert("Success: " + data.message);
+                    location.reload();
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (e) {
+                alert("Network Error: " + e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                input.value = '';
+            }
+        }
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,303 @@
+{% extends "index.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='notes.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="notes-container">
+    <!-- Page Header -->
+    <div class="flex-between mb-4">
+        <div>
+            <h2 class="page-title">📝 My Math Notes</h2>
+            <p class="page-subtitle">AI-processed mathematical notes from handwritten images</p>
+        </div>
+        <div class="flex flex-gap">
+            <button id="selectAllBtn" class="btn" onclick="toggleSelectAll()">
+                <i class="fas fa-check-square"></i> Select All
+            </button>
+            <button id="deleteSelectedBtn" class="btn" onclick="deleteSelected()" disabled>
+                <i class="fas fa-trash-alt"></i> Delete Selected (<span id="selectedCount">0</span>)
+            </button>
+        </div>
+    </div>
+
+    <!-- Search and Filter Bar -->
+    <div class="search-card">
+        <div class="search-row">
+            <div class="search-col-6">
+                <div class="input-group">
+                    <span class="input-group-icon"><i class="fas fa-search"></i></span>
+                    <input type="text" id="searchInput" class="form-control"
+                        placeholder="Search notes by title or tags..." onkeyup="filterNotes()">
+                </div>
+            </div>
+            <div class="search-col-3">
+                <select id="sortSelect" class="form-select" onchange="sortNotes()">
+                    <option value="date-desc">Newest First</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="title-asc">Title (A-Z)</option>
+                    <option value="title-desc">Title (Z-A)</option>
+                    <option value="size-desc">Largest First</option>
+                    <option value="size-asc">Smallest First</option>
+                </select>
+            </div>
+            <div class="search-col-3">
+                <select id="filterSelect" class="form-select" onchange="filterNotes()">
+                    <option value="all">All Notes</option>
+                    <option value="has-pdf">With PDF</option>
+                    <option value="no-pdf">Without PDF</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes Grid -->
+    <div id="notesGrid" class="notes-grid">
+        <div class="text-center" style="grid-column: 1 / -1; padding: 3rem 0;">
+            <div class="spinner"></div>
+            <p class="text-muted" style="margin-top: 1rem;">Loading notes...</p>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="empty-state" style="display: none;">
+        <i class="fas fa-inbox"></i>
+        <h4>No notes found</h4>
+        <p>Upload images to <code>MathNotes/Input</code> on Google Drive to get started.</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allNotes = [];
+    let selectedNotes = new Set();
+
+    // Load notes on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        loadNotes();
+    });
+
+    async function loadNotes() {
+        try {
+            const response = await fetch('/api/notes/metadata');
+            allNotes = await response.json();
+            renderNotes(allNotes);
+        } catch (error) {
+            console.error('Error loading notes:', error);
+            document.getElementById('notesGrid').innerHTML = `
+            <div class="text-center" style="grid-column: 1 / -1; padding: 3rem 0;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #666; margin-bottom: 1rem;"></i>
+                <h4 style="color: #666;">Error loading notes</h4>
+                <p class="text-muted">${error.message}</p>
+            </div>
+        `;
+        }
+    }
+
+    function renderNotes(notes) {
+        const grid = document.getElementById('notesGrid');
+        const emptyState = document.getElementById('emptyState');
+
+        if (notes.length === 0) {
+            grid.style.display = 'none';
+            emptyState.style.display = 'block';
+            return;
+        }
+
+        grid.style.display = 'grid';
+        emptyState.style.display = 'none';
+
+        grid.innerHTML = notes.map(note => `
+        <div class="note-item" data-filename="${note.filename}" data-title="${note.title.toLowerCase()}" data-tags="${(note.tags || []).join(' ').toLowerCase()}" data-has-pdf="${note.has_pdf}">
+            <div class="note-card ${selectedNotes.has(note.filename) ? 'selected' : ''}">
+                <input type="checkbox" class="note-checkbox form-check-input" 
+                       onchange="toggleNoteSelection('${note.filename}')"
+                       ${selectedNotes.has(note.filename) ? 'checked' : ''}>
+                
+                <div class="note-header">
+                    <h3 class="note-title">${escapeHtml(note.title)}</h3>
+                </div>
+                
+                <div class="note-body">
+                    <div class="note-meta">
+                        <span class="note-meta-item">
+                            <i class="far fa-calendar"></i>
+                            ${note.created || formatDate(note.modified)}
+                        </span>
+                        <span class="note-meta-item">
+                            <i class="far fa-file"></i>
+                            ${formatFileSize(note.size)}
+                        </span>
+                        ${note.has_pdf ? '<span class="badge-pdf"><i class="fas fa-file-pdf"></i> PDF</span>' : '<span class="badge-no-pdf">No PDF</span>'}
+                    </div>
+                    
+                    ${note.tags && note.tags.length > 0 ? `
+                        <div class="note-tags">
+                            ${note.tags.map(tag => `<span class="note-tag">${escapeHtml(tag)}</span>`).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    ${note.original_filename ? `
+                        <div class="text-muted" style="font-size: 0.9rem; margin-bottom: 1rem;">
+                            <i class="fas fa-image"></i> ${escapeHtml(note.original_filename)}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="note-actions">
+                        <a href="/view-note/${note.filename}" class="btn">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        ${note.has_pdf ? `
+                            <a href="/notes/${note.base_name}.pdf" target="_blank" class="btn">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </a>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    }
+
+    function toggleNoteSelection(filename) {
+        if (selectedNotes.has(filename)) {
+            selectedNotes.delete(filename);
+        } else {
+            selectedNotes.add(filename);
+        }
+        updateSelectionUI();
+    }
+
+    function toggleSelectAll() {
+        const visibleNotes = document.querySelectorAll('.note-item:not([style*="display: none"])');
+
+        if (selectedNotes.size === visibleNotes.length) {
+            // Deselect all
+            selectedNotes.clear();
+        } else {
+            // Select all visible
+            visibleNotes.forEach(item => {
+                selectedNotes.add(item.dataset.filename);
+            });
+        }
+
+        updateSelectionUI();
+        renderNotes(allNotes);
+        filterNotes(); // Re-apply filters
+    }
+
+    function updateSelectionUI() {
+        document.getElementById('selectedCount').textContent = selectedNotes.size;
+        document.getElementById('deleteSelectedBtn').disabled = selectedNotes.size === 0;
+        document.getElementById('selectAllBtn').innerHTML = selectedNotes.size > 0
+            ? '<i class="fas fa-times-circle"></i> Deselect All'
+            : '<i class="fas fa-check-square"></i> Select All';
+    }
+
+    async function deleteSelected() {
+        console.log('deleteSelected called, selectedNotes:', selectedNotes);
+        if (selectedNotes.size === 0) {
+            console.log('No notes selected');
+            return;
+        }
+
+        const filenames = Array.from(selectedNotes);
+        console.log('Deleting filenames:', filenames);
+
+        try {
+            const response = await fetch('/delete-notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filenames })
+            });
+
+            console.log('Response status:', response.status);
+            const result = await response.json();
+            console.log('Response data:', result);
+
+            if (result.success) {
+                selectedNotes.clear();
+                updateSelectionUI();
+                loadNotes(); // Reload the list
+                console.log(`Successfully deleted ${result.deleted} note(s)`);
+            } else {
+                console.error('Error deleting notes:', result.error);
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+        }
+    }
+
+    function filterNotes() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filterValue = document.getElementById('filterSelect').value;
+
+        const items = document.querySelectorAll('.note-item');
+        items.forEach(item => {
+            const title = item.dataset.title;
+            const tags = item.dataset.tags;
+            const hasPdf = item.dataset.hasPdf === 'true';
+
+            const matchesSearch = !searchTerm || title.includes(searchTerm) || tags.includes(searchTerm);
+            const matchesFilter = filterValue === 'all' ||
+                (filterValue === 'has-pdf' && hasPdf) ||
+                (filterValue === 'no-pdf' && !hasPdf);
+
+            item.style.display = matchesSearch && matchesFilter ? '' : 'none';
+        });
+    }
+
+    function sortNotes() {
+        const sortValue = document.getElementById('sortSelect').value;
+        const [field, order] = sortValue.split('-');
+
+        const sorted = [...allNotes].sort((a, b) => {
+            let aVal, bVal;
+
+            switch (field) {
+                case 'date':
+                    aVal = a.modified;
+                    bVal = b.modified;
+                    break;
+                case 'title':
+                    aVal = a.title.toLowerCase();
+                    bVal = b.title.toLowerCase();
+                    break;
+                case 'size':
+                    aVal = a.size;
+                    bVal = b.size;
+                    break;
+            }
+
+            if (order === 'asc') {
+                return aVal > bVal ? 1 : -1;
+            } else {
+                return aVal < bVal ? 1 : -1;
+            }
+        });
+
+        renderNotes(sorted);
+        filterNotes(); // Re-apply filters after sorting
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function formatDate(timestamp) {
+        const date = new Date(timestamp * 1000);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

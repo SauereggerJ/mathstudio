@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Math Studio{% endblock %}
+
+{% block extra_head %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --secondary: #4f46e5;
+        --bg-card: #ffffff;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+    }
+
+    .admin-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .stat-card .label {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }
+
+    .stat-card .value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text-main);
+        margin: 0.5rem 0;
+    }
+
+    .action-panel {
+        background: var(--bg-card);
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .btn-admin {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+        font-size: 0.95rem;
+    }
+
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--secondary);
+    }
+
+    .btn-outline {
+        background: white;
+        border-color: #e2e8f0;
+        color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+        background: #f8fafc;
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .btn-danger {
+        background: white;
+        border-color: #fee2e2;
+        color: var(--danger);
+    }
+
+    .btn-danger:hover {
+        background: #fef2f2;
+        border-color: var(--danger);
+    }
+
+    .console-wrap {
+        background: #0f172a;
+        color: #cbd5e1;
+        border-radius: 12px;
+        padding: 1.25rem;
+        font-family: 'Fira Code', 'Courier New', monospace;
+        font-size: 0.85rem;
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #1e293b;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .console-line {
+        margin-bottom: 0.25rem;
+        line-height: 1.4;
+        white-space: pre-wrap;
+    }
+
+    .line-success {
+        color: #4ade80;
+    }
+
+    .line-error {
+        color: #f87171;
+    }
+
+    .line-info {
+        color: #60a5fa;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: #f1f5f9;
+        color: var(--text-muted);
+    }
+
+    h2 {
+        font-weight: 800;
+        margin-bottom: 1.5rem;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-top: 1rem;">
+    <h2><i class="fas fa-chart-line"></i> Library Statistics</h2>
+    <div class="admin-grid" id="stats-grid">
+        <div class="stat-card">
+            <div class="label">Total Books</div>
+            <div class="value" id="stat-total-books">--</div>
+            <div class="badge">Indexed in DB</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Total Library Size</div>
+            <div class="value" id="stat-total-size">--</div>
+            <div class="badge">Gigabytes</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Main Categories</div>
+            <div class="value" id="stat-total-cats">--</div>
+            <div class="badge">Active Folders</div>
+        </div>
+    </div>
+
+    <div class="action-panel">
+        <h2><i class="fas fa-tools"></i> Maintenance Actions</h2>
+        <div class="action-buttons">
+            <button class="btn-admin btn-primary"
+                onclick="runAction('/api/v1/admin/ingest', {dry_run: false}, 'Ingestion started...')">
+                <i class="fas fa-plus-circle"></i> Run Ingestion
+            </button>
+            <button class="btn-admin btn-outline"
+                onclick="runAction('/api/v1/admin/indexer', {force: false}, 'Indexing rebuild started...')">
+                <i class="fas fa-sync"></i> Re-Index FTS
+            </button>
+            <button class="btn-admin btn-outline"
+                onclick="runAction('/api/v1/admin/sanity/check', {}, 'Sanity check running...')">
+                <i class="fas fa-stethoscope"></i> Sanity Check
+            </button>
+            <button class="btn-admin btn-danger" onclick="confirmFix()">
+                <i class="fas fa-trash-alt"></i> Run Sanity FIX
+            </button>
+        </div>
+    </div>
+
+    <h2><i class="fas fa-terminal"></i> Activity Log</h2>
+    <div class="console-wrap" id="console">
+        <div class="console-line line-info">Dashboard initialized. Awaiting user action.</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadStats() {
+        try {
+            const res = await fetch('/api/v1/admin/stats');
+            const data = await res.json();
+            document.getElementById('stat-total-books').textContent = data.total_books;
+            document.getElementById('stat-total-size').textContent = data.total_size_gb + ' GB';
+            document.getElementById('stat-total-cats').textContent = data.categories.length;
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function loadLogs() {
+        try {
+            const res = await fetch('/api/v1/admin/logs');
+            const data = await res.json();
+            if (data.logs) {
+                const consoleDiv = document.getElementById('console');
+                consoleDiv.innerHTML = '<div class="console-line line-info">--- Log Snapshot ---</div>';
+                const lines = data.logs.split('\n');
+                lines.forEach(line => {
+                    const div = document.createElement('div');
+                    div.className = 'console-line';
+                    if (line.includes('ERROR') || line.includes('Error')) div.classList.add('line-error');
+                    if (line.includes('SUCCESS') || line.includes('DONE')) div.classList.add('line-success');
+                    div.textContent = line;
+                    consoleDiv.appendChild(div);
+                });
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function runAction(url, body, msg) {
+        logToConsole(msg, 'info');
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.success || !data.error) {
+                logToConsole('DONE: Action completed successfully.', 'success');
+                if (data.stdout) logToConsole(data.stdout);
+            } else {
+                logToConsole('ERROR: ' + (data.error || 'Unknown error'), 'error');
+            }
+            loadStats();
+        } catch (e) {
+            logToConsole('CRITICAL ERROR: ' + e, 'error');
+        }
+    }
+
+    function confirmFix() {
+        if (confirm("WARNING: Sanity FIX will delete redundant physical files and remove stale database entries. This is irreversible.\n\nAre you sure you want to proceed?")) {
+            runAction('/api/v1/admin/sanity/fix', {}, 'Sanity FIX started...');
+        }
+    }
+
+    function logToConsole(msg, type = '') {
+        const consoleDiv = document.getElementById('console');
+        const div = document.createElement('div');
+        div.className = 'console-line';
+        if (type === 'error') div.classList.add('line-error');
+        if (type === 'success') div.classList.add('line-success');
+        if (type === 'info') div.classList.add('line-info');
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        consoleDiv.appendChild(div);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    // Init
+    loadStats();
+    setInterval(loadLogs, 5000); // Polling logs every 5s
+</script>
+{% endblock %}

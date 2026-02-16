@@ -1,0 +1,41 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\begin{document}
+
+\section*{Series 4}
+
+\noindent\textbf{Theorem (Ratio Test):} Let $\sum x_k$ be a series in $E$ and $K_0$ be such that $x_k \neq 0$ for all $k \geq K_0$. The the following hold:
+\begin{enumerate}
+    \item If there are $q \in (0, 1)$ and $K \geq K_0$ such that $\left|\frac{x_{k+1}}{x_k}\right| \leq q$ for all $k \geq K$, then the series $\sum x_k$ converges absolutely.
+    \item If there is some $K \geq K_0$ such that $\left|\frac{x_{k+1}}{x_k}\right| \geq 1$ for all $k \geq K$, then the series $\sum x_k$ diverges.
+\end{enumerate}
+
+\noindent\textbf{Proof:} 
+\begin{enumerate}
+    \item $|x_{k+1}| \leq q |x_k|$ for all $k \geq K$. Therefore: $|x_k| \leq q^{k-K} |x_K| = \frac{|x_K|}{q^K} q^k$, for $k \geq K$. Set $c := |x_K|/q^K$. Then $c \sum q^k$ is a convergent majorant for the series $\sum |x_k|$, and $\sum x_k$ converges absolutely absolutely.
+    \item $|x_{k+1}| \geq |x_k|$ implies that $x_k$ is no null sequence, and so $\sum x_k$ diverges. $\square$
+\end{enumerate}
+
+\vspace{0.5cm}
+\noindent\textbf{Rearrangement of Series:}
+
+\noindent\textbf{Def.:} Let $\sigma: \mathbb{N} \to \mathbb{N}$ be a permutation. Then the series $\sum_k x_{\sigma(k)}$ is called a rearrangement of $\sum_k x_k$.
+
+\noindent\textbf{Theorem (Rearrangement Theorem):} Every rearrangement of an absolutely absolutely series $\sum x_k$ is absolutely convergent and has the same value as $\sum x_k$.
+
+\noindent\textbf{Proof:} For each $\varepsilon > 0$, there is by Cauchy criterion a $N \in \mathbb{N}$ such that $\sum_{k=N+1}^m |x_k| < \varepsilon$ for all $m > N$.
+Taking the limit $m \to \infty$: $\sum_{k=N+1}^\infty |x_k| \leq \varepsilon$.
+
+Let $\sigma$ be a permutation of $\mathbb{N}$. For $M := \max \{\sigma^{-1}(0), \dots, \sigma^{-1}(N)\}$, we have
+\begin{equation*}
+\left|\sum_{k=0}^m x_{\sigma(k)} - \sum_{k=0}^N x_k\right| \leq \sum_{k=N+1}^m |x_k| \leq \varepsilon 
+\end{equation*}
+\{\sigma(0), \dots, \sigma(M)\} \supseteq \{0, \dots, N\}$, this means we choose $M$ so large that all indices up to $N$ are in the images up to $M$. Thus, for each $m \geq N$, 
+
+$$ 
+\left|\sum_{k=0}^m x_{\sigma(k)} - \sum_{k=0}^N x_k\right| \leq \sum_{k=N+1}^m |x_k| \leq \varepsilon \quad \text{and also} \quad \left|\sum_{k=0}^m x_{\sigma(k)} - \sum_{k=0}^N x_k\right| \leq \varepsilon 
+$$
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.70)\n  \item \textbf{Analysis I} by H. Amann (Match: 0.70)\n  \item \textbf{Introduction to Real Analysis} by Christopher Heil (Match: 0.69)\n\end{itemize}\n
+\end{document}

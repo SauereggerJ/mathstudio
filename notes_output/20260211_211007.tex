@@ -1,0 +1,42 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{Linear Algebra Problem Set Snippet}
+\maketitle
+\setcounter{section}{1}%\setcounter{subsection}{1}
+\section*{Problem 2}
+Suppose $S, T \in \mathcal{L}(V)$ are such that $\text{range } S \subseteq \text{null } T$. Prove that $(ST)^2 = 0$.
+\begin{solution}
+To prove that $(ST)^2 = 0$, we have to show $(ST)^2 v = 0$ for all $v \in V$.
+Let $v \in V$ then $(ST)^2 v = S(T(S(T(v))))$.
+Let $\bar{v} = T(v)$, then $S(\bar{v}) \in \text{range } S$ and also an element of $\text{null } T$,
+therefore $T(S(T(v))) = 0$ and because $S$ is linear $S(T(S(T(v)))) = 0$.
+\end{solution}
+
+\section*{Problem 3}
+Suppose $v_1, \dots, v_m$ is a list of vectors in $V$. Define $T \in \mathcal{L}(\mathbb{F}^m, V)$ by
+$$T(z_1, \dots, z_m) = z_1 v_1 + \dots + z_m v_m$$
+\begin{enumerate}
+    \item What property of $T$ corresponds to $v_1, \dots, v_m$ spanning $V$?
+    If $\text{span}(v_1, \dots, v_m) = V$, every $v \in V$ can be written as $v = z_1 v_1 + \dots + z_m v_m$
+    and therefore $\text{range}(T) = V$ and $T$ is surjective.
+    \item What property of $T$ corresponds to the list $v_1, \dots, v_m$ being linearly independent?
+    If $v_1, \dots, v_m$ is linearly independent then $z_1 v_1 + \dots + z_m v_m = 0$ follows
+    $z_1 = \dots = z_m = 0$, therefore only $0_{\mathbb{F}^m}$ is an element of $\text{null } T$, and
+    $T$ is injective.
+\end{enumerate}
+
+\section*{Problem 4}
+Show that $\{T \in \mathcal{L}(\mathbb{R}^5, \mathbb{R}^4) : \dim \text{null } T > 2\}$ is not a subspace of $\mathcal{L}(\mathbb{R}^5, \mathbb{R}^4)$.
+\begin{solution}
+Let
+$$T_1: (x_1, x_2, x_3, x_4, x_5) \mapsto (0, 0, 0, x_4, x_5)$$
+$$T_2: (x_1, x_2, x_3, x_4, x_5) \mapsto (x_1, x_2, 0, 0, 0)$$
+Then
+$$(T_1 + T_2): (x_1, x_2, x_3, x_4, x_5) \mapsto (x_1, x_2, 0, x_4, x_5)$$
+$$\dim \text{null } (T_1 + T_2) = 1$$
+Since $1 \ngtr 2$, the set is not closed under addition.
+\end{solution}
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear algebra problem book} by Paul R. Halmos (Match: 0.72)\n  \item \textbf{Lineare Algebra 1} by Menny-Akka (Match: 0.68)\n  \item \textbf{Prüfungstraining Lineare Algebra : Band I} by Thomas C. T. Michaels (Match: 0.68)\n\end{itemize}\n
+\end{document}

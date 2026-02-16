@@ -1,0 +1,52 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\begin{document}
+\title{Problems on Linear Operators and Eigenvalues}
+\maketitle
+\begin{enumerate}
+    \item Suppose $P \in \mathcal{L}(V)$ is such that $P^2=P$. Prove that if $\lambda$ is an eigenvalue of $P$, then $\lambda=0$ or $\lambda=1$.
+    \begin{solution} Let $v \in V$ be an eigenvector corresponding to the eigenvalue $\lambda$, so $Pv = \lambda v$ and $v \neq 0$. Applying $P$ again gives $P(Pv) = P(\lambda v) = \lambda (Pv) = \lambda (\lambda v) = \lambda^2 v$. Since $P^2=P$, we have $P^2v = Pv = \lambda v$. Thus, $\lambda^2 v = \lambda v$, which implies $(\lambda^2 - \lambda)v = 0$. Since $v \neq 0$, we must have $\lambda^2 - \lambda = 0$, so $\lambda(\lambda - 1) = 0$. Therefore, $\lambda = 0$ or $\lambda = 1$.
+    \end{solution}
+
+    \item Define $T: \mathcal{P}(\mathbb{R}) \to \mathcal{P}(\mathbb{R})$ by $T_P = P'$. Find all eigenvalues and eigenvectors of $T$.
+    \begin{solution} We look for an eigenvalue $\lambda$ and a non-zero eigenvector $P$ such that $TP = \lambda P$, which means $P' = \lambda P$. 
+    If $P$ is a non-zero polynomial, let $n = \deg(P)$. Then $\deg(P') = n-1$ (if $n \geq 1$) or $P'=0$ (if $n=0$).
+    
+    If $\lambda \neq 0$, then $\deg(\lambda P) = \deg(P) = n$. However, $\deg(P') < n$ (or $P'=0$ if $n=0$). Thus, $P' = \lambda P$ can only hold if $P'=0$, which implies $P$ is a constant polynomial, $P(x) = c \neq 0$.
+    If $P(x) = c$, then $P'(x) = 0$. The equation becomes $0 = \lambda c$. Since $c \neq 0$, we must have $\lambda = 0$. This contradicts the assumption $\lambda \neq 0$. Therefore, the only possible eigenvalue is $\lambda = 0$.
+    
+    If $\lambda = 0$, the equation is $P' = 0$, which means $P$ must be a constant polynomial, $P(x) = c$, where $c \neq 0$ because $P$ is an eigenvector. The corresponding eigenspace is $E_0 = \mathrm{span}\{1\}$.
+    
+    (Note: The handwritten solution mentions $P^0$ is an eigenvector with $\lambda=0$ and discusses degree, aligning with this conclusion that $\lambda=0$ is the only eigenvalue, with eigenvectors being constant polynomials.)
+    \end{solution}
+
+    \item Define $T \in \mathcal{L}(P_4(\mathbb{R}))$ by $(T P)(x) = x P'(x)$ for all $x \in \mathbb{R}$. Find all eigenvalues and eigenvectors.
+    \begin{solution} We test basis elements $P(x) = x^k$ for $k \in \{0, 1, 2, 3, 4\}$. Note that $P_4(\mathbb{R})$ has dimension $5$. We define $P^0 := 1$.
+    For $P(x) = x^k$:
+    $$(TP)(x) = x P'(x) = x (k x^{k-1}) = k x^k = k P(x)$$
+    Thus, $P(x) = x^k$ is an eigenvector with eigenvalue $\lambda = k$.
+    The distinct eigenvalues are $\lambda \in \{0, 1, 2, 3, 4\}$. The corresponding eigenvectors are $P_k(x) = x^k$, for $k=0, 1, 2, 3, 4$.
+    Since we have found $5$ linearly independent eigenvectors in a $5$-dimensional space, these are all the eigenvalues and eigenvectors. The set of eigenvectors $\{x^0, x^1, x^2, x^3, x^4\}$ forms a basis of $P_4(\mathbb{R})$.
+    \end{solution}
+
+    \item Suppose $V$ is finite dimensional, $T \in \mathcal{L}(V)$, and $\alpha \in \mathbb{F}$. Prove that there exists $\delta > 0$ such that $T - \lambda I$ is invertible for all $\lambda \in \mathbb{F}$ such that $0 < |\alpha - \lambda| < \delta$.
+    \begin{solution} Because $V$ is finite dimensional, $T - \lambda I$ is invertible if and only if $\lambda$ is not an eigenvalue of $T$. Let $\sigma(T)$ be the set of eigenvalues of $T$. Since $V$ is finite dimensional, $\sigma(T)$ is a finite set.
+    
+    We consider two cases for $\alpha$:
+    \begin{enumerate}
+        \item Case 1: $\alpha$ is not an eigenvalue of $T$, i.e., $\alpha \notin \sigma(T)$.
+        Since $\sigma(T)$ is finite, the set $\{|\alpha - \lambda| : \lambda \in \sigma(T)\}$ is a finite set of non-negative real numbers, and since $\alpha \notin \sigma(T)$, $\alpha - \lambda \neq 0$ for all $\lambda \in \sigma(T)$.
+        Define $\delta_1 := \min \{|\alpha - \lambda| : \lambda \in \sigma(T)\}$. Since the minimum is taken over a finite set of positive numbers, $\delta_1 > 0$. If we choose $\delta = \delta_1$, then for any $\lambda$ such that $0 < |\alpha - \lambda| < \delta$, we have $|\alpha - \lambda| < \delta_1$, which implies $\lambda$ cannot be an eigenvalue of $T$. Thus, $T - \lambda I$ is invertible.
+        
+        \item Case 2: $\alpha$ is an eigenvalue of $T$, i.e., $\alpha \in \sigma(T)$.
+        Let $\sigma'(T) = \sigma(T) \setminus \{\alpha\}$ be the set of eigenvalues of $T$ other than $\alpha$.
+        If $\sigma'(T)$ is empty, then $\sigma(T) = \{\alpha\}$. Define $\delta = 1$. Then for any $\lambda$ such that $0 < |\alpha - \lambda| < \delta$, $\lambda \neq \alpha$, so $\lambda \notin \sigma(T)$, and $T - \lambda I$ is invertible.
+        If $\sigma'(T)$ is non-empty, define $\delta_2 := \min \{|\alpha - \lambda| : \lambda \in \sigma'(T)\}$. Since $\sigma'(T)$ is a finite set of eigenvalues different from $\alpha$, $\delta_2 > 0$.
+        If we choose $\delta = \delta_2$, then for any $\lambda$ such that $0 < |\alpha - \lambda| < \delta$, we have $|\alpha - \lambda| < \delta_2$, which implies $\lambda \neq \alpha$ and $\lambda \notin \sigma'(T)$. Thus $\lambda \notin \sigma(T)$, and $T - \lambda I$ is invertible.
+    \end{enumerate}
+    In both cases, we can find such a $\delta > 0$. (The handwritten text seems to conflate $\alpha$ being an eigenvalue or not, and uses $\Delta_\alpha$ which corresponds to $\delta_2$ or $\delta_1$ depending on context, finally settling on $\delta = \Delta_\alpha/2$ in the second case, which is a standard way to ensure the open ball around $\alpha$ contains no other eigenvalues.)
+    \end{solution}
+\end{enumerate}
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Linear algebra problem book} by Paul R. Halmos (Match: 0.72)\n  \item \textbf{Prüfungstraining Lineare Algebra : Band II} by Thomas C. T. Michaels, Marcel Liechti (Match: 0.71)\n  \item \textbf{Linear Algebra Done Right} by Sheldon Axler (Match: 0.71)\n\end{itemize}\n
+\end{document}

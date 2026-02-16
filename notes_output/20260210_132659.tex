@@ -1,0 +1,38 @@
+\documentclass{article}
+\usepackage{amsmath}
+
+\begin{document}
+
+\title{Least Upper Bounds and Greatest Lower Bounds}
+\author{}
+\date{}
+\maketitle
+
+A set $A \subseteq \mathbb{R}$ is bounded above if there exists a number $b$ such that $a \leq b$ for all $a \in A$. $b$ is called an upper bound for $A$.
+
+A set $A \subseteq \mathbb{R}$ is bounded above if there exists a number $l \in \mathbb{R}$ such that $l \leq a$ for all $a \in A$. $l$ is called a lower bound.
+
+A real number $s$ is the least upper bound for a set $A \subseteq \mathbb{R}$, denoted $\sup(A)$.
+\begin{enumerate}
+    \item $s$ is an upper bound for $A$.
+    \item If $b$ is any upper bound of $A$, then $s \leq b$.
+\end{enumerate}
+
+Similarly, the greatest lower bound for $A$ is defined as ...
+
+\textbf{Example:} $A = \{ \frac{1}{n} : n \in \mathbb{N} \}$. Claim: $\sup(A) = 1$.
+\begin{enumerate}
+    \item For all $n \in \mathbb{N}$, $n \geq 1$, so $\frac{1}{n} \leq 1$.
+    \item If $b$ is an upper bound, then for all $n \in \mathbb{N}$, $\frac{1}{n} \leq b$ must be true. $1 \in A$, therefore $1 \leq b$.
+\end{enumerate}
+
+A real number $a_0$ is a maximum of the set $A$ if $a_0$ is an element of $A$ and $a_0 \geq a$ for all $a \in A$.
+
+Similarly, a number $a_1$ is a minimum of $A$ if $a_1 \leq a$ for all $a \in A$ and $a_1 \in A$.
+
+\textbf{Lemma:} Assume $s \in \mathbb{R}$ is an upper bound for a set $A \subseteq \mathbb{R}$. Then $s = \sup A$ if and only if, for every choice of $\epsilon > 0$, there exists an element $a \in A$ satisfying $s - \epsilon < a$.
+
+\textbf{Proof:} $\implies A$
+
+\n\section*{Recommended Reading}\n\begin{itemize}\n  \item \textbf{Writing Proofs in Analysis} by Jonathan M. Kane (Match: 0.70)\n  \item \textbf{Basic Analysis I} by James K. Peterson (Match: 0.70)\n  \item \textbf{Undergraduate Analysis} by McCluskey & McMaster (Match: 0.69)\n\end{itemize}\n
+\end{document}
