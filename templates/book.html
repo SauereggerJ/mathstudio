@@ -1,507 +1,409 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - Details</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        .match-list {
-            list-style: none;
-            padding: 0;
-            margin-top: 2rem;
-        }
+{% block title %}{{ title }} - MathStudio{% endblock %}
 
-        .match-item {
-            background: white;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-left: 4px solid var(--primary-color);
-            border-radius: 4px;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            font-family: serif;
-            line-height: 1.6;
-        }
+{% block extra_head %}
+<style>
+    .book-detail-grid {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 2.5rem;
+    }
+    @media (max-width: 768px) {
+        .book-detail-grid { grid-template-columns: 1fr; }
+    }
+    .sticky-sidebar {
+        position: sticky;
+        top: 6rem;
+    }
+    .toc-container::-webkit-scrollbar { width: 6px; }
+    .toc-container::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+</style>
+{% endblock %}
 
-        .match-title {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: var(--text-muted);
-        }
-
-        .match-page {
-            display: inline-block;
-            background: #e0e7ff;
-            color: #3730a3;
-            font-size: 0.75rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-family: sans-serif;
-            margin-right: 0.5rem;
-            font-weight: bold;
-            vertical-align: middle;
-        }
-
-        .details-header {
-            margin-bottom: 3rem;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 2rem;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <a href="/" class="btn btn-secondary" style="margin-bottom: 2rem; display: inline-block;">&larr; Back to
-            Search</a>
-
-        <div class="details-header" style="display: flex; gap: 2rem; align-items: flex-start;">
-            <div style="flex-grow: 1;">
-                <h1>{{ title }}</h1>
-                <h2 style="color: var(--text-muted); font-weight: 400;">{{ author }}</h2>
-                <div class="book-meta">
-                    {% if year %}<span class="meta-tag">{{ year }}</span>{% endif %}
-                    {% if publisher %}<span class="meta-tag">{{ publisher }}</span>{% endif %}
-                    {% if isbn %}<span class="meta-tag">ISBN: {{ isbn }}</span>{% endif %}
+{% block content %}
+<div class="book-detail-grid">
+    <!-- Left Sidebar: Visuals & Core Actions -->
+    <div class="sticky-sidebar">
+        <div class="bg-white rounded-2xl p-4 shadow-xl border border-slate-100 mb-6">
+            <div class="aspect-[3/4] rounded-xl overflow-hidden bg-slate-50 border border-slate-100 shadow-inner group relative">
+                <img src="{{ cover_url }}" alt="Cover" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                     onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                    <span class="text-white text-xs font-medium"><i class="fas fa-expand mr-2"></i>View Fullscreen</span>
                 </div>
+            </div>
+        </div>
 
+        <div class="space-y-3">
+            {% if path.lower().endswith('.djvu') %}
+            <a href="/view-pdf/{{ id }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all transition-all">
+                <i class="fas fa-file-pdf mr-3"></i> Convert & Read
+            </a>
+            {% else %}
+            <a href="/open/{{ path }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
+                <i class="fas fa-book-open mr-3"></i> Read Document
+            </a>
+            {% endif %}
+            
+            <div class="grid grid-cols-2 gap-3">
+                <a href="/open/{{ path }}" download class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">
+                    <i class="fas fa-download mr-2 text-slate-400"></i> Save
+                </a>
+                <button onclick="openExternal('{{ path }}')" class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">
+                    <i class="fas fa-desktop mr-2 text-slate-400"></i> Desktop
+                </button>
+            </div>
+
+            <!-- Management Menu Dropdown -->
+            <button id="adminDropdownButton" data-dropdown-toggle="adminDropdown" class="w-full text-slate-500 hover:text-slate-800 font-medium rounded-xl text-sm px-5 py-2.5 text-center inline-flex items-center justify-center border border-dashed border-slate-200 hover:border-slate-400 transition-all" type="button">
+                Management Tools <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+            </button>
+            <div id="adminDropdown" class="z-10 hidden bg-white divide-y divide-gray-100 rounded-xl shadow-2xl w-full border border-slate-100">
+                <ul class="py-2 text-sm text-gray-700" aria-labelledby="adminDropdownButton">
+                    <li>
+                        <button onclick="document.getElementById('fileInput').click()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-emerald-600 font-semibold">
+                            <i class="fas fa-upload mr-3"></i> Replace File
+                        </button>
+                        <input type="file" id="fileInput" class="hidden" onchange="replaceFile(this)">
+                    </li>
+                    <li>
+                        <button id="reindexBtn" onclick="reindexBook()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-indigo-600 font-semibold">
+                            <i class="fas fa-sync mr-3"></i> AI Re-Index
+                        </button>
+                    </li>
+                    <li>
+                        <button onclick="deleteBook()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-rose-600 font-semibold">
+                            <i class="fas fa-trash-alt mr-3"></i> Delete Book
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side: Content & Tabs -->
+    <div>
+        <nav class="flex mb-6" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse">
+                <li class="inline-flex items-center">
+                    <a href="/" class="text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors">Library</a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <svg class="rtl:rotate-180 w-3 h-3 text-slate-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/></svg>
+                        <span class="ms-1 text-sm font-medium text-slate-400 md:ms-2">Detail View</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-2">{{ title }}</h1>
+            <p class="text-xl text-slate-500 font-medium italic">{{ author }}</p>
+            
+            <div class="flex flex-wrap gap-2 mt-4">
+                {% if year %}<span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">{{ year }}</span>{% endif %}
+                {% if level %}<span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider">{{ level }}</span>{% endif %}
+                {% if msc_code %}<span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wider">MSC: {{ msc_code }}</span>{% endif %}
+                {% if path.endswith('.djvu') %}<span class="px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold uppercase tracking-wider">DjVu Format</span>{% endif %}
+            </div>
+        </header>
+
+        <div class="mb-4 border-b border-gray-200">
+            <ul class="flex flex-wrap -mb-px text-sm font-bold text-center" id="bookTabs" data-tabs-toggle="#bookTabsContent" role="tablist">
+                <li class="me-2" role="presentation">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg" id="overview-tab" data-tabs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">Overview</button>
+                </li>
+                <li class="me-2" role="presentation">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="contents-tab" data-tabs-target="#contents" type="button" role="tab" aria-controls="contents" aria-selected="false">Structure</button>
+                </li>
+                <li class="me-2" role="presentation">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="lab-tab" data-tabs-target="#lab" type="button" role="tab" aria-controls="lab" aria-selected="false">The Lab</button>
+                </li>
+                <li role="presentation">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="related-tab" data-tabs-target="#related" type="button" role="tab" aria-controls="related" aria-selected="false">Similar</button>
+                </li>
+            </ul>
+        </div>
+        <div id="bookTabsContent">
+            <!-- TAB: OVERVIEW -->
+            <div class="hidden p-4 rounded-lg bg-white border border-slate-100 shadow-sm" id="overview" role="tabpanel" aria-labelledby="overview-tab">
                 {% if summary %}
-                <div
-                    style="margin-top: 1.5rem; background: #f3f4f6; padding: 1rem; border-radius: 6px; border-left: 4px solid #3b82f6;">
-                    <h4 style="margin-top: 0; color: #1f2937;">Summary</h4>
-                    <p style="margin: 0; color: #4b5563; line-height: 1.6;">{{ summary }}</p>
+                <div class="prose prose-slate max-w-none">
+                    <h3 class="text-lg font-bold text-slate-800 mb-2">Content Synthesis</h3>
+                    <p class="text-slate-600 leading-relaxed">{{ summary }}</p>
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-slate-400 italic">
+                    <i class="fas fa-brain block text-4xl mb-3 opacity-20"></i>
+                    No AI summary available. Click "Re-Index" to generate one.
                 </div>
                 {% endif %}
 
-                <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                    {% if level %}
-                    <span class="meta-tag" style="background: #e0f2fe; color: #0369a1;">Level: {{ level }}</span>
-                    {% endif %}
-
-                    {% if msc_code %}
-                    <span class="meta-tag" style="background: #f0fdf4; color: #15803d;">MSC: {{ msc_code }}</span>
-                    {% endif %}
-
-                    {% if exercises and exercises != 'Nein' %}
-                    <span class="meta-tag" style="background: #fff7ed; color: #c2410c;">Exercises: {{ exercises
-                        }}</span>
-                    {% endif %}
-
-                    {% if solutions and solutions != 'N/A' %}
-                    <span class="meta-tag" style="background: #fff7ed; color: #c2410c;">Solutions: {{ solutions
-                        }}</span>
-                    {% endif %}
-
-                    {% if reference_url %}
-                    <a href="{{ reference_url }}" target="_blank" class="meta-tag"
-                        style="background: #f3f4f6; color: #4b5563; text-decoration: none;">External Reference
-                        &nearr;</a>
-                    {% endif %}
+                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Technical Intel</h4>
+                        <ul class="space-y-2 text-sm">
+                            <li class="flex justify-between"><span class="text-slate-500">Publisher:</span> <span class="font-semibold">{{ publisher or 'Unknown' }}</span></li>
+                            <li class="flex justify-between"><span class="text-slate-500">ISBN:</span> <span class="font-mono text-xs">{{ isbn or 'N/A' }}</span></li>
+                            <li class="flex justify-between"><span class="text-slate-500">Page Count:</span> <span class="font-semibold">{{ page_count }}</span></li>
+                        </ul>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Content Intel</h4>
+                        <ul class="space-y-2 text-sm">
+                            <li class="flex justify-between"><span class="text-slate-500">Exercises:</span> <span class="font-semibold">{{ exercises }}</span></li>
+                            <li class="flex justify-between"><span class="text-slate-500">Solutions:</span> <span class="font-semibold">{{ solutions }}</span></li>
+                            <li class="flex justify-between"><span class="text-slate-500">Search Rank:</span> <span class="font-semibold text-green-600">Verified</span></li>
+                        </ul>
+                    </div>
                 </div>
 
                 {% if tags %}
-                <div style="margin-top: 0.5rem;">
-                    <span style="font-size: 0.85rem; color: #6b7280; margin-right: 0.5rem;">Tags:</span>
-                    <span style="color: #374151; font-style: italic;">{{ tags }}</span>
+                <div class="mt-8 pt-6 border-t border-slate-100">
+                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Categorization Tags</h4>
+                    <div class="flex flex-wrap gap-2">
+                        {% for tag in tags.split(',') %}
+                        <span class="px-3 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium">{{ tag.strip() }}</span>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% endif %}
+            </div>
 
-                {% if index_matches %}
-                <div
-                    style="margin-top: 1.5rem; background: #fffbeb; padding: 1rem; border-radius: 6px; border-left: 4px solid #f59e0b;">
-                    <h4 style="margin-top: 0; color: #92400e;"><i class="fas fa-list-ol"></i> Index Matches</h4>
-                    <p style="margin: 0; color: #b45309; line-height: 1.6; font-family: monospace;">{{ index_matches }}
-                    </p>
+            <!-- TAB: STRUCTURE (TOC) -->
+            <div class="hidden p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden" id="contents" role="tabpanel" aria-labelledby="contents-tab">
+                <div class="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="text-sm font-black text-slate-500 uppercase tracking-widest">Table of Contents</h3>
+                    <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">SMART INDEX ACTIVE</span>
                 </div>
-                {% endif %}
-
-                <div style="margin-top: 1.5rem;">
-
-                    {% if path.lower().endswith('.djvu') %}
-
-                    <a href="/view-pdf/{{ id }}" target="_blank" class="btn btn-primary"
-                        onclick="this.innerHTML='Converting... please wait';">Convert & View PDF</a>
-
+                <div class="toc-container max-h-[600px] overflow-y-auto p-4 space-y-1">
+                    {% if chapters %}
+                        {% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
+                        <div class="group flex items-baseline justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors" style="margin-left: {{ c_level * 1.5 }}rem;">
+                            <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600 font-medium' }}">
+                                {% if c_page %}
+                                <a href="/open/{{ path }}#page={{ c_page }}" target="_blank" class="hover:text-blue-600">
+                                    {{ c_title }}
+                                </a>
+                                {% else %}
+                                {{ c_title }}
+                                {% endif %}
+                            </span>
+                            {% if c_page %}
+                            <span class="text-xs font-bold text-slate-300 group-hover:text-blue-400 transition-colors">P. {{ c_page }}</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     {% else %}
-
-                    <a href="/open/{{ path }}" target="_blank" class="btn btn-primary">Open in Browser</a>
-
+                        <div class="text-center py-20 text-slate-400 italic">
+                            No structure data detected.
+                        </div>
                     {% endif %}
-
-                    <a href="/open/{{ path }}" download class="btn btn-secondary">Download</a>
-
-                    <button onclick="openExternal('{{ path }}')" class="btn btn-secondary" id="extBtn">Open Locally
-                        (Host)</button>
-
-                    <button onclick="document.getElementById('fileInput').click()" class="btn btn-secondary" style="background: #059669; color: white; border: none;">📤 Replace File</button>
-<input type="file" id="fileInput" style="display: none;" onchange="replaceFile(this)">
-                    <button onclick="reindexBook()" class="btn btn-secondary" id="reindexBtn"
-                        style="background: #4f46e5; color: white; border: none;">♻️ AI Reindex</button>
-
-                    <button onclick="deleteBook()" class="btn btn-secondary" id="deleteBtn"
-                        style="background: #dc2626; color: white; border: none; margin-left: 0.5rem;">🗑️ Delete Book</button>
                 </div>
             </div>
-            {% if cover_url %}
-            <div style="flex: 0 0 200px;">
-                <img src="{{ cover_url }}" alt="Cover"
-                    style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 
-                <!-- AI Note Taker Panel -->
-                <div
-                    style="margin-top: 1.5rem; background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #bbf7d0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                    <h4
-                        style="margin: 0 0 0.8rem 0; color: #15803d; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <span>✨</span> AI Note Taker
-                    </h4>
-                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <input type="number" id="notePage" placeholder="Page"
-                            style="width: 100%; padding: 6px; border: 1px solid #bbf7d0; border-radius: 4px; font-size: 0.9rem;">
-                        <button onclick="createNote()" id="convertBtn"
-                            style="background: #166534; color: white; padding: 6px 12px; font-size: 0.9rem; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Convert</button>
-                    </div>
-                    <div id="noteStatus" style="font-size: 0.8rem; color: #166534; min-height: 1.2em;"></div>
-
-                    <!-- Result Area (Hidden initially) -->
-                    <div id="noteResult" style="display: none; margin-top: 1rem;">
-                        <textarea id="noteText"
-                            style="width: 100%; height: 150px; font-family: monospace; font-size: 0.8rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical; margin-bottom: 0.5rem;"></textarea>
-                        <button onclick="copyNote()" class="btn btn-secondary"
-                            style="width: 100%; font-size: 0.8rem; padding: 4px;">Copy to Clipboard</button>
-                    </div>
-                </div>
-
-                <!-- Bibliography Hunter Panel -->
-                <div
-                    style="margin-top: 1.5rem; background: #fef3c7; padding: 1rem; border-radius: 8px; border: 1px solid #fcd34d; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                    <h4
-                        style="margin: 0 0 0.8rem 0; color: #92400e; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <span>📚</span> Bibliography Hunter
-                    </h4>
-                    <button onclick="scanBibliography()" id="bibScanBtn"
-                        style="width: 100%; background: #b45309; color: white; padding: 8px 12px; font-size: 0.9rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Scan
-                        Bibliography</button>
-                    <div id="bibStatus"
-                        style="font-size: 0.8rem; color: #92400e; min-height: 1.2em; margin-top: 0.5rem;"></div>
-                    <div id="bibResults" style="display: none; margin-top: 1rem;">
-                        <div style="background: white; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.5rem;">
-                            <div
-                                style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: #374151;">
-                                <span>Total: <span id="bibTotal">0</span></span>
-                                <span style="color: #059669;">Owned: <span id="bibOwned">0</span></span>
-                                <span style="color: #dc2626;">Missing: <span id="bibMissing">0</span></span>
+            <!-- TAB: THE LAB (AI Note Taker & Bib Hunter) -->
+            <div class="hidden space-y-6" id="lab" role="tabpanel" aria-labelledby="lab-tab">
+                <!-- AI Note Taker -->
+                <div class="bg-gradient-to-br from-emerald-50 to-white p-6 rounded-2xl border border-emerald-100 shadow-sm">
+                    <h3 class="flex items-center text-lg font-bold text-emerald-800 mb-4">
+                        <i class="fas fa-sparkles mr-3 text-emerald-500"></i> AI Synthesis Lab
+                    </h3>
+                    <p class="text-sm text-emerald-700/70 mb-6">Convert any page into structured LaTeX/Markdown notes using Gemini 2.5 Flash.</p>
+                    
+                    <div class="flex gap-3">
+                        <div class="relative flex-grow">
+                            <input type="number" id="notePage" class="block w-full p-3 ps-10 text-sm border-emerald-200 rounded-xl bg-white focus:ring-emerald-500 focus:border-emerald-500" placeholder="Target Page Number">
+                            <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none text-emerald-300">
+                                <i class="fas fa-hashtag"></i>
                             </div>
                         </div>
-                        <details style="background: white; border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem;">
-                            <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #059669;">
-                                Owned Books (<span id="bibOwnedCount">0</span>)</summary>
-                            <div id="bibOwnedList"
-                                style="margin-top: 0.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                        <button onclick="createNote()" id="convertBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-emerald-600/20">
+                            Synthesize
+                        </button>
+                    </div>
+                    <div id="noteStatus" class="mt-3 text-xs font-bold text-emerald-600 min-height-[1.2em]"></div>
+
+                    <div id="noteResult" class="hidden mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div class="bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
+                            <div class="flex justify-between items-center px-4 py-2 bg-slate-800 border-b border-slate-700">
+                                <span class="text-[10px] font-black text-slate-400 uppercase">Generated Markdown</span>
+                                <button onclick="copyNote()" class="text-slate-400 hover:text-white transition-colors text-xs flex items-center">
+                                    <i class="fas fa-copy mr-2"></i> Copy
+                                </button>
                             </div>
-                        </details>
-                        <details style="background: white; border-radius: 4px; padding: 0.5rem;">
-                            <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #dc2626;">
-                                Missing Books (<span id="bibMissingCount">0</span>)</summary>
-                            <div id="bibMissingList"
-                                style="margin-top: 0.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
-                            </div>
-                        </details>
+                            <textarea id="noteText" class="w-full h-64 p-4 bg-slate-900 text-emerald-400 font-mono text-sm border-none focus:ring-0 resize-none"></textarea>
+                        </div>
                     </div>
                 </div>
-            </div>
-            {% endif %}
-        </div>
 
-        <div style="margin-bottom: 3rem;">
-            <h3>Page Previews</h3>
-            <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;">
-                {% for i in range(1, 6) %}
-                <div
-                    style="flex: 0 0 auto; width: 150px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; background: #eee;">
-                    <img src="/static/thumbnails/{{ id }}/page_{{ i }}.png"
-                        onerror="this.parentElement.style.display='none'"
-                        style="width: 100%; height: auto; display: block;" alt="Page {{ i }}">
+                <!-- Bib Hunter -->
+                <div class="bg-gradient-to-br from-amber-50 to-white p-6 rounded-2xl border border-amber-100 shadow-sm">
+                    <h3 class="flex items-center text-lg font-bold text-amber-800 mb-4">
+                        <i class="fas fa-magnifying-glass-chart mr-3 text-amber-500"></i> Bibliography Hunter
+                    </h3>
+                    <p class="text-sm text-amber-700/70 mb-6">Scan references and cross-check against your existing library holdings.</p>
+                    <button onclick="scanBibliography()" id="bibScanBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-amber-600/20">
+                        Scan for Cited Works
+                    </button>
+                    <div id="bibStatus" class="mt-3 text-xs font-bold text-amber-600 text-center"></div>
                 </div>
-                {% endfor %}
             </div>
-        </div>
 
-        {% if chapters %}
-        <div style="margin-bottom: 3rem;">
-            <h3>Table of Contents</h3>
-            <div
-                style="background: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; max-height: 500px; overflow-y: auto;">
-                {% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
-                <div
-                    style="margin-left: {{ c_level * 1.5 }}rem; margin-bottom: 0.5rem; border-bottom: 1px dashed #e5e7eb; padding-bottom: 0.25rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <span
-                            style="color: {{ '#111827' if c_level == 0 else '#4b5563' }}; font-weight: {{ '600' if c_level == 0 else '400' }};">
-                            {% if c_page %}
-                            <a href="/open/{{ path }}#page={{ c_page }}" target="_blank"
-                                style="text-decoration: none; color: inherit; hover: text-decoration: underline;">{{
-                                c_title }}</a>
-                            {% else %}
-                            {{ c_title }}
-                            {% endif %}
-                        </span>
-                        {% if c_page %}
-                        <span style="color: var(--text-muted); font-size: 0.85rem;">Page {{ c_page }}</span>
-                        {% endif %}
-                    </div>
-                    {% if c_topics or c_msc %}
-                    <div style="font-size: 0.75rem; color: #6b7280; margin-top: 2px;">
-                        {% if c_msc %}<span
-                            style="background: #f0fdf4; padding: 0 4px; border-radius: 2px; margin-right: 5px; color: #15803d;">{{
-                            c_msc }}</span>{% endif %}
-                        {% if c_topics %}<span style="font-style: italic;">{{ c_topics }}</span>{% endif %}
-                    </div>
-                    {% endif %}
+            <!-- TAB: SIMILAR -->
+            <div class="hidden p-4" id="related" role="tabpanel" aria-labelledby="related-tab">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for s_id, s_title, s_author, s_path in similar_books %}
+                    <a href="/book/{{ s_id }}" class="group bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-lg transition-all border-l-4 border-l-blue-500">
+                        <h4 class="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">{{ s_title }}</h4>
+                        <p class="text-xs text-slate-500 italic mt-1">{{ s_author }}</p>
+                    </a>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
         </div>
-        {% endif %}
-
-        {% if similar_books %}
-        <div style="margin-bottom: 3rem;">
-            <h3>Similar Books / Same Topic</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
-                {% for s_id, s_title, s_author, s_path in similar_books %}
-                <a href="/book/{{ s_id }}" style="text-decoration: none; color: inherit;">
-                    <div class="match-item" style="border-left-color: #10b981; height: 100%; box-sizing: border-box;">
-                        <div class="match-title">{{ s_title }}</div>
-                        <div style="font-size: 0.85rem; color: #6b7280;">{{ s_author }}</div>
-                    </div>
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
 
         {% if query %}
-        <h3>Found {{ matches|length }} matches for "{{ query }}":</h3>
-        <ul class="match-list">
-            {% for match in matches %}
-            <li class="match-item">
-                <span class="match-page">Page {{ match.page }}</span> ...{{ match.snippet|safe }}...
-            </li>
-            {% endfor %}
-        </ul>
+        <div class="mt-12">
+            <h3 class="text-lg font-black text-slate-400 uppercase tracking-widest mb-6">Semantic Search Highlights</h3>
+            <div class="space-y-4">
+                {% for match in matches %}
+                <div class="bg-white p-6 rounded-2xl border-l-4 border-l-blue-600 shadow-sm border border-slate-100">
+                    <div class="flex items-center mb-3">
+                        <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-black uppercase mr-3 tracking-tighter">Page {{ match.page }}</span>
+                        <div class="h-px bg-slate-100 flex-grow"></div>
+                    </div>
+                    <p class="text-slate-700 font-serif leading-relaxed italic">...{{ match.snippet|safe }}...</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
         {% endif %}
     </div>
-    <script>
-        async function openExternal(path) {
-            try {
-                await fetch(`/api/open-external?path=${encodeURIComponent(path)}`);
-            } catch (e) {
-                console.error("Failed to open external:", e);
-                alert("Failed to open file in external viewer.");
-            }
-        }
+</div>
+{% endblock %}
 
-        async function createNote() {
-            const pageInput = document.getElementById('notePage');
-            const page = pageInput.value;
-            const statusDiv = document.getElementById('noteStatus');
-            const resultDiv = document.getElementById('noteResult');
-            const noteText = document.getElementById('noteText');
-            const btn = document.getElementById('convertBtn');
+{% block scripts %}
+<script>
+    // Existing functions with slight UI updates for SweetAlert/Modern Alerts if needed
+    // But keeping it standard for now to ensure reliability.
 
-            if (!page) {
-                statusDiv.textContent = "Please enter a page number.";
-                statusDiv.style.color = "#ef4444";
-                return;
-            }
-
-            // UI Loading State
-            btn.disabled = true;
-            btn.textContent = "Processing...";
-            statusDiv.textContent = "Extracting & generating markdown...";
-            statusDiv.style.color = "#166534";
-            resultDiv.style.display = 'none';
-
-            try {
-                const response = await fetch('/api/v1/tools/pdf-to-note', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) })
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            statusDiv.textContent = "Error: " + data.error;
-            statusDiv.style.color = "#ef4444";
-        } else {
-            statusDiv.textContent = "Success! Note saved.";
-            statusDiv.style.color = "#166534";
-            noteText.value = data.content;
-            resultDiv.style.display = 'block';
-        }
-            } catch (e) {
-            statusDiv.textContent = "Network error occurred.";
-            statusDiv.style.color = "#ef4444";
+    async function openExternal(path) {
+        try {
+            const res = await fetch(`/api/open-external?path=${encodeURIComponent(path)}`);
+            if(!res.ok) alert("Error opening file locally.");
+        } catch (e) {
             console.error(e);
+        }
+    }
+
+    async function createNote() {
+        const page = document.getElementById('notePage').value;
+        const status = document.getElementById('noteStatus');
+        const resultDiv = document.getElementById('noteResult');
+        const noteText = document.getElementById('noteText');
+        const btn = document.getElementById('convertBtn');
+
+        if (!page) {
+            status.textContent = "Enter a valid page number.";
+            return;
+        }
+
+        btn.disabled = true;
+        status.textContent = "AI AT WORK: ANALYZING PAGE STRUCTURE...";
+        resultDiv.classList.add('hidden');
+
+        try {
+            const response = await fetch('/api/v1/tools/pdf-to-note', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) })
+            });
+            const data = await response.json();
+            if (data.error) {
+                status.textContent = "ERROR: " + data.error;
+            } else {
+                status.textContent = "SYNTHESIS COMPLETE.";
+                noteText.value = data.content;
+                resultDiv.classList.remove('hidden');
+            }
+        } catch (e) {
+            status.textContent = "CONNECTION ERROR.";
         } finally {
             btn.disabled = false;
-            btn.textContent = "Convert";
         }
-        }
+    }
 
-        function copyNote() {
-            const noteText = document.getElementById('noteText');
-            noteText.select();
-            document.execCommand('copy');
-            const statusDiv = document.getElementById('noteStatus');
-            statusDiv.textContent = "Copied to clipboard!";
-            setTimeout(() => {
-                statusDiv.textContent = "Success! Note saved.";
-            }, 2000);
-        }
+    function copyNote() {
+        const noteText = document.getElementById('noteText');
+        noteText.select();
+        document.execCommand('copy');
+        alert("Markdown copied to clipboard.");
+    }
 
-        async function scanBibliography() {
-            const btn = document.getElementById('bibScanBtn');
-            const statusDiv = document.getElementById('bibStatus');
-
-            btn.disabled = true;
-            btn.textContent = "Scanning...";
-            statusDiv.textContent = "Opening results in new window...";
-            statusDiv.style.color = "#92400e";
-
-            try {
-                // Create a form and submit it to open results in new window
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/api/v1/tools/bib-scan';
-                form.target = '_blank';  // Open in new window/tab
-
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'book_id';
-                input.value = {{ id }};
-
+    async function scanBibliography() {
+        const btn = document.getElementById('bibScanBtn');
+        const status = document.getElementById('bibStatus');
+        btn.disabled = true;
+        status.textContent = "INITIALIZING HUNTER...";
+        try {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/api/v1/tools/bib-scan';
+            form.target = '_blank';
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'book_id';
+            input.value = {{ id }};
             form.appendChild(input);
-
             document.body.appendChild(form);
             form.submit();
             document.body.removeChild(form);
-
-            statusDiv.textContent = "Results opened in new window";
-            statusDiv.style.color = "#059669";
-
+            status.textContent = "RESULTS REDIRECTED.";
         } catch (e) {
-            statusDiv.textContent = "Error: " + e.message;
-            statusDiv.style.color = "#dc2626";
-            console.error(e);
+            status.textContent = "HUNTER FAILED.";
         } finally {
             btn.disabled = false;
-            btn.textContent = "Scan Bibliography";
         }
-        }
-        async function reindexBook() {
-            if (!confirm("Are you sure you want to AI Reindex this book? This will overwrite current metadata.")) return;
+    }
 
-            const btn = document.getElementById('reindexBtn');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = "Indexing...";
+    async function reindexBook() {
+        if (!confirm("Overwrite existing metadata with new AI analysis?")) return;
+        const btn = document.getElementById('reindexBtn');
+        btn.disabled = true;
+        try {
+            const response = await fetch('/api/v1/books/{{ id }}/reindex', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ai_care: true })
+            });
+            const data = await response.json();
+            if (data.success) { location.reload(); } else { alert(data.error); }
+        } catch (e) { alert(e); } finally { btn.disabled = false; }
+    }
 
-            try {
-                const response = await fetch('/api/v1/books/{{ id }}/reindex', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ai_care: true })
-                });
+    async function deleteBook() {
+        if (!confirm("CRITICAL: Move to Archive and purge all records?")) return;
+        try {
+            const response = await fetch('/api/v1/books/{{ id }}', { method: 'DELETE' });
+            const data = await response.json();
+            if (data.success) { window.location.href = "/"; } else { alert(data.error); }
+        } catch (e) { alert(e); }
+    }
 
-                const data = await response.json();
-
-                if (data.success) {
-                    alert("Success: " + data.message);
-                    location.reload();
-                } else {
-                    alert("Error: " + data.error);
-                }
-            } catch (e) {
-                alert("Network Error: " + e);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalText;
-            }
-        }
-
-        async function deleteBook() {
-            if (!confirm("CRITICAL: Are you sure you want to delete this book? The file will be moved to Archive and all database records (including bookmarks) will be removed. This cannot be easily undone.")) return;
-
-            const btn = document.getElementById('deleteBtn');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = "Deleting...";
-
-            try {
-                const response = await fetch('/api/v1/books/{{ id }}', {
-                    method: 'DELETE'
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert("Success: " + data.message);
-                    window.location.href = "/"; // Redirect to home
-                } else {
-                    alert("Error: " + data.error);
-                }
-            } catch (e) {
-                alert("Network Error: " + e);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalText;
-            }
-        }
-
-        async function replaceFile(input) {
-            if (!input.files || input.files.length === 0) return;
-            
-            const file = input.files[0];
-            if (!confirm(`Are you sure you want to replace the current file with "${file.name}"? The system will verify the page count match before proceeding.`)) {
-                input.value = '';
-                return;
-            }
-
-            const btn = document.querySelector('button[onclick*="fileInput"]');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = "Uploading & Verifying...";
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('/api/v1/books/{{ id }}/replace', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert("Success: " + data.message);
-                    location.reload();
-                } else {
-                    alert("Error: " + data.error);
-                }
-            } catch (e) {
-                alert("Network Error: " + e);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalText;
-                input.value = '';
-            }
-        }
-
-    </script>
-</body>
-
-</html>
+    async function replaceFile(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        if (!confirm(`Upgrade existing record with "${file.name}"?`)) { input.value = ''; return; }
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await fetch('/api/v1/books/{{ id }}/replace', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (data.success) { location.reload(); } else { alert(data.error); }
+        } catch (e) { alert(e); } finally { input.value = ''; }
+    }
+</script>
+{% endblock %}

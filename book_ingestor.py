@@ -378,7 +378,7 @@ class BookIngestor:
                  ai_data = self.analyze_book_content(text_sample, ai_care=ai_care)
              
              if not ai_data:
-                 print(f"[Warning] AI Analysis skipped/failed for {book_id}. Using filename fallback.", file=sys.stderr)
+                 return {"success": False, "error": "AI Analysis failed (likely Rate Limit or Model overload). Please try again in a few minutes."}
                  # Fallback: Parse filename
                  # Try to extract Title - Author from "Title - Author.pdf"
                  p = full_path
@@ -493,12 +493,30 @@ class BookIngestor:
         """
         
         try:
-            print(f"[AI Debug] Sample Length: {len(text_sample)}", file=sys.stderr)
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt
-            )
+            retry_count = 0
+            backoff = 5
+            response = None
+            while retry_count < 5:
+                try:
+                    print(f"[AI Debug] Sample Length: {len(text_sample)} (Attempt {retry_count+1})", file=sys.stderr)
+                    response = client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt
+                    )
+                    break
+                except Exception as e:
+                    if '429' in str(e):
+                        print(f"  ⚠️ Rate Limit (429). Waiting {backoff}s...")
+                        import time
+                        time.sleep(backoff)
+                        retry_count += 1
+                        backoff *= 2
+                        continue
+                    raise e
             
+            if not response:
+                return None
+
             # Robust JSON extraction
             txt = response.text.strip()
             print(f"[AI Debug] Raw Response: {txt[:500]}...", file=sys.stderr)
@@ -521,14 +539,14 @@ class BookIngestor:
             
             return json.loads(txt)
         except json.JSONDecodeError as e:
-             print(f"JSON Error: {e}", file=sys.stderr)
-             print(f"Bad JSON Content: {txt}", file=sys.stderr)
-             return None
+            print(f"JSON Error: {e}", file=sys.stderr)
+            print(f"Bad JSON Content: {txt}", file=sys.stderr)
+            return None
         except Exception as e:
-             import traceback
-             print(f"AI Analysis Error: {e}", file=sys.stderr)
-             traceback.print_exc()
-             return None
+            import traceback
+            print(f"AI Analysis Error: {e}", file=sys.stderr)
+            traceback.print_exc()
+            return None
 
     def process_folder(self, input_dir):
         """Main processing loop."""

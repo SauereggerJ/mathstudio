@@ -1,42 +1,96 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Math Studio Library{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.1">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>{% block title %}MathStudio{% endblock %}</title>
+    
+    <!-- Tailwind & Flowbite -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eff6ff","100":"#dbeafe","200":"#bfdbfe","300":"#93c5fd","400":"#60a5fa","500":"#3b82f6","600":"#2563eb","700":"#1d4ed8","800":"#1e40af","900":"#1e3a8a","950":"#172554"}
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'ui-sans-serif', 'system-ui'],
+                        'body': ['Inter', 'ui-sans-serif', 'system-ui'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+        }
+    </style>
     {% block extra_head %}{% endblock %}
 </head>
 
-<body>
+<body class="bg-gray-50 text-slate-900 antialiased min-h-screen">
 
-    <div class="container">
-        <nav
-            style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
-            <a href="/" style="text-decoration: none; color: #1e293b; font-weight: 800; font-size: 1.2rem;">
-                Math Studio
+    <!-- Modern Glass Navigation -->
+    <nav class="fixed w-full z-50 top-0 start-0 glass-nav">
+        <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
+            <a href="/" class="flex items-center space-x-3 rtl:space-x-reverse">
+                <span class="self-center text-2xl font-extrabold whitespace-nowrap bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                    MathStudio
+                </span>
             </a>
-            <div style="display: flex; gap: 1.5rem; align-items: center;">
-                <a href="{{ url_for('wishlist_check') }}"
-                    style="text-decoration: none; color: #475569; font-weight: 600;">
-                    <i class="fas fa-clipboard-check"></i> Wishlist
+            <div class="flex md:order-2 space-x-3 md:space-x-0 rtl:space-x-reverse">
+                <a href="{{ url_for('admin_dashboard') }}" class="text-slate-600 hover:text-blue-600 font-medium rounded-lg text-sm px-4 py-2 text-center transition-colors">
+                    <i class="fas fa-user-shield mr-2"></i>Admin
                 </a>
-                <a href="{{ url_for('list_notes') }}" style="text-decoration: none; color: #3b82f6; font-weight: 600;">
-                    <i class="fas fa-sticky-note"></i> My Notes
-                </a>
-                <a href="{{ url_for('admin_dashboard') }}"
-                    style="text-decoration: none; color: #6366f1; font-weight: 600;">
-                    <i class="fas fa-user-shield"></i> Admin
-                </a>
+                <button data-collapse-toggle="navbar-sticky" type="button" class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200" aria-controls="navbar-sticky" aria-expanded="false">
+                    <span class="sr-only">Open main menu</span>
+                    <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 17 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h15M1 7h15M1 13h15"/>
+                    </svg>
+                </button>
             </div>
-        </nav>
+            <div class="items-center justify-between hidden w-full md:flex md:w-auto md:order-1" id="navbar-sticky">
+                <ul class="flex flex-col p-4 md:p-0 mt-4 font-medium border border-gray-100 rounded-lg md:space-x-8 rtl:space-x-reverse md:flex-row md:mt-0 md:border-0">
+                    <li>
+                        <a href="/" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-blue-700 md:p-0 transition-colors">Search</a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('list_notes') }}" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-blue-700 md:p-0 transition-colors">Notes</a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('wishlist_check') }}" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-blue-700 md:p-0 transition-colors">Wishlist</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-        {% block content %}{% endblock %}
-    </div>
+    <!-- Main Content -->
+    <main class="pt-24 pb-12">
+        <div class="max-w-screen-xl mx-auto px-4">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
 
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
     {% block scripts %}{% endblock %}
 
 </body>
