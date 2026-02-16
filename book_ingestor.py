@@ -15,7 +15,7 @@ from google.genai import types
 # --- CONFIGURATION ---
 LIBRARY_ROOT = Path("..")  # Relative to mathstudio/
 DB_FILE = "library.db"
-GEMINI_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
+GEMINI_MODEL = "gemini-2.0-flash"
 UNSORTED_DIR = LIBRARY_ROOT / "99_General_and_Diverse" / "Unsorted"
 DUPLICATES_DIR = LIBRARY_ROOT / "_Admin" / "Duplicates"
 
@@ -367,6 +367,8 @@ class BookIngestor:
         try:
              # 1. Re-extract Structure
              structure = self.extract_structure(full_path)
+             if not structure:
+                 return {"success": False, "error": "Failed to extract structure from file (PyMuPDF error or corrupt file)."}
              
              # 2. Re-run AI Analysis
              text_sample = structure.get('text_sample', '')
@@ -432,7 +434,7 @@ class BookIngestor:
                  ai_data.get('description') or '',
                  ai_data.get('summary') or '',
                  json.dumps(final_toc), # AI ToC with Offset
-                 structure.get('pages', 0),
+                 structure.get('page_count', 0),
                  ai_data.get('msc_class') or '',
                  ai_data.get('audience') or '',
                  ai_data.get('has_exercises') or 'Nein',

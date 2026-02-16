@@ -9,7 +9,7 @@ from utils import load_api_key
 
 # Configuration (Mirrors search.py for consistency)
 GEMINI_API_KEY = load_api_key()
-LLM_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
+LLM_MODEL = "gemini-2.0-flash"
 
 import requests
 import json
