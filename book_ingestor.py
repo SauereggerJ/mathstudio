@@ -15,7 +15,7 @@ from google.genai import types
 # --- CONFIGURATION ---
 LIBRARY_ROOT = Path("..")  # Relative to mathstudio/
 DB_FILE = "library.db"
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
 UNSORTED_DIR = LIBRARY_ROOT / "99_General_and_Diverse" / "Unsorted"
 DUPLICATES_DIR = LIBRARY_ROOT / "_Admin" / "Duplicates"
 

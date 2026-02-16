@@ -32,7 +32,7 @@ LOCAL_OUTPUT_DIR = "notes_output"
 OBSIDIAN_INBOX = "/obsidian/00_Inbox"
 
 # Modelle
-GEMINI_MODEL = "gemini-2.0-flash" 
+GEMINI_MODEL = "gemini-2.5-flash-lite-preview-09-2025" 
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 # Client Setup
