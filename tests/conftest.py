@@ -35,17 +35,18 @@ def mock_gemini():
     mock_client.models.generate_content.return_value = mock_gen
     
     with (patch("search.client", mock_client),
-          patch("book_ingestor.client", mock_client)):
+          patch("book_ingestor.client", mock_client),
+          patch("core.ai.genai.Client", return_value=mock_client)):
         yield mock_client
 
 @pytest.fixture
 def client(test_db):
     """Flask test client."""
     # Patch config values in ALL modules that might use them
-    with (patch("config.DB_FILE", Path(test_db)),
-          patch("config.LIBRARY_ROOT", Path("/tmp")),
-          patch("api_v1.DB_FILE", test_db),
-          patch("search.DB_FILE", test_db)):
+    with (patch("core.config.DB_FILE", Path(test_db)),
+          patch("core.config.LIBRARY_ROOT", Path("/tmp")),
+          patch("config.DB_FILE", Path(test_db)),
+          patch("config.LIBRARY_ROOT", Path("/tmp"))):
         
         from app import app as flask_app
         flask_app.config.update({"TESTING": True})

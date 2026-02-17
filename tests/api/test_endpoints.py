@@ -12,7 +12,12 @@ def test_search_endpoint(client, test_db, mock_gemini):
     conn.commit()
     conn.close()
 
-    with patch("api_v1.DB_FILE", test_db), patch("search.DB_FILE", test_db):
+    with patch("services.search.search_service.search") as mock_search:
+        mock_search.return_value = {
+            'results': [{'id': 1, 'title': 'Test Book', 'author': 'Author', 'path': 'test.pdf'}],
+            'total_count': 1,
+            'expanded_query': None
+        }
         response = client.get('/api/v1/search?q=Test')
         assert response.status_code == 200
         data = response.get_json()
@@ -26,17 +31,12 @@ def test_book_details_endpoint(client, test_db):
     conn.commit()
     conn.close()
 
-    # Mock dependent functions in api_v1
-    with (patch("api_v1.DB_FILE", test_db),
-          patch("api_v1.get_similar_books", return_value=[]),
-          patch("api_v1.search_books_semantic", return_value=([], None))):
-        response = client.get('/api/v1/books/10')
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data['title'] == 'Specific Book'
-        assert data['year'] == 2020
+    response = client.get('/api/v1/books/10')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['title'] == 'Specific Book'
+    assert data['year'] == 2020
 
 def test_book_not_found(client, test_db):
-    with patch("api_v1.DB_FILE", test_db):
-        response = client.get('/api/v1/books/999')
-        assert response.status_code == 404
+    response = client.get('/api/v1/books/999')
+    assert response.status_code == 404

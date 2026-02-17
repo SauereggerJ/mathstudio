@@ -7,26 +7,22 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from pathlib import Path
-import datetime
 import datetime
 import time
 import re
+import json
 
-from config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, CONVERTED_NOTES_DIR, parent_dir
+from core.config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, CONVERTED_NOTES_DIR
+from core.database import db
+from services.search import search_service
+from services.library import library_service
+from services.note import note_service
 
-# New Imports for Features
-from search import search, get_book_details, get_similar_books
-from book_ingestor import BookIngestor
-import sqlite3
-
-# Existing Logic Imports (from parent dir, enabled by config.py sys.path)
-from search import search, search_books_semantic, search_books_fts
+# Legacy/Transition Imports
 from bibgen import generate_bibtex_key, generate_bibtex
 import converter
 import bib_hunter
 import bib_extractor
-import json
 
 api_v1 = Blueprint('api_v1', __name__)
 
@@ -37,11 +33,7 @@ def search_endpoint():
     query = request.args.get('q', '')
     limit = request.args.get('limit', 20, type=int)
     page = request.args.get('page', 1, type=int)
-    
-    # Priority: Explicit offset > Page-based offset
-    offset = request.args.get('offset', type=int)
-    if offset is None:
-        offset = (page - 1) * limit
+    offset = request.args.get('offset', (page - 1) * limit, type=int)
     
     use_fts = request.args.get('fts') == 'true'
     use_vector = request.args.get('vec') == 'true'
@@ -53,46 +45,19 @@ def search_endpoint():
         return jsonify({'results': [], 'total_count': 0, 'page': page})
     
     try:
-        # Fallback to Metadata Search if no flags are provided
-        if not use_fts and not use_vector:
-            # Metadata Search (SQL LIKE)
-            # This is fast and uses no external API calls
-            from search import search_books
-            results = search_books(query, limit=limit, offset=offset, field=field)
-            total_count = len(results) # Approximate for simple search (or implement count query)
-            expanded_query = None
-            
-            # Convert tuple results to dicts for JSON response
-            # search_books returns list of tuples: (id, title, author, path, isbn, publisher, year)
-            dict_results = []
-            for r in results:
-                dict_results.append({
-                    'type': 'book',
-                    'id': r[0],
-                    'title': r[1],
-                    'author': r[2],
-                    'path': r[3],
-                    'isbn': r[4],
-                    'publisher': r[5],
-                    'year': r[6]
-                })
-            results = dict_results
-
-        else:
-            # Advanced Search (Semantic + FTS)
-            search_data = search(
-                query, 
-                limit=limit,
-                offset=offset,
-                use_fts=use_fts,
-                use_vector=use_vector,
-                use_translate=use_translate,
-                use_rerank=use_rerank,
-                field=field
-            )
-            results = search_data['results']
-            total_count = search_data['total_count']
-            expanded_query = search_data['expanded_query']
+        search_data = search_service.search(
+            query, 
+            limit=limit,
+            offset=offset,
+            use_fts=use_fts,
+            use_vector=use_vector,
+            use_translate=use_translate,
+            use_rerank=use_rerank,
+            field=field
+        )
+        results = search_data['results']
+        total_count = search_data['total_count']
+        expanded_query = search_data['expanded_query']
             
     except Exception as e:
         print(f"Search API Error: {e}", file=sys.stderr)
@@ -100,24 +65,20 @@ def search_endpoint():
     
     json_results = []
     for item in results:
-        item_type = item.get('type', 'book')
-        if item_type == 'book':
-            # Enrich with BibTeX
-            filename = Path(item['path']).name if item.get('path') else "unknown"
-            bib_key = generate_bibtex_key(item['author'], item['title'])
-            bg_entry = generate_bibtex((item['title'], item['author'], item['path'], filename))
-            
-            # Simple template replacement cleanup
-            if item.get('year'):
-                 bg_entry = bg_entry.replace('year      = {20XX}', f'year      = {{{item["year"]}}}')
-            if item.get('publisher'):
-                 bg_entry = bg_entry.replace('publisher = {Unknown}', f'publisher = {{{item["publisher"]}}}')
-            
-            item.update({
-                'bib_key': bib_key,
-                'bibtex': bg_entry,
-                'cover_url': f'/static/thumbnails/{item["id"]}/page_1.png'
-            })
+        # Enrich with BibTeX
+        bib_key = generate_bibtex_key(item['author'], item['title'])
+        bg_entry = generate_bibtex((item['title'], item['author'], item['path'], Path(item['path']).name))
+        
+        if item.get('year'):
+             bg_entry = bg_entry.replace('year      = {20XX}', f'year      = {{{item["year"]}}}')
+        if item.get('publisher'):
+             bg_entry = bg_entry.replace('publisher = {Unknown}', f'publisher = {{{item["publisher"]}}}')
+        
+        item.update({
+            'bib_key': bib_key,
+            'bibtex': bg_entry,
+            'cover_url': f'/static/thumbnails/{item["id"]}/page_1.png'
+        })
         json_results.append(item)
         
     return jsonify({
@@ -248,50 +209,45 @@ def trigger_index_reconstruction(book_id):
 # --- 2. Tools & Utilities ---
 
 @api_v1.route('/books/<int:book_id>', methods=['GET'])
-def get_book_details(book_id):
+def get_book_details_endpoint(book_id):
     """Returns detailed metadata for a specific book."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, title, author, path, isbn, publisher, year, summary, 
-                   level, description, tags, index_text, doi, toc_json
-            FROM books WHERE id = ?
-        """, (book_id,))
-        row = cursor.fetchone()
-        
-        if not row:
-            conn.close()
-            return jsonify({'error': 'Book not found'}), 404
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM books WHERE id = ?
+            """, (book_id,))
+            row = cursor.fetchone()
             
-        # Try to extract page_offset from toc_json if available
+            if not row:
+                return jsonify({'error': 'Book not found'}), 404
+            
+            # Check if deep-indexed
+            cursor.execute("SELECT book_id FROM deep_indexed_books WHERE book_id = ?", (book_id,))
+            is_deep = bool(cursor.fetchone())
+        
+        row_dict = dict(row)
+        
+        # Try to extract page_offset from toc_json
         page_offset = 0
-        if row[13]:
+        if row_dict.get('toc_json'):
             try:
-                toc_data = json.loads(row[13])
+                toc_data = json.loads(row_dict['toc_json'])
                 for item in toc_data:
                     if isinstance(item, dict) and item.get('pdf_page') and item.get('page'):
                         page_offset = int(item['pdf_page']) - int(item['page'])
                         break
             except: pass
 
-        # Check if deep-indexed
-        cursor.execute("SELECT book_id FROM deep_indexed_books WHERE book_id = ?", (book_id,))
-        is_deep = bool(cursor.fetchone())
+        abs_path = (LIBRARY_ROOT / row_dict['path']).resolve()
         
-        conn.close()
-        
-        rel_path = row[3]
-        abs_path = (LIBRARY_ROOT / rel_path).resolve()
-        
-        page_count = 0
-        if abs_path.exists() and abs_path.suffix.lower() == '.pdf':
+        page_count = row_dict.get('page_count') or 0
+        if page_count == 0 and abs_path.exists() and abs_path.suffix.lower() == '.pdf':
             try:
                 import pypdf
                 reader = pypdf.PdfReader(abs_path)
                 page_count = len(reader.pages)
-            except Exception as e:
-                print(f"Error reading page count: {e}")
+            except: pass
 
         # Get similar books
         similar = []
@@ -299,25 +255,13 @@ def get_book_details(book_id):
             from search import get_similar_books
             similar_raw = get_similar_books(book_id, limit=5)
             similar = [{'id': r[0], 'title': r[1], 'author': r[2]} for r in similar_raw]
-        except Exception:
-            pass
+        except: pass
 
         return jsonify({
-            'id': row[0],
-            'title': row[1],
-            'author': row[2],
-            'path': row[3],
-            'isbn': row[4],
-            'publisher': row[5],
-            'year': row[6],
-            'summary': row[7],
-            'level': row[8],
-            'description': row[9],
-            'tags': row[10],
-            'doi': row[12],
+            **row_dict,
             'page_count': page_count,
             'page_offset': page_offset,
-            'has_index': bool(row[11]),
+            'has_index': bool(row_dict.get('index_text')),
             'is_deep_indexed': is_deep,
             'similar_books': similar
         })
@@ -430,156 +374,37 @@ def convert_tool():
     """Converts one or more PDF pages to notes with AI structuring."""
     data = request.json
     book_id = data.get('book_id')
-    pages_input = data.get("pages") or data.get("page") # Supports int or string range
+    pages_input = data.get("pages") or data.get("page")
     
     if not book_id or not pages_input:
         return jsonify({'error': 'book_id and pages are required'}), 400
         
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT path, title, author FROM books WHERE id = ?", (book_id,))
-        res = cursor.fetchone()
-        conn.close()
-        
-        if not res: return jsonify({'error': 'Book not found'}), 404
-        rel_path, title, author = res
-        abs_path = (LIBRARY_ROOT / rel_path).resolve()
-        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
+            res = cursor.fetchone()
+            if not res: return jsonify({'error': 'Book not found'}), 404
+            abs_path = (LIBRARY_ROOT / res['path']).resolve()
+
         import pypdf
         reader = pypdf.PdfReader(abs_path)
         total_pages = len(reader.pages)
         
-        # Parse range
         target_pages = parse_page_range(str(pages_input), total_pages)
         if not target_pages:
             return jsonify({'error': 'Invalid page range'}), 400
             
-        combined_markdown = ""
-        combined_latex = ""
+        result, error = note_service.create_note_from_pdf(book_id, target_pages)
         
-        for page_num in target_pages:
-            # Clean up title (remove newlines and extra spaces)
-            title = " ".join(title.split())
+        if error:
+            return jsonify({'error': error}), 500
             
-            # Use converter to get content (one by one for now to avoid massive prompt bloat)
-            result_data, error = converter.convert_page(str(abs_path), page_num)
-            
-            if error:
-                combined_markdown += f"\n\n> [Error extracting Page {page_num}: {error}]\n\n"
-                continue
-                
-            combined_markdown += f"\n\n## Page {page_num}\n\n" + result_data.get('markdown', '')
-            combined_latex += f"\n% --- Page {page_num} ---\n" + result_data.get('latex', '')
-        
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        
-        if error: return jsonify({'error': error}), 500
-            
-        markdown_content = result_data.get('markdown', '')
-        latex_content = result_data.get('latex', '')
-        
-        # Prepend header
-        page_ref = f"p. {target_pages[0]}" if len(target_pages) == 1 else f"pp. {target_pages[0]}-{target_pages[-1]}"
-        header = f"---\ntitle: Note from {title} ({page_ref})\nauthor: {author}\ndate: {timestamp}\ntags: [auto-note, {title}]\n---\n\n"
-        full_markdown = header + combined_markdown
-        
-        # Save locally
-        if not CONVERTED_NOTES_DIR.exists(): CONVERTED_NOTES_DIR.mkdir()
-            
-        safe_title = "".join(x for x in title if x.isalnum() or x in " -_")[:50]
-        filename_base = f"{safe_title}_p{target_pages[0]}"
-        if len(target_pages) > 1: filename_base += f"-{target_pages[-1]}"
-        
-        md_filename = f"{filename_base}.md"
-        tex_filename = f"{filename_base}.tex"
-        
-        with open(CONVERTED_NOTES_DIR / md_filename, 'w', encoding='utf-8') as f: f.write(full_markdown)
-        with open(CONVERTED_NOTES_DIR / tex_filename, 'w', encoding='utf-8') as f: f.write(combined_latex)
-        
-        # Generate recommendations for metadata using simpler keyword search
-        recommendations = []
-        try:
-            # Extract key terms from the markdown content for search
-            import re
-            # Get first 500 chars and extract mathematical terms
-            sample_text = markdown_content[:500]
-            # Simple keyword extraction - look for capitalized words and math terms
-            keywords = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', sample_text)
-            search_query = ' '.join(keywords[:5]) if keywords else title
-            
-            # Use FTS search instead of semantic search
-            conn = sqlite3.connect(DB_FILE, timeout=30)
-            cursor = conn.cursor()
-            clean_query = search_query.replace('"', '""')
-            cursor.execute("""
-                SELECT b.id, b.title, b.author 
-                FROM books_fts f 
-                JOIN books b ON f.rowid = b.id 
-                WHERE books_fts MATCH ? 
-                ORDER BY rank 
-                LIMIT 5
-            """, (clean_query,))
-            results = cursor.fetchall()
-            conn.close()
-            
-            recommendations = [
-                {
-                    'id': r[0],
-                    'title': r[1],
-                    'author': r[2],
-                    'score': 0.8  # Dummy score for FTS results
-                }
-                for r in results
-            ]
-        except Exception as e:
-            print(f"Recommendation Error: {e}")
-            
-        # Save metadata JSON
-        metadata = {
-            'title': f"Note from {title} ({page_ref})",
-            'original_filename': filename_base,
-            'created': timestamp,
-            'tags': ['auto-note', title],
-            'recommendations': recommendations,
-            'pages': target_pages
-        }
-        json_filename = f"{filename_base}.json"
-        with open(CONVERTED_NOTES_DIR / json_filename, 'w', encoding='utf-8') as f:
-            json.dump(metadata, f, indent=2)
-        
-        # Extract PDF pages from source PDF
-        try:
-            from pypdf import PdfReader, PdfWriter
-            pdf_filename = f"{filename_base}.pdf"
-            
-            reader = PdfReader(abs_path)
-            writer = PdfWriter()
-            
-            for p_num in target_pages:
-                if p_num <= len(reader.pages):
-                    writer.add_page(reader.pages[p_num - 1])
-            
-            if len(writer.pages) > 0:
-                with open(CONVERTED_NOTES_DIR / pdf_filename, 'wb') as output_pdf:
-                    writer.write(output_pdf)
-                print(f"Extracted PDF pages {target_pages} to {pdf_filename}")
-        except Exception as e:
-            print(f"PDF extraction error: {e}")
-        
-        # Obsidian Sync
-        if os.path.exists(OBSIDIAN_INBOX):
-            try:
-                import shutil
-                shutil.copy2(CONVERTED_NOTES_DIR / md_filename, os.path.join(OBSIDIAN_INBOX, md_filename))
-            except Exception as e:
-                print(f"Bridge Error: {e}")
-                
         return jsonify({
             'success': True,
-            'message': f'Note created: {md_filename}',
-            'content': full_markdown,
-            'filename': md_filename
+            'message': f'Note created: {result["filename"]}',
+            'content': result['content'],
+            'filename': result['filename']
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -738,59 +563,22 @@ def update_book_metadata(book_id):
     """Manually updates book metadata fields."""
     try:
         data = request.json
-        fields = ['title', 'author', 'publisher', 'year', 'isbn', 'msc_class', 'summary', 'tags', 'description', 'level', 'audience']
+        success, message = library_service.update_metadata(book_id, data)
         
-        updates = []
-        params = []
-        for f in fields:
-            if f in data:
-                updates.append(f"{f} = ?")
-                params.append(data[f])
-        
-        if not updates:
-            return jsonify({'error': 'No fields to update'}), 400
+        if not success:
+            return jsonify({'error': message}), 400
             
         # Handle ToC update if provided (usually from AI proposal)
         if 'toc' in data:
-            ingestor = None
             try:
                 from book_ingestor import BookIngestor
                 ingestor = BookIngestor(execute=True)
                 ingestor.sync_chapters(book_id, data['toc'], page_offset=data.get('page_offset', 0))
+                ingestor.close()
             except Exception as e:
-                # Log but don't fail the whole metadata update
-                print(f"Failed to sync chapters during metadata update: {e}")
-            finally:
-                if ingestor:
-                    ingestor.close()
+                print(f"Failed to sync chapters: {e}")
 
-        import time
-        params.append(time.time())
-        params.append(book_id)
-        
-        query = f"UPDATE books SET {', '.join(updates)}, last_modified = ? WHERE id = ?"
-        
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        
-        # --- NEW: Explicit FTS Synchronization ---
-        try:
-            # 1. Remove old entry from FTS
-            cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (book_id,))
-            # 2. Re-insert fresh data from the updated books table
-            cursor.execute("""
-                INSERT INTO books_fts (rowid, title, author, index_content)
-                SELECT id, title, author, index_text FROM books WHERE id = ?
-            """, (book_id,))
-        except Exception as fts_err:
-            print(f"FTS Sync Warning: {fts_err}")
-        # ------------------------------------------
-
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Metadata updated successfully'})
+        return jsonify({'success': True, 'message': message})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 @api_v1.route('/bib-extracts/<filename>', methods=['GET'])
@@ -1186,44 +974,13 @@ def replace_book_file(book_id):
         return jsonify({'error': f"Internal error: {str(e)}", 'trace': traceback.format_exc()}), 500
 
 @api_v1.route('/books/<int:book_id>', methods=['DELETE'])
-def delete_book(book_id):
+def delete_book_endpoint(book_id):
     """Safely deletes a book: moves file to archive and removes DB entry."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        
-        # 1. Get book path
-        cursor.execute("SELECT path, title FROM books WHERE id = ?", (book_id,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            return jsonify({'error': 'Book not found'}), 404
-            
-        rel_path, title = row
-        abs_path = (LIBRARY_ROOT / rel_path).resolve()
-        
-        # 2. Archive the file
-        archive_dir = LIBRARY_ROOT / "_Admin" / "Archive" / "Deleted"
-        archive_dir.mkdir(parents=True, exist_ok=True)
-        
-        if abs_path.exists():
-            dest_path = archive_dir / f"{book_id}_{abs_path.name}"
-            import shutil
-            shutil.move(str(abs_path), str(dest_path))
-            print(f"[DELETE] Archived file to {dest_path}")
-        
-        # 3. Remove from Database
-        cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
-        # Also clean up FTS
-        cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (book_id,))
-        # And bookmarks
-        cursor.execute("DELETE FROM bookmarks WHERE book_id = ?", (book_id,))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': f"Book '{title}' deleted and archived successfully."})
-        
+        success, message = library_service.delete_book(book_id)
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'error': message}), 404
     except Exception as e:
-        import traceback
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+        return jsonify({'error': str(e)}), 500
