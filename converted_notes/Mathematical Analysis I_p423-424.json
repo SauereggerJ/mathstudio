@@ -1,0 +1,27 @@
+{
+  "title": "Note from Mathematical Analysis I (pp. 423-424)",
+  "original_filename": "Mathematical Analysis I_p423-424",
+  "created": "2026-02-17 19:56",
+  "tags": [
+    "auto-note",
+    "Mathematical Analysis I"
+  ],
+  "recommendations": [
+    {
+      "id": 762,
+      "title": "A first course in dynamics",
+      "author": "Boris Hasselblatt, Anatole Katok",
+      "score": 0.8
+    },
+    {
+      "id": 298,
+      "title": "Fundamentals of Functional Analysis",
+      "author": "Douglas Farenick",
+      "score": 0.8
+    }
+  ],
+  "pages": [
+    423,
+    424
+  ]
+}

@@ -37,7 +37,7 @@
 
         <div class="space-y-3">
             {% if path.lower().endswith('.djvu') %}
-            <a href="/view-pdf/{{ id }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all transition-all">
+            <a href="/view-pdf/{{ id }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
                 <i class="fas fa-file-pdf mr-3"></i> Convert & Read
             </a>
             {% else %}
@@ -68,6 +68,11 @@
                         <input type="file" id="fileInput" class="hidden" onchange="replaceFile(this)">
                     </li>
                     <li>
+                        <a href="/book/{{ id }}/edit" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-blue-600 font-semibold">
+                            <i class="fas fa-edit mr-3"></i> Manual Edit
+                        </a>
+                    </li>
+                    <li>
                         <button id="reindexBtn" onclick="reindexBook()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-indigo-600 font-semibold">
                             <i class="fas fa-sync mr-3"></i> AI Re-Index
                         </button>
@@ -85,7 +90,7 @@
     <!-- Right Side: Content & Tabs -->
     <div>
         <nav class="flex mb-6" aria-label="Breadcrumb">
-            <ol class="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse">
+            <ol class="inline-flex items-center space-x-1 md:space-x-2">
                 <li class="inline-flex items-center">
                     <a href="/" class="text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors">Library</a>
                 </li>
@@ -137,7 +142,7 @@
                 {% else %}
                 <div class="text-center py-12 text-slate-400 italic">
                     <i class="fas fa-brain block text-4xl mb-3 opacity-20"></i>
-                    No AI summary available. Click "Re-Index" to generate one.
+                    No AI summary available. Click "AI Re-Index" to generate one.
                 </div>
                 {% endif %}
 
@@ -227,14 +232,26 @@
                     <div id="noteStatus" class="mt-3 text-xs font-bold text-emerald-600 min-height-[1.2em]"></div>
 
                     <div id="noteResult" class="hidden mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div class="bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
-                            <div class="flex justify-between items-center px-4 py-2 bg-slate-800 border-b border-slate-700">
-                                <span class="text-[10px] font-black text-slate-400 uppercase">Generated Markdown</span>
-                                <button onclick="copyNote()" class="text-slate-400 hover:text-white transition-colors text-xs flex items-center">
-                                    <i class="fas fa-copy mr-2"></i> Copy
-                                </button>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Raw Source -->
+                            <div class="bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
+                                <div class="flex justify-between items-center px-4 py-2 bg-slate-800 border-b border-slate-700">
+                                    <span class="text-[10px] font-black text-slate-400 uppercase">Source (Markdown)</span>
+                                    <button onclick="copyNote()" class="text-slate-400 hover:text-white transition-colors text-xs flex items-center">
+                                        <i class="fas fa-copy mr-2"></i> Copy
+                                    </button>
+                                </div>
+                                <textarea id="noteText" oninput="renderNotePreview()" class="w-full h-96 p-4 bg-slate-900 text-emerald-400 font-mono text-sm border-none focus:ring-0 resize-none"></textarea>
                             </div>
-                            <textarea id="noteText" class="w-full h-64 p-4 bg-slate-900 text-emerald-400 font-mono text-sm border-none focus:ring-0 resize-none"></textarea>
+                            <!-- Rendered Preview -->
+                            <div class="bg-white rounded-xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
+                                <div class="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                                    <span class="text-[10px] font-black text-slate-500 uppercase">Rendered Preview</span>
+                                </div>
+                                <div id="notePreview" class="p-6 overflow-y-auto h-96 prose prose-slate max-w-none text-slate-800">
+                                    <!-- Rendered content goes here -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -283,12 +300,41 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Review Modal -->
+<div id="reviewModal" class="hidden fixed inset-0 z-[60] overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h3 class="text-xl font-black text-slate-800">Review AI Proposal</h3>
+            <button onclick="closeReview()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-grow">
+            <div class="grid grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">Current Data</h4>
+                    <div id="currentMeta" class="text-sm space-y-2 opacity-60"></div>
+                </div>
+                <div class="space-y-4">
+                    <h4 class="text-xs font-black text-blue-500 uppercase tracking-widest">AI Proposal</h4>
+                    <div id="proposedMeta" class="text-sm space-y-2"></div>
+                </div>
+            </div>
+        </div>
+        <div class="p-6 border-t border-slate-100 bg-slate-50 flex gap-4">
+            <button onclick="applyProposal()" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
+                Apply Changes
+            </button>
+            <button onclick="closeReview()" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all">
+                Reject
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Existing functions with slight UI updates for SweetAlert/Modern Alerts if needed
-    // But keeping it standard for now to ensure reliability.
+    let currentProposal = null;
 
     async function openExternal(path) {
         try {
@@ -328,6 +374,7 @@
                 status.textContent = "SYNTHESIS COMPLETE.";
                 noteText.value = data.content;
                 resultDiv.classList.remove('hidden');
+                renderNotePreview(); // Initial render
             }
         } catch (e) {
             status.textContent = "CONNECTION ERROR.";
@@ -341,6 +388,28 @@
         noteText.select();
         document.execCommand('copy');
         alert("Markdown copied to clipboard.");
+    }
+
+    function renderNotePreview() {
+        const source = document.getElementById('noteText').value;
+        const preview = document.getElementById('notePreview');
+        
+        // Simple conversion: newlines to <br>, but we want to be careful with math blocks
+        // For a true markdown experience, we would use marked.js, 
+        // but for now, we'll let KaTeX handle the math in the text.
+        preview.innerHTML = source.replace(/\n/g, '<br>');
+        
+        if (window.renderMathInElement) {
+            renderMathInElement(preview, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError : false
+            });
+        }
     }
 
     async function scanBibliography() {
@@ -370,18 +439,80 @@
     }
 
     async function reindexBook() {
-        if (!confirm("Overwrite existing metadata with new AI analysis?")) return;
         const btn = document.getElementById('reindexBtn');
+        const originalText = btn.innerHTML;
         btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-3"></i> Analyzing...';
+        
         try {
-            const response = await fetch('/api/v1/books/{{ id }}/reindex', {
+            const response = await fetch('/api/v1/books/{{ id }}/reindex/preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ai_care: true })
             });
             const data = await response.json();
+            if (data.success) {
+                currentProposal = data.proposed;
+                showReview(data.current, data.proposed);
+            } else {
+                alert(data.error);
+            }
+        } catch (e) { alert("Connection error during preview."); }
+        finally { 
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function showReview(cur, prop) {
+        const curDiv = document.getElementById('currentMeta');
+        const propDiv = document.getElementById('proposedMeta');
+        
+        const format = (d) => `
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Title</label>
+                <p class="font-bold text-slate-800">${d.title || 'N/A'}</p>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Author</label>
+                <p class="italic text-slate-600">${d.author || 'N/A'}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Publisher</label>
+                    <p class="text-slate-700">${d.publisher || '?'}</p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Year</label>
+                    <p class="text-slate-700">${d.year || '?'}</p>
+                </div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Summary</label>
+                <p class="text-xs text-slate-600 leading-relaxed line-clamp-4">${d.summary || 'No summary proposed.'}</p>
+            </div>
+        `;
+        
+        curDiv.innerHTML = format(cur);
+        propDiv.innerHTML = format(prop);
+        document.getElementById('reviewModal').classList.remove('hidden');
+    }
+
+    function closeReview() {
+        document.getElementById('reviewModal').classList.add('hidden');
+    }
+
+    async function applyProposal() {
+        if (!currentProposal) return;
+        try {
+            const response = await fetch('/api/v1/books/{{ id }}/metadata', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentProposal)
+            });
+            const data = await response.json();
             if (data.success) { location.reload(); } else { alert(data.error); }
-        } catch (e) { alert(e); } finally { btn.disabled = false; }
+        } catch (e) { alert("Failed to apply metadata."); }
     }
 
     async function deleteBook() {

@@ -13,6 +13,22 @@ from search import get_book_details, get_book_matches, get_similar_books, get_ch
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
+STATE_FILE = Path(__file__).parent / "current_state.json"
+
+def update_state(action, book_id=None, extra=None):
+    """Updates the global system state for Gemini CLI awareness."""
+    state = {
+        "action": action,
+        "book_id": book_id,
+        "timestamp": os.popen('date -Iseconds').read().strip(),
+        "extra": extra or {}
+    }
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        app.logger.error(f"Failed to update state: {e}")
+
 # Register API Blueprint
 app.register_blueprint(api_v1, url_prefix='/api/v1')
 
@@ -32,6 +48,20 @@ def admin_dashboard():
 def legacy_search():
     return redirect(url_for('api_v1.search_endpoint', **request.args))
 
+@app.route('/book/<int:book_id>/edit')
+def edit_book(book_id):
+    """Renders the metadata editor for a book."""
+    book = get_book_details(book_id)
+    if not book: return "Book not found", 404
+    
+    title, author, path, isbn, publisher, year, summary, level, exercises, solutions, ref_url, msc_code, tags, index_text, index_matches = book
+    
+    return render_template('edit_book.html',
+        id=book_id, title=title, author=author, isbn=isbn, 
+        publisher=publisher, year=year, summary=summary, 
+        msc_code=msc_code, tags=tags, level=level
+    )
+
 @app.route('/book/<int:book_id>')
 def book_details(book_id):
     query = request.args.get('q', '')
@@ -47,6 +77,9 @@ def book_details(book_id):
     
     similar_books = get_similar_books(book_id)
     chapters = get_chapters(book_id)
+    
+    # Update system state for Gemini CLI awareness
+    update_state("view_book", book_id=book_id, extra={"title": title, "path": str(path)})
         
     return render_template('book.html', 
         id=book_id,

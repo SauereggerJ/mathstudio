@@ -152,6 +152,24 @@ def setup_database(force=False):
         )
     ''')
 
+    # 4. Page-level FTS and Deep Index Tracking
+    cursor.execute('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
+            book_id UNINDEXED,
+            page_number UNINDEXED,
+            content,
+            tokenize='porter unicode61 remove_diacritics 1'
+        );
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS deep_indexed_books (
+            book_id INTEGER PRIMARY KEY,
+            indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+        );
+    ''')
+
     conn.commit()
     return conn
 
@@ -325,6 +343,85 @@ def resolve_metadata(filename, file_path):
             meta = fetch_crossref_metadata(head_text)
             if meta: return meta
     return {'title': title, 'author': author}
+
+def deep_index_book(book_id, conn=None):
+    """
+    Performs page-level indexing for a specific book.
+    Stores results in pages_fts for fine-grained searching.
+    """
+    close_conn = False
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE)
+        close_conn = True
+    
+    cursor = conn.cursor()
+    
+    # 1. Get book path
+    cursor.execute("SELECT path, filename FROM books WHERE id = ?", (book_id,))
+    row = cursor.fetchone()
+    if not row:
+        return False, "Book not found"
+    
+    rel_path, filename = row
+    abs_path = LIBRARY_ROOT / rel_path
+    
+    if not abs_path.exists():
+        return False, f"File not found: {rel_path}"
+    
+    print(f"Deep indexing: {filename} (ID: {book_id})")
+    
+    # 2. Extract text page-by-page
+    pages_data = []
+    if abs_path.suffix.lower() == '.pdf':
+        try:
+            reader = PdfReader(abs_path)
+            for i, page in enumerate(reader.pages):
+                text = page.extract_text()
+                if text:
+                    cleaned = " ".join(text.split())
+                    pages_data.append((book_id, i + 1, cleaned))
+        except Exception as e:
+            return False, f"PDF Error: {e}"
+            
+    elif abs_path.suffix.lower() == '.djvu':
+        import shutil
+        import subprocess
+        if shutil.which('djvutxt'):
+            try:
+                result = subprocess.run(['djvutxt', str(abs_path)], capture_output=True, text=True, check=True)
+                pages = result.stdout.split('\f')
+                for i, page_text in enumerate(pages):
+                    if page_text.strip():
+                        cleaned = " ".join(page_text.split())
+                        pages_data.append((book_id, i + 1, cleaned))
+            except Exception as e:
+                return False, f"DjVu Error: {e}"
+        else:
+            return False, "djvutxt tool not found"
+    else:
+        return False, f"Unsupported format: {abs_path.suffix}"
+
+    # 3. Save to database
+    try:
+        # Clear existing entries for this book if any
+        cursor.execute("DELETE FROM pages_fts WHERE book_id = ?", (book_id,))
+        
+        # Batch insert
+        cursor.executemany(
+            "INSERT INTO pages_fts (book_id, page_number, content) VALUES (?, ?, ?)",
+            pages_data
+        )
+        
+        # Mark as deep-indexed
+        cursor.execute("INSERT OR REPLACE INTO deep_indexed_books (book_id) VALUES (?)", (book_id,))
+        
+        conn.commit()
+        return True, f"Successfully indexed {len(pages_data)} pages"
+    except Exception as e:
+        return False, f"Database Error: {e}"
+    finally:
+        if close_conn:
+            conn.close()
 
 def scan_library(conn, force=False):
     """Scans the library directory and updates the database."""

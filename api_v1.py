@@ -162,25 +162,125 @@ def parse_page_range(pages_str, max_pages):
                 continue
     return sorted(list(pages))
 
-# --- 2. Tools & Utilities ---
-
-@api_v1.route('/books/<int:book_id>', methods=['GET'])
-def get_book_details(book_id):
-    """Returns detailed metadata for a specific book."""
+@api_v1.route('/books/<int:book_id>/deep-index', methods=['POST'])
+def trigger_deep_indexing(book_id):
+    """Triggers fine-grained (page-by-page) FTS indexing for a book."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        from indexer import deep_index_book
+        success, message = deep_index_book(book_id)
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'error': message}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/search', methods=['GET'])
+def search_within_book_endpoint(book_id):
+    """Searches for a query within a specific book (using page-level indexing)."""
+    query = request.args.get('q', '')
+    limit = request.args.get('limit', 50, type=int)
+    
+    if not query:
+        return jsonify({'error': 'Missing query parameter (q)'}), 400
+        
+    try:
+        from search import search_within_book
+        matches, is_deep = search_within_book(book_id, query, limit=limit)
+        return jsonify({
+            'book_id': book_id,
+            'query': query,
+            'matches': matches,
+            'is_deep_indexed': is_deep
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/reindex/index', methods=['POST'])
+def trigger_index_reconstruction(book_id):
+    """Triggers AI-driven Index (back of book) reconstruction."""
+    try:
+        from index_backfill import extract_candidate_pages, clean_index_with_gemini, validate_content, update_db
+        import fitz
+        
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, title, author, path, isbn, publisher, year, summary, 
-                   level, description, tags, index_text, doi
-            FROM books WHERE id = ?
-        """, (book_id,))
+        cursor.execute("SELECT path, title FROM books WHERE id = ?", (book_id,))
         row = cursor.fetchone()
         conn.close()
         
         if not row:
             return jsonify({'error': 'Book not found'}), 404
             
+        rel_path, title = row
+        abs_path = (LIBRARY_ROOT / rel_path).resolve()
+        
+        if not abs_path.exists():
+            return jsonify({'error': 'File not found'}), 404
+            
+        doc = fitz.open(abs_path)
+        raw_text, page_count = extract_candidate_pages(doc)
+        doc.close()
+        
+        if not raw_text:
+            return jsonify({'success': False, 'error': 'No index pages detected via heuristics.'}), 400
+            
+        clean_text = clean_index_with_gemini(raw_text, title)
+        
+        if clean_text == "NOT_INDEX":
+            return jsonify({'success': False, 'error': 'AI rejected content as not an index.'}), 400
+            
+        if not clean_text:
+            return jsonify({'success': False, 'error': 'AI failed to process index.'}), 500
+            
+        is_valid, reason = validate_content(clean_text)
+        if is_valid:
+            if update_db(book_id, clean_text):
+                return jsonify({'success': True, 'message': f'Index updated ({len(clean_text)} characters)'})
+            else:
+                return jsonify({'success': False, 'error': 'Database update failed'}), 500
+        else:
+            return jsonify({'success': False, 'error': f'Validation failed: {reason}'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# --- 2. Tools & Utilities ---
+
+@api_v1.route('/books/<int:book_id>', methods=['GET'])
+def get_book_details(book_id):
+    """Returns detailed metadata for a specific book."""
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=30)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, title, author, path, isbn, publisher, year, summary, 
+                   level, description, tags, index_text, doi, toc_json
+            FROM books WHERE id = ?
+        """, (book_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            conn.close()
+            return jsonify({'error': 'Book not found'}), 404
+            
+        # Try to extract page_offset from toc_json if available
+        page_offset = 0
+        if row[13]:
+            try:
+                toc_data = json.loads(row[13])
+                for item in toc_data:
+                    if isinstance(item, dict) and item.get('pdf_page') and item.get('page'):
+                        page_offset = int(item['pdf_page']) - int(item['page'])
+                        break
+            except: pass
+
+        # Check if deep-indexed
+        cursor.execute("SELECT book_id FROM deep_indexed_books WHERE book_id = ?", (book_id,))
+        is_deep = bool(cursor.fetchone())
+        
+        conn.close()
+        
         rel_path = row[3]
         abs_path = (LIBRARY_ROOT / rel_path).resolve()
         
@@ -216,7 +316,9 @@ def get_book_details(book_id):
             'tags': row[10],
             'doi': row[12],
             'page_count': page_count,
+            'page_offset': page_offset,
             'has_index': bool(row[11]),
+            'is_deep_indexed': is_deep,
             'similar_books': similar
         })
     except Exception as e:
@@ -233,7 +335,7 @@ def pdf_to_text_tool():
         return jsonify({'error': 'book_id and pages are required'}), 400
         
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
         res = cursor.fetchone()
@@ -334,7 +436,7 @@ def convert_tool():
         return jsonify({'error': 'book_id and pages are required'}), 400
         
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("SELECT path, title, author FROM books WHERE id = ?", (book_id,))
         res = cursor.fetchone()
@@ -407,7 +509,7 @@ def convert_tool():
             search_query = ' '.join(keywords[:5]) if keywords else title
             
             # Use FTS search instead of semantic search
-            conn = sqlite3.connect(DB_FILE)
+            conn = sqlite3.connect(DB_FILE, timeout=30)
             cursor = conn.cursor()
             clean_query = search_query.replace('"', '""')
             cursor.execute("""
@@ -517,7 +619,7 @@ def bib_scan_tool():
             return jsonify({'error': 'book_id is required'}), 400
         
         # Validate book exists
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("SELECT id, title, author, path FROM books WHERE id = ?", (book_id,))
         book = cursor.fetchone()
@@ -617,6 +719,80 @@ def reindex_book(book_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@api_v1.route('/books/<int:book_id>/reindex/preview', methods=['POST'])
+def preview_reindex_book(book_id):
+    """Generates a metadata proposal without saving it."""
+    try:
+        from book_ingestor import BookIngestor
+        data = request.json or {}
+        ai_care = data.get('ai_care', True)
+        ingestor = BookIngestor(execute=True)
+        result = ingestor.preview_reindex(book_id, ai_care=ai_care)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/metadata', methods=['PATCH'])
+def update_book_metadata(book_id):
+    """Manually updates book metadata fields."""
+    try:
+        data = request.json
+        fields = ['title', 'author', 'publisher', 'year', 'isbn', 'msc_class', 'summary', 'tags', 'description', 'level', 'audience']
+        
+        updates = []
+        params = []
+        for f in fields:
+            if f in data:
+                updates.append(f"{f} = ?")
+                params.append(data[f])
+        
+        if not updates:
+            return jsonify({'error': 'No fields to update'}), 400
+            
+        # Handle ToC update if provided (usually from AI proposal)
+        if 'toc' in data:
+            ingestor = None
+            try:
+                from book_ingestor import BookIngestor
+                ingestor = BookIngestor(execute=True)
+                ingestor.sync_chapters(book_id, data['toc'], page_offset=data.get('page_offset', 0))
+            except Exception as e:
+                # Log but don't fail the whole metadata update
+                print(f"Failed to sync chapters during metadata update: {e}")
+            finally:
+                if ingestor:
+                    ingestor.close()
+
+        import time
+        params.append(time.time())
+        params.append(book_id)
+        
+        query = f"UPDATE books SET {', '.join(updates)}, last_modified = ? WHERE id = ?"
+        
+        conn = sqlite3.connect(DB_FILE, timeout=30)
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        
+        # --- NEW: Explicit FTS Synchronization ---
+        try:
+            # 1. Remove old entry from FTS
+            cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (book_id,))
+            # 2. Re-insert fresh data from the updated books table
+            cursor.execute("""
+                INSERT INTO books_fts (rowid, title, author, index_content)
+                SELECT id, title, author, index_text FROM books WHERE id = ?
+            """, (book_id,))
+        except Exception as fts_err:
+            print(f"FTS Sync Warning: {fts_err}")
+        # ------------------------------------------
+
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Metadata updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 @api_v1.route('/bib-extracts/<filename>', methods=['GET'])
 def serve_bib_extract(filename):
     """Serve extracted bibliography PDF files."""
@@ -643,7 +819,7 @@ def serve_bib_extract(filename):
 def download_book(book_id):
     """Serves the raw book file, converting DjVu to PDF if needed."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
         res = cursor.fetchone()
@@ -704,6 +880,20 @@ def admin_ingest():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@api_v1.route('/admin/ingest/report', methods=['GET'])
+def admin_ingest_report():
+    """Returns the current ingestion status report."""
+    try:
+        cmd = ["python3", str(parent_dir / "ingestion_report.py")]
+        result = subprocess.run(cmd, cwd=str(parent_dir), capture_output=True, text=True, timeout=60)
+        return jsonify({
+            'success': result.returncode == 0,
+            'stdout': result.stdout,
+            'stderr': result.stderr
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/admin/indexer', methods=['POST'])
 def admin_indexer():
     """Triggers the indexer (FTS/Vector rebuild)."""
@@ -727,7 +917,7 @@ def admin_indexer():
 def admin_stats():
     """Returns database statistics."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         
         # 1. Basic Counts
@@ -806,7 +996,7 @@ def admin_logs():
 def get_book_toc_endpoint(book_id):
     """Returns the structured Table of Contents for a book."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("SELECT toc_json FROM books WHERE id = ?", (book_id,))
         row = cursor.fetchone()
@@ -836,7 +1026,7 @@ def create_bookmark():
         if not book_id:
             return jsonify({'error': 'book_id is required'}), 400
             
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO bookmarks (book_id, page_range, tags, notes) VALUES (?, ?, ?, ?)",
@@ -868,7 +1058,7 @@ def list_bookmarks():
     query += " ORDER BY b.created_at DESC"
     
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -893,7 +1083,7 @@ def list_bookmarks():
 def delete_bookmark(bookmark_id):
     """Delete a bookmark."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM bookmarks WHERE id = ?", (bookmark_id,))
         conn.commit()
@@ -913,7 +1103,7 @@ def replace_book_file(book_id):
 
     try:
         # 1. Get existing record
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         cursor.execute("SELECT path, title, author, page_count, file_hash FROM books WHERE id = ?", (book_id,))
         row = cursor.fetchone()
@@ -999,7 +1189,7 @@ def replace_book_file(book_id):
 def delete_book(book_id):
     """Safely deletes a book: moves file to archive and removes DB entry."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=30)
         cursor = conn.cursor()
         
         # 1. Get book path

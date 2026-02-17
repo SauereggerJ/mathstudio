@@ -63,6 +63,13 @@ The bridge between paper and digital.
 Extracts a specific PDF page and transforms it into a structured, high-quality Markdown/LaTeX note.
 
 
+
+### F. Metadata Governance & Governance
+Ensuring high-quality metadata is a shared responsibility between AI and the User.
+*   **Manual Editor**: Accessible via . Allows precise control over Title, Author, Publisher, Year, and MSC Classification.
+*   **Review & Approve Workflow**: AI Re-indexing now generates a **Proposal**. Users must explicitly verify the side-by-side comparison before changes are committed to the production database.
+*   **Deep Extraction**: The AI is now instructed to hunt for ISBNs, Publisher imprints, and precise publication years within the first 50,000 characters of a volume.
+
 ### E. Safe Book Deletion (API Endpoint)
 Allows removing books from the library while preserving a backup.
 *   **Archiving**: Moves the physical file to  before DB removal.
@@ -74,29 +81,25 @@ Allows upgrading existing books with "better" versions through the Web UI.
 *   **Preservation**: Keeps all existing curated metadata (Title, Author, Summary) while updating technical fields (Hash, Size).
 *   **Safety**: Automatically archives the old version in `_Admin/Archive/Replaced`.
 
-### E. Safe Book Deletion (API Endpoint)
-Allows removing books from the library while preserving a backup.
-*   **Archiving**: Moves the physical file to `_Admin/Archive/Deleted` before DB removal.
-*   **Database Cleanup**: Removes the book record, FTS entries, and associated bookmarks.
 
----
+### F. Metadata Governance & Governance
+Ensuring high-quality metadata is a shared responsibility between AI and the User.
+*   **Manual Editor**: Accessible via . Allows precise control over Title, Author, Publisher, Year, and MSC Classification.
+*   **Review & Approve Workflow**: AI Re-indexing now generates a **Proposal**. Users must explicitly verify the side-by-side comparison before changes are committed to the production database.
+*   **Deep Extraction**: The AI is now instructed to hunt for ISBNs, Publisher imprints, and precise publication years within the first 50,000 characters of a volume.
 
-## 5. Model Context Protocol (MCP) Server
-Located in `mcp_server/`, this allows an LLM (like Gemini) to act as a "Library Agent".
-*   **Tools exposed:**
-    *   `search_books`: Query the hybrid search engine.
-    *   `get_book_details`: Deep-dive into a specific volume.
-    *   `read_pdf_pages`: Extract raw text (cost-efficient).
-    *   `convert_pdf_to_note`: High-quality AI synthesis.
-    *   `get_book_toc`: Structured structure browsing.
-    *   `manage_bookmarks`: Persistent storage of key findings.
+### G. Gemini CLI Web Bridge (Persistent Terminal)
+MathStudio now includes a live, persistent Gemini CLI terminal integrated into the Web UI.
+*   **Infrastructure**: Uses `ttyd` mirroring a `tmux` session on the host (Port 8081).
+*   **State Awareness**: The Flask app updates `current_state.json` on user actions, allowing the CLI (via the `get_system_state` tool) to automatically track which book the user is viewing.
+*   **UI Integration**: Accessible via the floating "Robot" action button.
 
----
-
-## 6. Database & Maintenance (`library.db`)
+### H. Database & Maintenance (`library.db`)
 *   **`books` Table**: Core metadata, summaries, and binary embeddings.
 *   **`books_fts`**: Virtual table for high-speed keyword matching.
-*   **Sanity Tools**:
+    *   *Automatic Sync*: Code-level synchronization ensures every metadata change in the `books` table is immediately reflected in the `books_fts` index.
+*   **Concurrency**: WAL (Write-Ahead Logging) is enabled to allow simultaneous read/write access.
+*   **Stability**: 30-second busy timeouts are enforced on all SQLite connections.
     *   `db_sanity.py`: Removes dead paths and resolves physical duplicates.
     *   `repair_indexes.py`: Fixes formatting in the `index_content` field.
     *   `vectorize.py`: (Re)calculates semantic embeddings for the entire library.

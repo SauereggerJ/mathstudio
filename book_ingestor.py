@@ -49,8 +49,13 @@ class BookIngestor:
         # Execute implies NOT dry_run
         if self.execute_mode: self.dry_run = False
             
-        self.conn = sqlite3.connect(DB_FILE)
+        self.conn = sqlite3.connect(DB_FILE, timeout=30)
         self.ensure_db_schema()
+
+    def close(self):
+        """Closes the database connection."""
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()
 
     def ensure_db_schema(self):
         """Ensures the new columns exist in the database."""
@@ -402,29 +407,16 @@ class BookIngestor:
                  }
 
              # 3. Update Database
-             # Prepare ToC Data with Offset
-             toc_data = ai_data.get('toc') or structure.get('toc', [])
-             page_offset = ai_data.get('page_offset', 0)
-            
-             final_toc = []
-             if isinstance(toc_data, list):
-                 for item in toc_data:
-                     if isinstance(item, dict):
-                          try:
-                              p = int(item.get('page', 0))
-                              item['pdf_page'] = p + page_offset
-                              item['level'] = 0 
-                          except: pass
-                          final_toc.append(item)
-                     else:
-                         final_toc.append(item)
+             self.sync_chapters(book_id, ai_data.get('toc') or structure.get('toc', []), page_offset=ai_data.get('page_offset', 0))
 
              cursor.execute("""
                  UPDATE books SET 
                      author = ?, title = ?, 
                      description = ?, summary = ?, 
-                     toc_json = ?, page_count = ?, 
-                     msc_class = ?, audience = ?, 
+                     page_count = ?, 
+                     msc_class = ?, msc_code = ?,
+                     audience = ?, publisher = ?,
+                     year = ?, isbn = ?,
                      has_exercises = ?, has_solutions = ?, 
                      last_modified = ? 
                  WHERE id = ?
@@ -433,16 +425,31 @@ class BookIngestor:
                  ai_data.get('title') or old_title,
                  ai_data.get('description') or '',
                  ai_data.get('summary') or '',
-                 json.dumps(final_toc), # AI ToC with Offset
                  structure.get('page_count', 0),
                  ai_data.get('msc_class') or '',
+                 ai_data.get('msc_class') or '',
                  ai_data.get('audience') or '',
-                 ai_data.get('has_exercises') or 'Nein',
-                 ai_data.get('has_solutions') or 'N/A',
+                 ai_data.get('publisher') or '',
+                 ai_data.get('year'),
+                 ai_data.get('isbn') or '',
+                 ai_data.get('has_exercises') or False,
+                 ai_data.get('has_solutions') or False,
                  time.time(),
                  book_id
              ))
              self.conn.commit()
+
+             # Update FTS index immediately after commit
+             try:
+                 cursor = self.conn.cursor()
+                 cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (book_id,))
+                 cursor.execute("""
+                     INSERT INTO books_fts (rowid, title, author, index_content)
+                     SELECT id, title, author, index_text FROM books WHERE id = ?
+                 """, (book_id,))
+                 self.conn.commit()
+             except Exception as e:
+                 print(f"  [FTS Warning] Sync failed during reprocessing: {e}")
              
              return {
                  "success": True, 
@@ -452,6 +459,56 @@ class BookIngestor:
              
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def sync_chapters(self, book_id, toc_data, page_offset=0):
+        """
+        Clears existing chapters for a book and refills them from TOC data.
+        Updates both the 'chapters' table and 'books.toc_json'.
+        """
+        if not toc_data:
+            return
+            
+        final_toc = []
+        cursor = self.conn.cursor()
+        
+        # Clear old chapters
+        cursor.execute("DELETE FROM chapters WHERE book_id = ?", (book_id,))
+        
+        for item in toc_data:
+            title = None
+            page = None
+            level = 0
+            
+            if isinstance(item, dict):
+                title = item.get('title')
+                p = item.get('page')
+                try:
+                    # 'page' in the dict is usually the printed page number
+                    page = int(p) + page_offset if p is not None else None
+                except:
+                    page = None
+                level = item.get('level', 0)
+                
+                # Update item for JSON storage
+                item['pdf_page'] = page
+                final_toc.append(item)
+                
+            elif isinstance(item, list) and len(item) >= 2:
+                # PyMuPDF format: [lvl, title, page]
+                level = item[0] - 1 if isinstance(item[0], int) else 0
+                title = item[1]
+                page = item[2] if len(item) > 2 else None
+                final_toc.append(item)
+            
+            if title:
+                cursor.execute("""
+                    INSERT INTO chapters (book_id, title, level, page)
+                    VALUES (?, ?, ?, ?)
+                """, (book_id, str(title), level, page))
+        
+        # Also update the books table with the serialized JSON
+        cursor.execute("UPDATE books SET toc_json = ? WHERE id = ?", (json.dumps(final_toc), book_id))
+        self.conn.commit()
 
     def analyze_book_content(self, text_sample, ai_care=False):
         """
@@ -474,6 +531,9 @@ class BookIngestor:
         Return a JSON object with:
         - title (string): Clean title.
         - author (string): Clean author list.
+        - publisher (string): Publisher name if found.
+        - year (int): Year of publication if found.
+        - isbn (string): ISBN if found (extract without dashes).
         - description (string): Short blurb.
         - summary (string): Key topics.
         - msc_class (string): Likely MSC 2020 code (e.g. 14A05).
@@ -547,6 +607,47 @@ class BookIngestor:
             print(f"AI Analysis Error: {e}", file=sys.stderr)
             traceback.print_exc()
             return None
+
+
+    def preview_reindex(self, book_id, ai_care=True):
+        """
+        Runs the AI analysis but does NOT save to database. Returns proposed vs current data.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT path, author, title, publisher, year, isbn, msc_class, summary FROM books WHERE id = ?", (book_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            return {"success": False, "error": f"Book ID {book_id} not found."}
+            
+        db_path, cur_author, cur_title, cur_publisher, cur_year, cur_isbn, cur_msc, cur_summary = result
+        
+        full_path = LIBRARY_ROOT / db_path
+        if not full_path.exists():
+             if Path(db_path).exists(): full_path = Path(db_path)
+             else: return {"success": False, "error": f"File not found on disk: {db_path}"}
+                 
+        try:
+             structure = self.extract_structure(full_path)
+             if not structure: return {"success": False, "error": "Failed to extract structure."}
+             
+             text_sample = structure.get('text_sample', '')
+             if not text_sample or len(text_sample.strip()) < 100:
+                 return {"success": False, "error": "Insufficient text for AI analysis."}
+
+             ai_data = self.analyze_book_content(text_sample, ai_care=ai_care)
+             if not ai_data: return {"success": False, "error": "AI Analysis failed."}
+
+             return {
+                 "success": True,
+                 "current": {
+                     "title": cur_title, "author": cur_author, "publisher": cur_publisher,
+                     "year": cur_year, "isbn": cur_isbn, "msc_class": cur_msc, "summary": cur_summary
+                 },
+                 "proposed": ai_data
+             }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def process_folder(self, input_dir):
         """Main processing loop."""

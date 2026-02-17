@@ -1,0 +1,91 @@
+
+% --- Page 278 ---
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\begin{document}
+
+\section*{III.4 Connectivity 265}
+
+\subsection*{The Generalized Intermediate Value Theorem}
+
+Connected sets have the property that their images under continuous functions are also connected. This important fact can be proved easily using the results of Section 2.
+
+\begin{theorem} 
+Let $X$ and $Y$ be metric spaces and $f : X \to Y$ continuous. If $X$ is connected, then so is $f(X)$. That is, continuous images of connected sets are connected.
+\end{theorem}
+
+\begin{proof} 
+Suppose, to the contrary, that $f(X)$ is not connected. Then there are nonempty subsets $V_1$ and $V_2$ of $f(X)$ such that $V_1$ and $V_2$ are open in $f(X)$, $V_1 \cap V_2 = \emptyset$ and $V_1 \cup V_2 = f(X)$. By Proposition 2.26, there are open sets $O_j$ in $Y$ such that $V_j = O_j \cap f(X)$ for $j=1, 2$. Set $U_j := f^{-1}(O_j)$. Then, by Theorem 2.20, $U_j$ is open in $X$ for $j=1, 2$. Moreover
+$$\begin{aligned} U_1 \cup U_2 &= X, \\ U_1 \cap U_2 &= \emptyset \\ \text{and} \quad U_j &\neq \emptyset, j=1, 2 \end{aligned}$$
+which is not possible for the connected set $X$. $\blacksquare$
+\end{proof}
+
+\begin{corollary} 
+Continuous images of intervals are connected.
+\end{corollary}
+
+We will demonstrate in the next two sections that Theorems 4.4 and 4.5 are extremely useful tools for the investigation of real functions. Already we note the following easy consequence of these theorems.
+
+\begin{theorem}[generalized intermediate value theorem] 
+Let $X$ be a connected metric space and $f : X \to \mathbb{R}$ continuous. Then $f(X)$ is an interval. In particular, $f$ takes on every value between any two given function values.
+\end{theorem}
+
+\begin{proof} 
+This follows directly from Theorems 4.4 and 4.5. $\blacksquare$
+\end{proof}
+
+\section*{Path Connectivity}
+
+Let $\alpha, \beta\in \mathbb{R}$ with $\alpha<\beta$. A continuous function $w :[ \alpha, \beta] \to X$ is called a continuous path connecting the end points $w(\alpha)$ and $w(\beta)$.
+
+/AB /AC
+/DB
+/DB /B4/AC /B5
+
+/DB /B4 /AB/B5
+
+\end{document}
+% --- Page 279 ---
+% LaTeX generation failed because strict JSON was not returned.
+% --- Page 280 ---
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\begin{document}
+
+\section*{III.4 Connectivity 267}
+
+\noindent\textbf{Proof} For $x, y \in \mathrm{BE}(a, r)$ and $t \in [0, 1]$ we have
+$$\left\|(1 - t)x + ty - a\right\| = \left\|(1 - t)(x - a) + t(y - a)\right\|$$
+$$\leq (1 - t) \|x - a\| + t \|y - a\| < (1 - t)r + tr = r.$$
+This inequality implies that $[[x, y]]$ is in $\mathrm{BE}(a, r)$. The second claim can be proved similarly. $\blacksquare$
+
+(c) A subset of $\mathbb{R}$ is convex if and only if it is an interval.
+
+\noindent\textbf{Proof} Let $X \subseteq \mathbb{R}$ be convex. Then, by (a),$X$ is connected and so, by Theorem 4.4,$X$ is an interval. The claim that intervals are convex is clear. $\blacksquare$
+
+In $\mathbb{R}^2$ there are simple examples of connected sets which are not convex. Even so, in such cases, it seems plausible that any pair of points in the set can be joined with a path which consists of finitely many straight line segments. The following theorem shows that this holds, not just in $\mathbb{R}^2$, but in any normed vector space, so long as the set is open.
+
+/DB /B4/AB
+/CY
+/B5
+/DB /B4/AC /B5
+/DB /B4/AB /B5
+
+Let $X$ be a subset of a normed vector space. A function $w :[ \alpha, \beta] \to X$ is called a \textbf{polygonal path}$^2$ in $X$ if there are $n \in \mathbb{N}$ and real numbers $\alpha_0,\dots,\alpha_{n+1}$ such that $\alpha = \alpha_0 <\alpha_1 < \cdots <\alpha_{n+1} = \beta$ and
+$$w\left(\frac{(1 - t)\alpha_j + t\alpha_{j+1}}{1}\right) = (1 - t)w(\alpha_j) + t w(\alpha_{j+1})$$
+for all $t \in [0,1]$ and $j = 0,\dots,n$.
+
+\noindent\textbf{4.10 Theorem} Let $X$ be a nonempty, open and connected subset of a normed vector space. Then any pair of points of $X$ can be connected by a polygonal path in $X$.
+
+\noindent\textbf{Proof} Let $a \in X$ and
+$$M := \left\{x \in X ; \text{there is a polygonal path in } X \text{ connecting } x \text{ and } a\right\}.$$ 
+We now apply the proof technique described in Remark 4.3.
+
+(i) Because $a \in M$, the set $M$ is not empty.
+
+(ii) We next prove that $M$ is open in $X$. Let $x \in M$. Since $X$ is open, there is some $r> 0$ such that $B(x, r) \subseteq X$. By Remark 4.9(b), for each $y \in B(x, r)$, the set $[[x, y]]$ is contained in $B(x, r)$ and so also in $X$. Since $x \in M$, there is a polygonal path $w :[ \alpha, \beta] \to X$ such that $w(\alpha)= a$ and $w(\beta)= x$.
+
+\noindent $^2$The function $w :[ \alpha, \beta] \to X$ is clearly left and right continuous at each point, and so, by Proposition 1.12, is continuous. Thus a polygonal path is, in particular, a path.
+
+\end{document}

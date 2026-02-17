@@ -1,0 +1,46 @@
+{
+  "title": "Note from Analysis I (pp. 278-280)",
+  "original_filename": "Analysis I_p278-280",
+  "created": "2026-02-17 19:58",
+  "tags": [
+    "auto-note",
+    "Analysis I"
+  ],
+  "recommendations": [
+    {
+      "id": 1079,
+      "title": "Differential Topology",
+      "author": "Amiya Mukherjee",
+      "score": 0.8
+    },
+    {
+      "id": 1063,
+      "title": "From Groups to Geometry and Back",
+      "author": "Vaughn Climenhaga, Anatole Katok",
+      "score": 0.8
+    },
+    {
+      "id": 1080,
+      "title": "Differential Topology",
+      "author": "Dietmar Salamon (Lecture Notes)",
+      "score": 0.8
+    },
+    {
+      "id": 523,
+      "title": "Writing Proofs in Analysis",
+      "author": "Jonathan M. Kane",
+      "score": 0.8
+    },
+    {
+      "id": 274,
+      "title": "Foundations of Real and Abstract Analysis",
+      "author": "Douglas S. Bridges",
+      "score": 0.8
+    }
+  ],
+  "pages": [
+    278,
+    279,
+    280
+  ]
+}

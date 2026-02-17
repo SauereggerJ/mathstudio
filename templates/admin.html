@@ -58,6 +58,20 @@
             <i class="fas fa-tools mr-3"></i> Maintenance Protocols
         </h3>
         <div class="space-y-4">
+            <button onclick="runAction('/api/v1/admin/ingest/report', {}, 'Generating ingestion report...', 'GET')" 
+                class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div>
+                        <span class="block font-bold text-slate-900">View Ingestion Report</span>
+                        <span class="text-xs text-slate-500">Check 'Unsorted' folder for pending/duplicate books.</span>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all"></i>
+            </button>
+
             <button onclick="runAction('/api/v1/admin/ingest', {dry_run: false}, 'Ingestion triggered...')" 
                 class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left">
                 <div class="flex items-center">
@@ -186,25 +200,38 @@
         const div = document.createElement('div');
         if (type === 'error') div.className = 'text-rose-500 font-bold uppercase';
         else if (type === 'success') div.className = 'text-emerald-500 font-bold uppercase';
-        else div.className = 'text-blue-400 font-bold';
-        div.textContent = `[EVENT] ${msg}`;
+        else if (type === 'pending') div.className = 'text-blue-400 font-bold';
+        else if (type === 'duplicate') div.className = 'text-amber-500 font-bold';
+        else div.className = 'text-slate-400';
+        
+        // Remove [EVENT] prefix for cleaner report
+        div.textContent = (type === 'error' || type === 'success') ? `[EVENT] ${msg}` : msg;
         consoleDiv.appendChild(div);
         consoleDiv.scrollTop = consoleDiv.scrollHeight;
     }
 
-    async function runAction(url, body, msg) {
+    async function runAction(url, body, msg, method = 'POST') {
         logToConsole(msg);
         try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
+            const options = {
+                method: method,
+                headers: { 'Content-Type': 'application/json' }
+            };
+            if (method === 'POST') options.body = JSON.stringify(body);
+            
+            const res = await fetch(url, options);
             const data = await res.json();
             if (data.success || !data.error) {
                 logToConsole('Operation Complete.', 'success');
                 if (data.stdout) {
-                    data.stdout.split('\n').forEach(l => { if(l.trim()) logToConsole(l); });
+                    data.stdout.split('\n').forEach(l => { 
+                        if(l.trim()) {
+                            // Specialized formatting for report
+                            if (l.includes('[NEW / PENDING]')) logToConsole(l, 'pending');
+                            else if (l.includes('[DUPLICATE (HASH)]')) logToConsole(l, 'duplicate');
+                            else logToConsole(l);
+                        }
+                    });
                 }
             } else {
                 logToConsole('ERROR: ' + (data.error || 'Check logs'), 'error');

@@ -1,0 +1,44 @@
+
+% --- Page 423 ---
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\begin{document}
+
+\noindent 6.5 Improper Integrals 403
+
+\medskip
+\noindent \textbf{Example 12} Using Remark 1, by the formula for integration by parts in an improper integral, we find that
+$$\int_{\pi/2}^{+\infty} \frac{\sin x}{x} dx = -\frac{\cos x}{x}\bigg\bigg|_{\pi/2}^{+\infty} - \int_{\pi/2}^{+\infty} \frac{\cos x}{x^2} dx = -\int_{\pi/2}^{+\infty} \frac{\cos x}{x^2} dx,$$ 
+provided the last integral converges. But, as we saw in Example 5, this integral converges, and hence the integral
+$$\int_{\pi/2}^{+\infty} \frac{\sin x}{x} dx \quad (6.77)$$
+also converges.
+
+At the same time, the integral (6.77) is not absolutely convergent. Indeed, for $b \in [ \pi/2, +\infty[$ we have
+$$\int_{\pi/2}^{b} \left|\frac{\sin x}{x}\right| dx \ge \int_{\pi/2}^{b} \frac{\sin^2 x}{x} dx = \frac{1}{2} \int_{\pi/2}^{b} \frac{dx}{x} - \frac{1}{2} \int_{\pi/2}^{b} \frac{\cos 2x}{x} dx. \quad (6.78)$$
+The integral
+$$\int_{\pi/2}^{+\infty} \frac{\cos 2x}{x} dx,$$ 
+as can be verified through integration by parts, is convergent, so that as $b \to +\infty$, the difference on the right-hand side of relation (6.78) tends to $+\infty$. Thus, by estimate (6.78), the integral (6.77) is not absolutely convergent.
+
+We now give a special convergence test for improper integrals based on the second mean-value theorem and hence essentially on the same formula for integration by parts.
+
+\noindent \textbf{Proposition 4 (Abel--Dirichlet test for convergence of an integral)} Let $x \mapsto f(x)$ and $x \mapsto g(x)$ be functions defined on an interval $[a,\omega [$ and integrable on every closed interval $[a,b ]\subset[ a,\omega [$. Suppose that $g$ is monotonic.
+
+Then a sufficient condition for convergence of the improper integral
+$$\int_{a}^{\omega} (f \cdot g)(x) dx \quad (6.79)$$
+is that the one of the following pairs of conditions hold:
+
+$\alpha 1)$ the integral $\int_{a}^{\omega} f(x)dx$ converges,
+
+$\beta 1)$ the function $g$ bounded on $[a,\omega [$,
+
+or
+
+$\alpha 2)$ the function $F(b) = \int_{a}^{b} f(x)dx$ is bounded on $[a,\omega [$,
+
+$\beta 2)$ the function $g(x)$ tends to zero as $x \to \omega$, $x \in[ a,\omega [$.
+
+\end{document}
+% --- Page 424 ---
+% LaTeX generation failed because strict JSON was not returned.

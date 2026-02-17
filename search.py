@@ -122,6 +122,44 @@ def extract_index_pages(index_text, query):
             
     return None
 
+def search_within_book(book_id, query, limit=50):
+    """
+    Searches for a query within a specific book.
+    Uses pages_fts if available, otherwise falls back to basic matching.
+    """
+    conn = sqlite3.connect(DB_FILE, timeout=30)
+    cursor = conn.cursor()
+    
+    try:
+        # Check if deep-indexed
+        cursor.execute("SELECT book_id FROM deep_indexed_books WHERE book_id = ?", (book_id,))
+        is_deep = cursor.fetchone()
+        
+        if is_deep:
+            # Use pages_fts for precise results
+            clean_query = query.replace('"', '""')
+            sql = """
+                SELECT page_number, 
+                       snippet(pages_fts, 2, '<b>', '</b>', '...', 30) as snippet
+                FROM pages_fts
+                WHERE book_id = ? AND pages_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+            """
+            cursor.execute(sql, (book_id, f'"{clean_query}"', limit))
+            rows = cursor.fetchall()
+            return [{'page': r[0], 'snippet': r[1]} for r in rows], True
+        else:
+            # Fallback to the older snippet-based extraction
+            matches = get_book_matches(book_id, query)
+            return matches, False
+            
+    except Exception as e:
+        print(f"Search Within Book Error: {e}", file=sys.stderr)
+        return [], False
+    finally:
+        conn.close()
+
 def search_books_semantic(query, query_vec=None):
     """
     Performs semantic search using vector embeddings. 
@@ -140,7 +178,7 @@ def search_books_semantic(query, query_vec=None):
         
     query_vec = np.array(query_vec, dtype=np.float32)
     
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     
     try:
@@ -232,7 +270,7 @@ def search_books_semantic(query, query_vec=None):
 
 def search_books_fts(query, limit=50, field='all'):
     """Performs a Full Text Search using the books_fts table."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     clean_query = query.replace('"', '""')
     
@@ -413,7 +451,7 @@ def search(query, limit=20, offset=0, use_fts=True, use_vector=True, use_transla
 # --- Compatibility & Utility Functions ---
 
 def get_book_details(book_id, query=None):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT title, author, path, isbn, publisher, year, summary, level, exercises, solutions, reference_url, msc_code, tags, index_text FROM books WHERE id = ?", (book_id,))
@@ -429,7 +467,7 @@ def get_book_details(book_id, query=None):
     finally: conn.close()
 
 def get_book_matches(book_id, query):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     clean_query = query.replace('"', '""')
     try:
@@ -492,7 +530,7 @@ def get_book_matches(book_id, query):
     finally: conn.close()
 
 def get_chapters(book_id):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     try:
         # 1. Try to get JSON ToC from books table (New System)
@@ -541,7 +579,7 @@ def get_chapters(book_id):
     finally: conn.close()
 
 def get_similar_books(book_id, limit=5):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT embedding FROM books WHERE id = ?", (book_id,))
@@ -566,7 +604,7 @@ def get_similar_books(book_id, limit=5):
 
 def search_books(query, limit=20, offset=0, field='all'):
     """Legacy simple search."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     cursor = conn.cursor()
     keywords = query.split()
     sql_query = "SELECT id, title, author, path, isbn, publisher, year FROM books WHERE 1=1"
