@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash, abort
 import sys
 import os
 import json
@@ -6,9 +6,12 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
-from config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, NOTES_OUTPUT_DIR, parent_dir
+from core.config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR
+from core.database import db
 from api_v1 import api_v1
-from search import get_book_details, get_book_matches, get_similar_books, get_chapters
+from services.search import search_service
+from services.library import library_service
+from services.note import note_service
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -51,57 +54,51 @@ def legacy_search():
 @app.route('/book/<int:book_id>/edit')
 def edit_book(book_id):
     """Renders the metadata editor for a book."""
-    book = get_book_details(book_id)
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+        
     if not book: return "Book not found", 404
     
-    title, author, path, isbn, publisher, year, summary, level, exercises, solutions, ref_url, msc_code, tags, index_text, index_matches = book
-    
-    return render_template('edit_book.html',
-        id=book_id, title=title, author=author, isbn=isbn, 
-        publisher=publisher, year=year, summary=summary, 
-        msc_code=msc_code, tags=tags, level=level
-    )
+    return render_template('edit_book.html', **dict(book))
 
 @app.route('/book/<int:book_id>')
 def book_details(book_id):
     query = request.args.get('q', '')
-    book = get_book_details(book_id, query=query)
-    if not book:
-        return "Book not found", 404
+    
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+        if not book: return "Book not found", 404
         
-    title, author, path, isbn, publisher, year, summary, level, exercises, solutions, ref_url, msc_code, tags, index_text, index_matches = book
-    
-    matches = []
-    if query:
-        matches = get_book_matches(book_id, query)
-    
-    similar_books = get_similar_books(book_id)
-    chapters = get_chapters(book_id)
-    
+        book_dict = dict(book)
+        
+        # Similar & Chapters
+        from search import get_similar_books, get_chapters, get_book_matches
+        similar_books = get_similar_books(book_id)
+        chapters = get_chapters(book_id)
+        
+        matches = []
+        if query:
+            matches = get_book_matches(book_id, query)
+            
+        index_matches = None
+        if query and book_dict.get('index_text'):
+            index_matches = search_service.extract_index_pages(book_dict['index_text'], query)
+
     # Update system state for Gemini CLI awareness
-    update_state("view_book", book_id=book_id, extra={"title": title, "path": str(path)})
+    update_state("view_book", book_id=book_id, extra={"title": book_dict['title'], "path": str(book_dict['path'])})
         
     return render_template('book.html', 
-        id=book_id,
-        title=title, 
-        author=author, 
-        path=path, 
-        isbn=isbn, 
-        publisher=publisher, 
-        year=year,
-        summary=summary,
-        level=level,
-        exercises=exercises,
-        solutions=solutions,
-        reference_url=ref_url,
-        msc_code=msc_code,
-        tags=tags,
-        matches=matches,
+        **book_dict,
         query=query,
         similar_books=similar_books,
         chapters=chapters,
-        cover_url=f'/static/thumbnails/{book_id}/page_1.png',
-        index_matches=index_matches
+        matches=matches,
+        index_matches=index_matches,
+        cover_url=f'/static/thumbnails/{book_id}/page_1.png'
     )
 
 @app.route('/view-pdf/<int:book_id>')
@@ -152,11 +149,8 @@ def open_file(filepath):
 
 @app.route('/notes')
 def list_notes():
-    if not NOTES_OUTPUT_DIR.exists():
-        NOTES_OUTPUT_DIR.mkdir()
-    
-    files = sorted([f.name for f in NOTES_OUTPUT_DIR.glob("*.tex")])
-    return render_template('notes.html', notes=files)
+    notes = note_service.list_notes()
+    return render_template('notes.html', notes=[n['filename'] for n in notes])
 
 @app.route('/wishlist-check')
 def wishlist_check():
@@ -164,244 +158,45 @@ def wishlist_check():
 
 @app.route('/api/notes/metadata')
 def notes_metadata():
-    """Return metadata for all notes from both directories."""
-    notes_data = []
-    
-    # Get converted notes directory
-    try:
-        from config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    except:
-        from web.config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    
-    # Scan both directories
-    directories = []
-    if NOTES_OUTPUT_DIR.exists():
-        directories.append(NOTES_OUTPUT_DIR)
-    if CONVERTED_NOTES_DIR.exists():
-        directories.append(CONVERTED_NOTES_DIR)
-    
-    for notes_dir in directories:
-        for tex_file in notes_dir.glob("*.tex"):
-            base_name = tex_file.stem
-            
-            # Get file stats
-            stat = tex_file.stat()
-            
-            # Load metadata from JSON if available
-            json_file = notes_dir / f"{base_name}.json"
-            metadata = {}
-            if json_file.exists():
-                try:
-                    with open(json_file, 'r', encoding='utf-8') as f:
-                        loaded_data = json.load(f)
-                        # Ensure metadata is a dict (old files might have arrays)
-                        if isinstance(loaded_data, dict):
-                            metadata = loaded_data
-                        else:
-                            # Old format with recommendations array
-                            metadata = {}
-                except Exception as e:
-                    print(f"Error loading metadata for {base_name}: {e}")
-                    metadata = {}
-            
-            # Check for associated files
-            pdf_file = notes_dir / f"{base_name}.pdf"
-            md_file = notes_dir / f"{base_name}.md"
-            
-            notes_data.append({
-                'filename': tex_file.name,
-                'base_name': base_name,
-                'title': metadata.get('title', base_name) if isinstance(metadata, dict) else base_name,
-            'original_filename': metadata.get('original_filename', '') if isinstance(metadata, dict) else '',
-            'created': metadata.get('created', '') if isinstance(metadata, dict) else '',
-            'tags': metadata.get('tags', []) if isinstance(metadata, dict) else [],
-            'size': stat.st_size,
-            'modified': stat.st_mtime,
-            'has_pdf': pdf_file.exists(),
-            'has_md': md_file.exists(),
-            'has_json': json_file.exists()
-        })
-    
-    # Sort by modification time, newest first
-    notes_data.sort(key=lambda x: x['modified'], reverse=True)
-    
-    return jsonify(notes_data)
+    return jsonify(note_service.list_notes())
+
+@app.route('/delete-note/<filename>', methods=['POST'])
+def delete_note(filename):
+    base_name = os.path.splitext(filename)[0]
+    if note_service.delete_note(base_name):
+        flash(f"Note {base_name} deleted.", "success")
+    else:
+        flash(f"Could not delete {base_name}.", "warning")
+    return redirect(url_for('list_notes'))
 
 @app.route('/view-note/<filename>')
 def view_note(filename):
-    # Check both directories
-    file_path = NOTES_OUTPUT_DIR / filename
-    notes_dir = NOTES_OUTPUT_DIR
+    base_name = os.path.splitext(filename)[0]
     
-    if not file_path.exists():
-        # Try converted notes directory
-        try:
-            from config import parent_dir
-            CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-        except:
-            from web.config import parent_dir
-            CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-        
-        file_path = CONVERTED_NOTES_DIR / filename
-        notes_dir = CONVERTED_NOTES_DIR
-        if not file_path.exists():
-            return "Note not found", 404
+    # Search for the file
+    content = None
+    notes_dir = None
+    for d in [NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR]:
+        f = d / filename
+        if f.exists():
+            with open(f, 'r', encoding='utf-8') as f_obj:
+                content = f_obj.read()
+            notes_dir = d
+            break
+            
+    if not content: return "Note not found", 404
     
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    pdf_filename = filename.replace('.tex', '.pdf')
-    pdf_path = notes_dir / pdf_filename
-    has_pdf = pdf_path.exists()
-    
-    # Load metadata from sidecar JSON if available
-    json_filename = filename.replace('.tex', '.json')
-    json_path = notes_dir / json_filename
-    recommendations = []
-    
-    if json_path.exists():
-        try:
-            with open(json_path, 'r', encoding='utf-8') as jf:
-                metadata = json.load(jf)
-                # Extract recommendations from metadata dict
-                if isinstance(metadata, dict):
-                    recommendations = metadata.get('recommendations', [])
-                elif isinstance(metadata, list):
-                    # Old format: JSON file was just the recommendations array
-                    recommendations = metadata
-        except Exception as e:
-            print(f"Error loading JSON metadata: {e}")
+    meta = note_service.get_note_metadata(base_name, notes_dir)
     
     return render_template('view_note.html', 
         filename=filename, 
         content=content, 
-        has_pdf=has_pdf, 
-        pdf_filename=pdf_filename,
-        has_markdown=(notes_dir / filename.replace('.tex', '.md')).exists(),
-        markdown_filename=filename.replace('.tex', '.md'),
-        recommendations=recommendations
+        has_pdf=(notes_dir / (base_name + ".pdf")).exists(),
+        pdf_filename=base_name + ".pdf",
+        has_markdown=(notes_dir / (base_name + ".md")).exists(),
+        markdown_filename=base_name + ".md",
+        recommendations=meta.get('recommendations', [])
     )
-
-@app.route('/notes/<filename>')
-def serve_note(filename):
-    """Serve notes from both output directories."""
-    # Try NOTES_OUTPUT_DIR first
-    if (NOTES_OUTPUT_DIR / filename).exists():
-        return send_from_directory(NOTES_OUTPUT_DIR, filename)
-    
-    # Try CONVERTED_NOTES_DIR
-    try:
-        from config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    except:
-        from web.config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    
-    if (CONVERTED_NOTES_DIR / filename).exists():
-        return send_from_directory(CONVERTED_NOTES_DIR, filename)
-    
-    # File not found in either directory
-    abort(404)
-
-@app.route('/delete-note/<filename>', methods=['POST'])
-def delete_note(filename):
-    # Base name without extension
-    base_name = os.path.splitext(filename)[0]
-    
-    # Files to try deleting
-    files_to_delete = [
-        base_name + ".tex",
-        base_name + ".pdf",
-        base_name + ".json",
-        base_name + ".md"
-    ]
-    
-    # Import CONVERTED_NOTES_DIR
-    try:
-        from config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    except:
-        from web.config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-
-    deleted = False
-    
-    # Check both directories
-    for notes_dir in [NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR]:
-        for f in files_to_delete:
-            try:
-                file_path = notes_dir / f
-                if file_path.exists():
-                    os.remove(file_path)
-                    deleted = True
-            except Exception as e:
-                print(f"Error deleting {f}: {e}")
-    
-    if deleted:
-        flash(f"Note {base_name} deleted successfully.", "success")
-    else:
-        flash(f"Could not find files to delete for {base_name}.", "warning")
-        
-    return redirect(url_for('list_notes'))
-
-@app.route('/delete-notes', methods=['POST'])
-def delete_notes_bulk():
-    """Bulk delete multiple notes at once."""
-    data = request.get_json()
-    filenames = data.get('filenames', [])
-    
-    if not filenames:
-        return jsonify({'error': 'No filenames provided'}), 400
-    
-    deleted_count = 0
-    failed_count = 0
-    errors = []
-    
-    # Import CONVERTED_NOTES_DIR
-    try:
-        from config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    except:
-        from web.config import parent_dir
-        CONVERTED_NOTES_DIR = parent_dir / "converted_notes"
-    
-    for filename in filenames:
-        try:
-            base_name = os.path.splitext(filename)[0]
-            files_to_delete = [
-                base_name + ".tex",
-                base_name + ".pdf",
-                base_name + ".json",
-                base_name + ".md"
-            ]
-            
-            file_deleted = False
-            # Check both directories
-            for notes_dir in [NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR]:
-                for f in files_to_delete:
-                    file_path = notes_dir / f
-                    if file_path.exists():
-                        os.remove(file_path)
-                        file_deleted = True
-            
-            if file_deleted:
-                deleted_count += 1
-            else:
-                failed_count += 1
-                errors.append(f"No files found for {filename}")
-                
-        except Exception as e:
-            failed_count += 1
-            errors.append(f"Error deleting {filename}: {str(e)}")
-    
-    return jsonify({
-        'success': True,
-        'deleted': deleted_count,
-        'failed': failed_count,
-        'errors': errors
-    })
 
 @app.route('/rename-note/<filename>', methods=['POST'])
 def rename_note(filename):
@@ -409,36 +204,26 @@ def rename_note(filename):
     if not new_name:
         flash("New name is required.", "error")
         return redirect(url_for('view_note', filename=filename))
-        
-    # Sanitize new name (simple check)
-    new_name = "".join(x for x in new_name if (x.isalnum() or x in "._- "))
-    if not new_name:
-        flash("Invalid filename.", "error")
-        return redirect(url_for('view_note', filename=filename))
     
-    base_old = os.path.splitext(filename)[0]
+    old_base = os.path.splitext(filename)[0]
+    new_base = "".join(x for x in new_name if (x.isalnum() or x in "._- "))
     
-    # Files to rename
-    extensions = ['.tex', '.pdf', '.json', '.md']
-    
-    success = True
-    for ext in extensions:
-        old_file = NOTES_OUTPUT_DIR / (base_old + ext)
-        new_file = NOTES_OUTPUT_DIR / (new_name + ext)
-        
-        if old_file.exists():
-            try:
-                os.rename(old_file, new_file)
-            except Exception as e:
-                print(f"Error renaming {old_file}: {e}")
-                success = False
-    
-    if success:
-        flash(f"Renamed to {new_name}", "success")
-        return redirect(url_for('view_note', filename=new_name + ".tex"))
+    if note_service.rename_note(old_base, new_base):
+        flash(f"Renamed to {new_base}", "success")
+        return redirect(url_for('view_note', filename=new_base + ".tex"))
     else:
-        flash("Some files could not be renamed.", "error")
+        flash("Rename failed.", "error")
         return redirect(url_for('list_notes'))
+
+@app.route('/delete-notes', methods=['POST'])
+def delete_notes_bulk():
+    data = request.get_json()
+    filenames = data.get('filenames', [])
+    deleted = 0
+    for f in filenames:
+        if note_service.delete_note(os.path.splitext(f)[0]):
+            deleted += 1
+    return jsonify({'success': True, 'deleted': deleted})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5001)
