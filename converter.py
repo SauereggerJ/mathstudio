@@ -5,11 +5,11 @@ import pypdf
 from google import genai
 from google.genai import types
 
-from utils import load_api_key
+from core.config import get_api_key, GEMINI_MODEL
 
 # Configuration (Mirrors search.py for consistency)
-GEMINI_API_KEY = load_api_key()
-LLM_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
+GEMINI_API_KEY = get_api_key()
+LLM_MODEL = GEMINI_MODEL
 
 import requests
 import json

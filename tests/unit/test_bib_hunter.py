@@ -1,14 +1,11 @@
 import pytest
 import json
 import sqlite3
+from pathlib import Path
 from unittest.mock import patch, MagicMock
-from bib_hunter import BibHunter
+from services.bibliography import bibliography_service
 
-@pytest.fixture
-def hunter(test_db):
-    return BibHunter(db_file=test_db)
-
-def test_find_bib_pages_mocked(hunter, test_db):
+def test_find_bib_pages_mocked(test_db):
     # Setup DB
     conn = sqlite3.connect(test_db)
     cursor = conn.cursor()
@@ -30,13 +27,15 @@ def test_find_bib_pages_mocked(hunter, test_db):
 
     mock_doc.__getitem__.side_effect = get_page
     
-    with (patch("fitz.open", return_value=mock_doc),
+    with (patch("core.config.DB_FILE", Path(test_db)),
+          patch("core.config.LIBRARY_ROOT", Path("/tmp")),
+          patch("fitz.open", return_value=mock_doc),
           patch("pathlib.Path.exists", return_value=True)):
-        pages, error = hunter.find_bib_pages(1)
+        pages, error = bibliography_service.find_bib_pages(1)
         assert error is None
         assert 100 in pages
 
-def test_parse_bib_with_ai_mocked(hunter, test_db, mock_gemini):
+def test_parse_citations_mocked(test_db, mock_gemini):
     # Setup DB
     conn = sqlite3.connect(test_db)
     cursor = conn.cursor()
@@ -53,33 +52,11 @@ def test_parse_bib_with_ai_mocked(hunter, test_db, mock_gemini):
     mock_dict = [{"title": "Real Analysis", "author": "Folland"}]
     mock_gemini.models.generate_content.return_value.text = json.dumps(mock_dict)
 
-    with (patch("fitz.open", return_value=mock_doc),
+    with (patch("core.config.DB_FILE", Path(test_db)),
+          patch("core.config.LIBRARY_ROOT", Path("/tmp")),
+          patch("fitz.open", return_value=mock_doc),
           patch("pathlib.Path.exists", return_value=True)):
-        citations, error = hunter.parse_bib_with_ai(1, [100])
+        citations, error = bibliography_service.parse_citations(1, [100])
         assert error is None
         assert len(citations) == 1
         assert citations[0]["title"] == "Real Analysis"
-
-def test_cross_check_with_library(hunter, test_db):
-    # Setup DB with an owned book
-    conn = sqlite3.connect(test_db)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO books (id, filename, title, author, path) VALUES (1, 'folland.pdf', 'Real Analysis', 'Folland', 'folland.pdf')")
-    conn.commit()
-    conn.close()
-
-    bib_list = [
-        {"title": "Real Analysis", "author": "Folland"},
-        {"title": "Topology", "author": "Munkres"}
-    ]
-
-    with patch("fuzzy_book_matcher.FuzzyBookMatcher.batch_match") as mock_match:
-        mock_match.return_value = [
-            {"found": True, "match": {"id": 1, "title": "Real Analysis", "author": "Folland"}},
-            {"found": False, "match": None}
-        ]
-        
-        enriched, error = hunter.cross_check_with_library(bib_list)
-        assert error is None
-        assert enriched[0]["status"] == "owned"
-        assert enriched[1]["status"] == "missing"

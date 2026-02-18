@@ -38,6 +38,134 @@ class IngestorService:
             print(f"[Ingestor] Extraction error for {file_path.name}: {e}")
         return None
 
+    def reprocess_book(self, book_id, ai_care=True):
+        """Forces a re-ingestion of a specific book."""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path, author, title FROM books WHERE id = ?", (book_id,))
+            result = cursor.fetchone()
+            if not result: return {"success": False, "error": f"Book ID {book_id} not found."}
+            
+            db_path, old_author, old_title = result['path'], result['author'], result['title']
+            full_path = LIBRARY_ROOT / db_path
+            if not full_path.exists(): return {"success": False, "error": f"File not found: {db_path}"}
+
+        print(f"Reprocessing book: {full_path.name} (AI Care: {ai_care})")
+        try:
+             structure = self.extract_structure(full_path)
+             if not structure: return {"success": False, "error": "Failed to extract structure."}
+             
+             ai_data = self.analyze_book_content(structure.get('text_sample', ''), ai_care=ai_care)
+             if not ai_data: return {"success": False, "error": "AI Analysis failed."}
+
+             self.sync_chapters(book_id, ai_data.get('toc') or structure.get('toc', []), page_offset=ai_data.get('page_offset', 0))
+
+             with self.db.get_connection() as conn:
+                 cursor = conn.cursor()
+                 cursor.execute("""
+                     UPDATE books SET 
+                         author = ?, title = ?, 
+                         description = ?, summary = ?, 
+                         page_count = ?, 
+                         msc_class = ?, msc_code = ?,
+                         audience = ?, publisher = ?,
+                         year = ?, isbn = ?,
+                         has_exercises = ?, has_solutions = ?, 
+                         last_modified = ? 
+                     WHERE id = ?
+                 """, (
+                     ai_data.get('author') or old_author, 
+                     ai_data.get('title') or old_title,
+                     ai_data.get('description') or '',
+                     ai_data.get('summary') or '',
+                     structure.get('page_count', 0),
+                     ai_data.get('msc_class') or '',
+                     ai_data.get('msc_class') or '',
+                     ai_data.get('audience') or '',
+                     ai_data.get('publisher') or '',
+                     ai_data.get('year'),
+                     ai_data.get('isbn') or '',
+                     ai_data.get('has_exercises') or False,
+                     ai_data.get('has_solutions') or False,
+                     time.time(),
+                     book_id
+                 ))
+                 # Sync FTS
+                 cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (book_id,))
+                 cursor.execute("""
+                     INSERT INTO books_fts (rowid, title, author, index_content)
+                     SELECT id, title, author, index_text FROM books WHERE id = ?
+                 """, (book_id,))
+             
+             return {"success": True, "message": f"Successfully re-indexed '{ai_data.get('title', old_title)}'", "data": ai_data}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def preview_reindex(self, book_id, ai_care=True):
+        """Runs the AI analysis but does NOT save to database."""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path, author, title, publisher, year, isbn, msc_class, summary FROM books WHERE id = ?", (book_id,))
+            result = cursor.fetchone()
+            if not result: return {"success": False, "error": f"Book ID {book_id} not found."}
+            
+            db_path = result['path']
+            full_path = LIBRARY_ROOT / db_path
+            if not full_path.exists(): return {"success": False, "error": f"File not found: {db_path}"}
+                 
+        try:
+             structure = self.extract_structure(full_path)
+             if not structure: return {"success": False, "error": "Failed to extract structure."}
+             
+             text_sample = structure.get('text_sample', '')
+             if not text_sample or len(text_sample.strip()) < 100:
+                 return {"success": False, "error": "Insufficient text for AI analysis."}
+
+             ai_data = self.analyze_book_content(text_sample, ai_care=ai_care)
+             if not ai_data: return {"success": False, "error": "AI Analysis failed."}
+
+             return {
+                 "success": True,
+                 "current": dict(result),
+                 "proposed": ai_data
+             }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def sync_chapters(self, book_id, toc_data, page_offset=0):
+        if not toc_data: return
+        final_toc = []
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM chapters WHERE book_id = ?", (book_id,))
+            for item in toc_data:
+                title, page, level = None, None, 0
+                if isinstance(item, dict):
+                    title = item.get('title')
+                    try:
+                        p = item.get('page')
+                        page = int(p) + page_offset if p is not None else None
+                    except: page = None
+                    level = item.get('level', 0)
+                    item['pdf_page'] = page
+                    final_toc.append(item)
+                elif isinstance(item, list) and len(item) >= 2:
+                    level = item[0] - 1 if isinstance(item[0], int) else 0
+                    title, page = item[1], item[2] if len(item) > 2 else None
+                    final_toc.append(item)
+                if title:
+                    cursor.execute("INSERT INTO chapters (book_id, title, level, page) VALUES (?, ?, ?, ?)", (book_id, str(title), level, page))
+            cursor.execute("UPDATE books SET toc_json = ? WHERE id = ?", (json.dumps(final_toc), book_id))
+
+    def analyze_book_content(self, text_sample, ai_care=False):
+        care_instruction = "CRITICAL: This is a RE-INDEXING request. CLEAN everything thoroughly." if ai_care else ""
+        prompt = (
+            f"You are a librarian. Analyze this math book text sample.\n{care_instruction}\n"
+            "Return a JSON object with: title, author, publisher, year (int), isbn, description, summary, msc_class, audience, has_exercises, has_solutions, toc, page_offset.\n"
+            f"Text Sample:\n{text_sample[:50000]}"
+        )
+        return self.ai.generate_json(prompt)
+
     def analyze_content(self, structure, existing_folders=None, ai_care=False):
         """Uses AI to determine metadata and target path."""
         care_instruction = "CRITICAL: The previous metadata was poor, be extremely thorough." if ai_care else ""

@@ -13,9 +13,9 @@ def test_db():
     """Creates a temporary file database with the full schema for testing."""
     db_fd, db_path = tempfile.mkstemp()
     
-    import indexer
-    with patch("indexer.DB_FILE", db_path):
-        indexer.setup_database()
+    from core.database import DatabaseManager
+    db_mgr = DatabaseManager(db_path)
+    db_mgr.initialize_schema()
         
     yield db_path
     os.close(db_fd)
@@ -34,8 +34,10 @@ def mock_gemini():
     mock_gen.text = "Expanded Query"
     mock_client.models.generate_content.return_value = mock_gen
     
-    with (patch("search.client", mock_client),
-          patch("book_ingestor.client", mock_client),
+    # Patch the services that use the client
+    with (patch("services.search.search_service.ai.client", mock_client),
+          patch("services.ingestor.ingestor_service.ai.client", mock_client),
+          patch("services.note.note_service.ai.client", mock_client),
           patch("core.ai.genai.Client", return_value=mock_client)):
         yield mock_client
 
@@ -44,9 +46,7 @@ def client(test_db):
     """Flask test client."""
     # Patch config values in ALL modules that might use them
     with (patch("core.config.DB_FILE", Path(test_db)),
-          patch("core.config.LIBRARY_ROOT", Path("/tmp")),
-          patch("config.DB_FILE", Path(test_db)),
-          patch("config.LIBRARY_ROOT", Path("/tmp"))):
+          patch("core.config.LIBRARY_ROOT", Path("/tmp"))):
         
         from app import app as flask_app
         flask_app.config.update({"TESTING": True})

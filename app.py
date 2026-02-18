@@ -1,8 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash, abort
-import sys
 import os
 import json
-import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -76,13 +74,12 @@ def book_details(book_id):
         book_dict = dict(book)
         
         # Similar & Chapters
-        from search import get_similar_books, get_chapters, get_book_matches
-        similar_books = get_similar_books(book_id)
-        chapters = get_chapters(book_id)
+        similar_books = search_service.get_similar_books(book_id)
+        chapters = search_service.get_chapters(book_id)
         
         matches = []
         if query:
-            matches = get_book_matches(book_id, query)
+            matches = search_service.get_book_matches(book_id, query)
             
         index_matches = None
         if query and book_dict.get('index_text'):

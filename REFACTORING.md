@@ -19,14 +19,18 @@
 - [x] Migrate Library management logic to `services/library.py`
 - [x] Implement Note service `services/note.py`
 - [x] Refactor `api_v1.py` (Search, Details, Delete, Update, Note)
-- [x] Implement unified `cli.py` (Basic init and search)
-- [ ] Migrate Ingestion logic to `services/ingestor.py`
-- [ ] Migrate Metadata lookup/enrichment to `services/metadata.py`
-- [ ] Consolidate `indexer.py` into services
-- [ ] Replace legacy scripts with service-based implementations
+- [x] Implement unified `cli.py`
+- [x] Migrate Ingestion logic to `services/ingestor.py`
+- [x] Migrate Metadata logic to `services/metadata.py`
+- [x] Consolidate `indexer.py` into `services/indexer.py`
+- [x] Implement Bibliography service `services/bibliography.py`
+- [x] Centralize utilities in `core/utils.py`
+- [x] Final root directory cleanup
 
 ## Test Log
 - **Baseline**: 42/42 Passed.
 - **2026-02-17**: `core/database.py` unit tests passed (3/3).
 - **2026-02-17**: `services/search.py` unit tests passed (3/3).
 - **2026-02-17**: API tests `tests/api/test_endpoints.py` and `tests/api/test_delete.py` passed (4/4).
+- **2026-02-17**: Verified `cli.py` with `search`, `sanity`, `bib-scan`, `audit-index`.
+- **2026-02-17**: ALL 44/44 tests passed after full refactoring.

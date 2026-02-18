@@ -15,8 +15,7 @@ class MetadataService:
                 entry = root.find('atom:entry', ns)
                 if entry:
                     meta = {}
-                    meta['title'] = entry.find('atom:title', ns).text.strip().replace('
-', ' ')
+                    meta['title'] = entry.find('atom:title', ns).text.strip().replace('\n', ' ')
                     authors = [a.find('atom:name', ns).text for a in entry.findall('atom:author', ns)]
                     meta['author'] = ", ".join(authors)
                     published = entry.find('atom:published', ns).text
@@ -95,6 +94,31 @@ class MetadataService:
                     return isbn_clean
         except Exception: pass
         return None
+
+    def generate_bibtex_key(self, author, title):
+        """Generates a simple BibTeX citation key."""
+        author = author or "Unknown"
+        title = title or "Unknown"
+        clean_author = "".join([c for c in author if c.isalnum() or c==' ']).split()[0]
+        clean_title = "".join([c for c in title if c.isalnum() or c==' '])
+        title_words = [w for w in clean_title.split() if len(w) > 3]
+        first_title_word = title_words[0] if title_words else "Book"
+        return f"{clean_author}{first_title_word}"
+
+    def generate_bibtex(self, title, author, filename, year=None, publisher=None):
+        """Generates a BibTeX entry string."""
+        key = self.generate_bibtex_key(author, title)
+        author = author or "Unknown"
+        year = year or "20XX"
+        publisher = publisher or "Unknown"
+        
+        return f"""@book{{{key},
+  author    = {{{author}}},
+  title     = {{{title}}},
+  year      = {{{year}}},
+  publisher = {{{publisher}}},
+  note      = {{File: {filename}}}
+}}"""
 
 # Global instance
 metadata_service = MetadataService()

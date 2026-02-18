@@ -191,6 +191,144 @@ class SearchService:
         
         return reranked[:limit]
 
+    def get_book_matches(self, book_id, query):
+        """Returns highlighted snippets for a specific book."""
+        clean_query = query.replace('"', '""')
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # FTS5 highlight: 2 is content, 3 is index_content
+                cursor.execute("""
+                    SELECT highlight(books_fts, 2, '<b>', '</b>'), 
+                           highlight(books_fts, 3, '<b>', '</b>') 
+                    FROM books_fts WHERE rowid = ? AND books_fts MATCH ?
+                """, (book_id, clean_query))
+                row = cursor.fetchone()
+                if not row: return []
+                
+                hl_content = row[0] or ""
+                hl_index = row[1] or ""
+                
+                results = []
+                page_pattern = re.compile(r'\[\[PAGE_(\d+)\]\]')
+                
+                if "<b>" in hl_content:
+                    current_pos = 0
+                    while len(results) < 50:
+                        idx = hl_content.find("<b>", current_pos)
+                        if idx == -1: break
+                        
+                        preceding = hl_content[max(0, idx - 10000):idx]
+                        page_num = 1
+                        pm = list(page_pattern.finditer(preceding))
+                        if pm: page_num = int(pm[-1].group(1))
+                        
+                        close_idx = hl_content.find("</b>", idx)
+                        match_end = close_idx + 4 if close_idx != -1 else idx + 3
+                        
+                        fragment = hl_content[max(0, idx - 100):min(len(hl_content), match_end + 100)]
+                        clean_fragment = re.sub(r'\[\[PAGE_\d+\]\]', '', fragment)
+                        
+                        results.append({'snippet': clean_fragment, 'page': page_num})
+                        current_pos = match_end
+
+                if len(results) < 5 and "<b>" in hl_index:
+                    current_pos = 0
+                    while len(results) < 50:
+                        idx = hl_index.find("<b>", current_pos)
+                        if idx == -1: break
+                        close_idx = hl_index.find("</b>", idx)
+                        match_end = close_idx + 4 if close_idx != -1 else idx + 3
+                        fragment = hl_index[max(0, idx - 60):min(len(hl_index), match_end + 60)]
+                        results.append({'snippet': fragment, 'page': 'Index'})
+                        current_pos = match_end
+                        
+                return results
+            except Exception as e:
+                print(f"[SearchService] Match processing error: {e}")
+                return []
+
+    def get_chapters(self, book_id):
+        """Returns structured Table of Contents."""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT toc_json FROM books WHERE id = ?", (book_id,))
+            row = cursor.fetchone()
+            
+            if row and row['toc_json']:
+                try:
+                    toc_data = json.loads(row['toc_json'])
+                    formatted = []
+                    for item in toc_data:
+                        if isinstance(item, dict):
+                            formatted.append((
+                                item.get('title', 'Untitled'),
+                                item.get('level', 0),
+                                item.get('pdf_page') or item.get('page'),
+                                item.get('msc'),
+                                item.get('topics')
+                            ))
+                        elif isinstance(item, list) and len(item) >= 2:
+                            formatted.append((item[1], item[0]-1, item[2] if len(item)>2 else None, None, None))
+                    if formatted: return formatted
+                except: pass
+
+            cursor.execute("SELECT title, level, page, msc_code, topics FROM chapters WHERE book_id = ? ORDER BY id ASC", (book_id,))
+            return [tuple(r) for r in cursor.fetchall()]
+
+    def get_similar_books(self, book_id, limit=5):
+        """Finds books with similar embeddings."""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT embedding FROM books WHERE id = ?", (book_id,))
+            res = cursor.fetchone()
+            if not res or not res['embedding']: return []
+            
+            target_vec = np.frombuffer(res['embedding'], dtype=np.float32)
+            cursor.execute("SELECT id, title, author, path, embedding FROM books WHERE id != ? AND embedding IS NOT NULL", (book_id,))
+            rows = cursor.fetchall()
+            
+            if not rows: return []
+            
+            candidates = []
+            for r in rows:
+                vec = np.frombuffer(r['embedding'], dtype=np.float32)
+                if len(vec) == len(target_vec):
+                    score = np.dot(vec, target_vec) / (np.linalg.norm(vec) * np.linalg.norm(target_vec))
+                    candidates.append((r['id'], r['title'], r['author'], r['path'], float(score)))
+            
+            candidates.sort(key=lambda x: x[4], reverse=True)
+            return [c[:4] for c in candidates[:limit]]
+
+    def search_within_book(self, book_id, query, limit=50):
+        """Searches for a query within a specific book."""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # Check if deep-indexed
+                cursor.execute("SELECT book_id FROM deep_indexed_books WHERE book_id = ?", (book_id,))
+                is_deep = cursor.fetchone()
+                
+                if is_deep:
+                    clean_query = query.replace('"', '""')
+                    sql = """
+                        SELECT page_number, 
+                               snippet(pages_fts, 2, '<b>', '</b>', '...', 30) as snippet
+                        FROM pages_fts
+                        WHERE book_id = ? AND pages_fts MATCH ?
+                        ORDER BY rank
+                        LIMIT ?
+                    """
+                    cursor.execute(sql, (book_id, f'"{clean_query}"', limit))
+                    rows = cursor.fetchall()
+                    return [{'page': r['page_number'], 'snippet': r['snippet']} for r in rows], True
+                else:
+                    matches = self.get_book_matches(book_id, query)
+                    return matches, False
+            except Exception as e:
+                print(f"[SearchService] Search Within Book Error: {e}")
+                return [], False
+
     def search(self, query, limit=20, offset=0, use_fts=True, use_vector=True, use_translate=False, use_rerank=False, field='all'):
         """Main search orchestration."""
         search_query = query

@@ -1,6 +1,6 @@
 import pytest
 import sqlite3
-from fuzzy_book_matcher import FuzzyBookMatcher
+from services.fuzzy_matcher import FuzzyBookMatcher
 
 @pytest.fixture
 def matcher(test_db):

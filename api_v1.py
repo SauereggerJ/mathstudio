@@ -1,15 +1,11 @@
 from flask import Blueprint, request, jsonify, send_from_directory, current_app, render_template, send_file
-import sqlite3
 import shutil
-import hashlib
 import subprocess
 import os
 import sys
 import traceback
 from pathlib import Path
-import datetime
 import time
-import re
 import json
 
 from core.config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, CONVERTED_NOTES_DIR
@@ -17,12 +13,11 @@ from core.database import db
 from services.search import search_service
 from services.library import library_service
 from services.note import note_service
+from services.metadata import metadata_service
+from services.bibliography import bibliography_service
 
 # Legacy/Transition Imports
-from bibgen import generate_bibtex_key, generate_bibtex
-import converter
-import bib_hunter
-import bib_extractor
+from core.utils import parse_page_range
 
 api_v1 = Blueprint('api_v1', __name__)
 
@@ -66,13 +61,8 @@ def search_endpoint():
     json_results = []
     for item in results:
         # Enrich with BibTeX
-        bib_key = generate_bibtex_key(item['author'], item['title'])
-        bg_entry = generate_bibtex((item['title'], item['author'], item['path'], Path(item['path']).name))
-        
-        if item.get('year'):
-             bg_entry = bg_entry.replace('year      = {20XX}', f'year      = {{{item["year"]}}}')
-        if item.get('publisher'):
-             bg_entry = bg_entry.replace('publisher = {Unknown}', f'publisher = {{{item["publisher"]}}}')
+        bib_key = metadata_service.generate_bibtex_key(item['author'], item['title'])
+        bg_entry = metadata_service.generate_bibtex(item['title'], item['author'], Path(item['path']).name, year=item.get('year'), publisher=item.get('publisher'))
         
         item.update({
             'bib_key': bib_key,
@@ -88,47 +78,12 @@ def search_endpoint():
         'expanded_query': expanded_query
     })
 
-def parse_page_range(pages_str, max_pages):
-    """
-    Parses a page range string into a list of integers.
-    Supports: "10", "10-15", "10,12,15", "10-12,15".
-    """
-    if not pages_str:
-        return []
-    
-    pages = set()
-    parts = str(pages_str).split(',')
-    for part in parts:
-        part = part.strip()
-        if '-' in part:
-            try:
-                start, end = map(int, part.split('-'))
-                # Safety limit: clamp to max_pages and prevent massive ranges
-                start = max(1, start)
-                end = min(max_pages, end)
-                if start <= end:
-                    # Hard limit to 100 pages to prevent memory issues
-                    if end - start > 100:
-                        end = start + 100
-                    for p in range(start, end + 1):
-                        pages.add(p)
-            except ValueError:
-                continue
-        else:
-            try:
-                p = int(part)
-                if 1 <= p <= max_pages:
-                    pages.add(p)
-            except ValueError:
-                continue
-    return sorted(list(pages))
-
 @api_v1.route('/books/<int:book_id>/deep-index', methods=['POST'])
 def trigger_deep_indexing(book_id):
     """Triggers fine-grained (page-by-page) FTS indexing for a book."""
     try:
-        from indexer import deep_index_book
-        success, message = deep_index_book(book_id)
+        from services.indexer import indexer_service
+        success, message = indexer_service.deep_index_book(book_id)
         if success:
             return jsonify({'success': True, 'message': message})
         else:
@@ -146,8 +101,7 @@ def search_within_book_endpoint(book_id):
         return jsonify({'error': 'Missing query parameter (q)'}), 400
         
     try:
-        from search import search_within_book
-        matches, is_deep = search_within_book(book_id, query, limit=limit)
+        matches, is_deep = search_service.search_within_book(book_id, query, limit=limit)
         return jsonify({
             'book_id': book_id,
             'query': query,
@@ -161,48 +115,12 @@ def search_within_book_endpoint(book_id):
 def trigger_index_reconstruction(book_id):
     """Triggers AI-driven Index (back of book) reconstruction."""
     try:
-        from index_backfill import extract_candidate_pages, clean_index_with_gemini, validate_content, update_db
-        import fitz
-        
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT path, title FROM books WHERE id = ?", (book_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
-            return jsonify({'error': 'Book not found'}), 404
-            
-        rel_path, title = row
-        abs_path = (LIBRARY_ROOT / rel_path).resolve()
-        
-        if not abs_path.exists():
-            return jsonify({'error': 'File not found'}), 404
-            
-        doc = fitz.open(abs_path)
-        raw_text, page_count = extract_candidate_pages(doc)
-        doc.close()
-        
-        if not raw_text:
-            return jsonify({'success': False, 'error': 'No index pages detected via heuristics.'}), 400
-            
-        clean_text = clean_index_with_gemini(raw_text, title)
-        
-        if clean_text == "NOT_INDEX":
-            return jsonify({'success': False, 'error': 'AI rejected content as not an index.'}), 400
-            
-        if not clean_text:
-            return jsonify({'success': False, 'error': 'AI failed to process index.'}), 500
-            
-        is_valid, reason = validate_content(clean_text)
-        if is_valid:
-            if update_db(book_id, clean_text):
-                return jsonify({'success': True, 'message': f'Index updated ({len(clean_text)} characters)'})
-            else:
-                return jsonify({'success': False, 'error': 'Database update failed'}), 500
+        from services.indexer import indexer_service
+        success, message = indexer_service.reconstruct_index(book_id)
+        if success:
+            return jsonify({'success': True, 'message': message})
         else:
-            return jsonify({'success': False, 'error': f'Validation failed: {reason}'}), 400
-            
+            return jsonify({'success': False, 'error': message}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -252,8 +170,7 @@ def get_book_details_endpoint(book_id):
         # Get similar books
         similar = []
         try:
-            from search import get_similar_books
-            similar_raw = get_similar_books(book_id, limit=5)
+            similar_raw = search_service.get_similar_books(book_id, limit=5)
             similar = [{'id': r[0], 'title': r[1], 'author': r[2]} for r in similar_raw]
         except: pass
 
@@ -279,14 +196,13 @@ def pdf_to_text_tool():
         return jsonify({'error': 'book_id and pages are required'}), 400
         
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
-        res = cursor.fetchone()
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
+            res = cursor.fetchone()
         
         if not res: return jsonify({'error': 'Book not found'}), 404
-        rel_path = res[0]
+        rel_path = res['path']
         abs_path = (LIBRARY_ROOT / rel_path).resolve()
         
         if not abs_path.exists(): return jsonify({'error': 'File missing'}), 404
@@ -320,7 +236,7 @@ def pdf_to_text_tool():
 def check_wishlist_tool():
     """Bulk checks a list of books against the library using improved fuzzy matching."""
     try:
-        from fuzzy_book_matcher import FuzzyBookMatcher
+        from services.fuzzy_matcher import FuzzyBookMatcher
         
         data = request.json
         lines = data.get('lines', [])
@@ -432,64 +348,38 @@ def open_external_tool():
 def bib_scan_tool():
     """Scans a book's bibliography, extracts pages, and shows results page."""
     try:
-        # Accept both JSON and form data
-        if request.is_json:
-            data = request.json
-        else:
-            data = request.form
-        
+        data = request.json if request.is_json else request.form
         book_id = data.get('book_id')
+        if not book_id: return jsonify({'error': 'book_id is required'}), 400
         
-        if not book_id:
-            return jsonify({'error': 'book_id is required'}), 400
-        
-        # Validate book exists
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, title, author, path FROM books WHERE id = ?", (book_id,))
-        book = cursor.fetchone()
-        conn.close()
-        
-        if not book:
-            return jsonify({'error': f'Book with ID {book_id} not found'}), 404
-        
-        # Run bibliography scan
-        hunter = bib_hunter.BibHunter(DB_FILE)
-        result = hunter.scan_book(book_id)
-        
+        result = bibliography_service.scan_book(int(book_id))
         if not result['success']:
-            return jsonify({
-                'success': False,
-                'error': result.get('error', 'Unknown error occurred')
-            }), 500
+            return jsonify({'success': False, 'error': result.get('error')}), 500
         
-        # Extract bibliography pages as separate PDF
-        bib_pages = result.get('bib_pages', [])
-        print(f"[DEBUG] bib_pages={bib_pages}, book path={book[3]}", flush=True)
-        
-        extracted_pdf_path = None
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT title, author, path FROM books WHERE id = ?", (book_id,))
+            book = cursor.fetchone()
+
         extracted_pdf_filename = None
-        
-        if bib_pages and book[3]:  # book[3] is path
-            print(f"[DEBUG] Calling extract_bib_pages for {book[1]}", flush=True)
-            pdf_path, error = bib_extractor.extract_bib_pages(book[3], book_id, book[1], bib_pages)
-            print(f"[DEBUG] Extraction result: path={pdf_path}, error={error}", flush=True)
+        if result.get('pages') and book['path']:
+            from services.metadata import metadata_service # Actually should be in bibliography?
+            # For now I'll use the existing bib_extractor if it still works or migrate it.
+            # Actually, I migrated bib_hunter to bibliography_service.
+            from services import bib_extractor
+            pdf_path, error = bib_extractor.extract_bib_pages(book['path'], book_id, book['title'], result['pages'])
             if pdf_path and not error:
-                extracted_pdf_path = pdf_path
                 extracted_pdf_filename = Path(pdf_path).name
         
-        # Render results page
         return render_template('bib_results.html',
             book_id=book_id,
-            book_title=book[1],
-            book_author=book[2],
-            bib_pages=bib_pages,
+            book_title=book['title'],
+            book_author=book['author'],
+            bib_pages=result.get('pages', []),
             citations=result.get('citations', []),
             stats=result.get('stats', {}),
-            extracted_pdf_path=extracted_pdf_path,
             extracted_pdf_filename=extracted_pdf_filename
         )
-        
     except Exception as e:
          return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -497,17 +387,17 @@ def bib_scan_tool():
 def check_citation():
     """Deep checks a citation against the library."""
     try:
-        from fuzzy_book_matcher import FuzzyBookMatcher
+        from services.fuzzy_matcher import FuzzyBookMatcher
         
         data = request.json
         title = data.get('title')
         author = data.get('author')
         
-        matcher = FuzzyBookMatcher(DB_FILE, debug=True)
-        match = matcher.deep_match(title, author)
+        matcher = FuzzyBookMatcher(str(DB_FILE), debug=True)
+        result = matcher.match_book(title, author)
         
-        if match:
-             return jsonify({'found': True, 'match': match})
+        if result['found']:
+             return jsonify({'found': True, 'match': result['match']})
         else:
              return jsonify({'found': False})
              
@@ -518,23 +408,11 @@ def check_citation():
 def reindex_book(book_id):
     """Triggers AI-powered re-indexing for a book."""
     try:
-        from book_ingestor import BookIngestor
+        data = request.json if request.is_json else request.form
+        ai_care = str(data.get('ai_care', True)).lower() == 'true'
         
-        # Get options
-        if request.is_json:
-            data = request.json
-        else:
-            data = request.form
-            
-        ai_care_val = data.get('ai_care', True)
-        if isinstance(ai_care_val, str):
-             ai_care = ai_care_val.lower() == 'true'
-        else:
-             ai_care = bool(ai_care_val)
-        
-        # Initialize ingestor in execute mode
-        ingestor = BookIngestor(execute=True)
-        result = ingestor.reprocess_book(book_id, ai_care=ai_care)
+        from services.ingestor import ingestor_service
+        result = ingestor_service.reprocess_book(book_id, ai_care=ai_care)
         
         if result['success']:
             return jsonify(result)
@@ -549,11 +427,10 @@ def reindex_book(book_id):
 def preview_reindex_book(book_id):
     """Generates a metadata proposal without saving it."""
     try:
-        from book_ingestor import BookIngestor
+        from services.ingestor import ingestor_service
         data = request.json or {}
-        ai_care = data.get('ai_care', True)
-        ingestor = BookIngestor(execute=True)
-        result = ingestor.preview_reindex(book_id, ai_care=ai_care)
+        ai_care = str(data.get('ai_care', True)).lower() == 'true'
+        result = ingestor_service.preview_reindex(book_id, ai_care=ai_care)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -571,10 +448,8 @@ def update_book_metadata(book_id):
         # Handle ToC update if provided (usually from AI proposal)
         if 'toc' in data:
             try:
-                from book_ingestor import BookIngestor
-                ingestor = BookIngestor(execute=True)
-                ingestor.sync_chapters(book_id, data['toc'], page_offset=data.get('page_offset', 0))
-                ingestor.close()
+                from services.ingestor import ingestor_service
+                ingestor_service.sync_chapters(book_id, data['toc'], page_offset=data.get('page_offset', 0))
             except Exception as e:
                 print(f"Failed to sync chapters: {e}")
 
@@ -607,15 +482,14 @@ def serve_bib_extract(filename):
 def download_book(book_id):
     """Serves the raw book file, converting DjVu to PDF if needed."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
-        res = cursor.fetchone()
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
+            res = cursor.fetchone()
         
         if not res: return jsonify({'error': 'Book not found'}), 404
         
-        rel_path = res[0]
+        rel_path = res['path']
         abs_path = (LIBRARY_ROOT / rel_path).resolve()
         
         if not abs_path.exists(): return jsonify({'error': 'File missing on server'}), 404
@@ -647,26 +521,21 @@ def download_book(book_id):
 def admin_ingest():
     """Triggers the book ingestion pipeline."""
     data = request.json or {}
-    dry_run = data.get('dry_run', True)
-    # Defaulting to dry-run for safety via API
+    execute = not data.get('dry_run', True)
     
-    cmd = ["python3", str(parent_dir / "book_ingestor.py")]
-    if dry_run:
-        cmd.append("--dry-run")
-    else:
-        cmd.append("--execute")
+    from services.ingestor import ingestor_service
+    from core.config import UNSORTED_DIR
+    
+    files = list(UNSORTED_DIR.glob("*.pdf")) + list(UNSORTED_DIR.glob("*.djvu"))
+    results = []
+    for f in files:
+        results.append(ingestor_service.process_file(f, execute=execute))
         
-    try:
-        # Run and capture output
-        result = subprocess.run(cmd, cwd=str(parent_dir), capture_output=True, text=True, timeout=1200)
-        return jsonify({
-            'success': result.returncode == 0,
-            'dry_run': dry_run,
-            'stdout': result.stdout,
-            'stderr': result.stderr
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    return jsonify({
+        'success': True,
+        'dry_run': not execute,
+        'results': results
+    })
 
 @api_v1.route('/admin/ingest/report', methods=['GET'])
 def admin_ingest_report():
@@ -684,20 +553,14 @@ def admin_ingest_report():
 
 @api_v1.route('/admin/indexer', methods=['POST'])
 def admin_indexer():
-    """Triggers the indexer (FTS/Vector rebuild)."""
+    """Triggers the indexer (FTS rebuild)."""
     data = request.json or {}
     force = data.get('force', False)
     
-    cmd = ["python3", str(parent_dir / "indexer.py")]
-    if force: cmd.append("--force")
-        
     try:
-        result = subprocess.run(cmd, cwd=str(parent_dir), capture_output=True, text=True, timeout=600)
-        return jsonify({
-            'success': result.returncode == 0,
-            'stdout': result.stdout,
-            'stderr': result.stderr
-        })
+        from services.indexer import indexer_service
+        indexer_service.scan_library(force=force)
+        return jsonify({'success': True, 'message': 'Indexer finished successfully.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -705,25 +568,23 @@ def admin_indexer():
 def admin_stats():
     """Returns database statistics."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        
-        # 1. Basic Counts
-        cursor.execute("SELECT COUNT(*) FROM books")
-        total_books = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT SUM(size_bytes) FROM books")
-        total_size = cursor.fetchone()[0] or 0
-        
-        # 2. Category Breakdown
-        cursor.execute("SELECT directory, COUNT(*) FROM books GROUP BY directory ORDER BY COUNT(*) DESC")
-        categories = cursor.fetchall()
-        
-        # 3. Newest Books
-        cursor.execute("SELECT id, title, author, last_modified FROM books ORDER BY last_modified DESC LIMIT 5")
-        newest = [{'id': r[0], 'title': r[1], 'author': r[2]} for r in cursor.fetchall()]
-        
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 1. Basic Counts
+            cursor.execute("SELECT COUNT(*) FROM books")
+            total_books = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT SUM(size_bytes) FROM books")
+            total_size = cursor.fetchone()[0] or 0
+            
+            # 2. Category Breakdown
+            cursor.execute("SELECT directory, COUNT(*) FROM books GROUP BY directory ORDER BY COUNT(*) DESC")
+            categories = cursor.fetchall()
+            
+            # 3. Newest Books
+            cursor.execute("SELECT id, title, author, last_modified FROM books ORDER BY last_modified DESC LIMIT 5")
+            newest = [{'id': r['id'], 'title': r['title'], 'author': r['author']} for r in cursor.fetchall()]
         
         return jsonify({
             'total_books': total_books,
@@ -738,13 +599,8 @@ def admin_stats():
 def admin_sanity_check():
     """Runs the database sanity check."""
     try:
-        cmd = ["python3", str(parent_dir / "db_sanity.py")]
-        result = subprocess.run(cmd, cwd=str(parent_dir), capture_output=True, text=True, timeout=300)
-        return jsonify({
-            'success': result.returncode == 0,
-            'stdout': result.stdout,
-            'stderr': result.stderr
-        })
+        results = library_service.check_sanity(fix=False)
+        return jsonify({'success': True, 'results': results})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -752,13 +608,8 @@ def admin_sanity_check():
 def admin_sanity_fix():
     """Runs the database sanity fix."""
     try:
-        cmd = ["python3", str(parent_dir / "db_sanity.py"), "--fix"]
-        result = subprocess.run(cmd, cwd=str(parent_dir), capture_output=True, text=True, timeout=300)
-        return jsonify({
-            'success': result.returncode == 0,
-            'stdout': result.stdout,
-            'stderr': result.stderr
-        })
+        results = library_service.check_sanity(fix=True)
+        return jsonify({'success': True, 'results': results})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -784,18 +635,17 @@ def admin_logs():
 def get_book_toc_endpoint(book_id):
     """Returns the structured Table of Contents for a book."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT toc_json FROM books WHERE id = ?", (book_id,))
-        row = cursor.fetchone()
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT toc_json FROM books WHERE id = ?", (book_id,))
+            row = cursor.fetchone()
         
         if not row:
             return jsonify({'error': 'Book not found'}), 404
             
-        toc_json = row[0]
+        toc_json = row['toc_json']
         if not toc_json:
-             return jsonify({'toc': []}) # Return empty list if no TOC
+             return jsonify({'toc': []})
              
         return jsonify({'toc': json.loads(toc_json)})
     except Exception as e:
@@ -814,15 +664,13 @@ def create_bookmark():
         if not book_id:
             return jsonify({'error': 'book_id is required'}), 400
             
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO bookmarks (book_id, page_range, tags, notes) VALUES (?, ?, ?, ?)",
-            (book_id, page_range, tags, notes)
-        )
-        conn.commit()
-        new_id = cursor.lastrowid
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO bookmarks (book_id, page_range, tags, notes) VALUES (?, ?, ?, ?)",
+                (book_id, page_range, tags, notes)
+            )
+            new_id = cursor.lastrowid
         return jsonify({'success': True, 'id': new_id})
     except Exception as e:
          return jsonify({'error': str(e)}), 500
@@ -846,11 +694,10 @@ def list_bookmarks():
     query += " ORDER BY b.created_at DESC"
     
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
         
         results = []
         for r in rows:
@@ -871,11 +718,9 @@ def list_bookmarks():
 def delete_bookmark(bookmark_id):
     """Delete a bookmark."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM bookmarks WHERE id = ?", (bookmark_id,))
-        conn.commit()
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM bookmarks WHERE id = ?", (bookmark_id,))
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -891,16 +736,14 @@ def replace_book_file(book_id):
 
     try:
         # 1. Get existing record
-        conn = sqlite3.connect(DB_FILE, timeout=30)
-        cursor = conn.cursor()
-        cursor.execute("SELECT path, title, author, page_count, file_hash FROM books WHERE id = ?", (book_id,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            return jsonify({'error': 'Book not found'}), 404
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path, title, author, page_count, file_hash FROM books WHERE id = ?", (book_id,))
+            row = cursor.fetchone()
+            if not row: return jsonify({'error': 'Book not found'}), 404
             
-        old_rel_path, old_title, old_author, old_page_count, old_hash = row
-        old_abs_path = (LIBRARY_ROOT / old_rel_path).resolve()
+            old_rel_path, old_title, old_author, old_page_count, old_hash = row['path'], row['title'], row['author'], row['page_count'], row['file_hash']
+            old_abs_path = (LIBRARY_ROOT / old_rel_path).resolve()
         
         # 2. Save new file to temp
         temp_dir = Path("temp_uploads")
@@ -909,12 +752,11 @@ def replace_book_file(book_id):
         new_file.save(str(temp_path))
         
         # 3. Heuristics Check
-        ingestor = BookIngestor(dry_run=True)
-        new_structure = ingestor.extract_structure(temp_path)
+        from services.ingestor import ingestor_service
+        new_structure = ingestor_service.extract_structure(temp_path)
         
         if not new_structure:
             if temp_path.exists(): os.remove(temp_path)
-            conn.close()
             return jsonify({'error': 'Could not read new file structure (Extraction failed)'}), 400
             
         new_page_count = new_structure.get('page_count', 0)
@@ -924,16 +766,14 @@ def replace_book_file(book_id):
             diff = abs(new_page_count - old_page_count)
             if diff / old_page_count > 0.10:
                 if temp_path.exists(): os.remove(temp_path)
-                conn.close()
                 return jsonify({
                     'error': f'Page count mismatch. Old: {old_page_count}, New: {new_page_count}. This looks like a different book.'
                 }), 400
 
         # Heuristic 2: Hash Check
-        new_hash = ingestor.calculate_hash(temp_path)
+        new_hash = library_service.calculate_hash(temp_path)
         if new_hash == old_hash:
             if temp_path.exists(): os.remove(temp_path)
-            conn.close()
             return jsonify({'error': 'This is the exact same file.'}), 400
 
         # 4. Perform Exchange
@@ -944,24 +784,23 @@ def replace_book_file(book_id):
         if old_abs_path.exists():
             shutil.move(str(old_abs_path), str(archive_dir / f"{book_id}_{old_abs_path.name}"))
         
-        # Move new into place (Keep path but update ext if needed)
+        # Move new into place
         final_rel_path = Path(old_rel_path).with_suffix(temp_path.suffix.lower())
         final_abs_path = LIBRARY_ROOT / final_rel_path
         shutil.move(str(temp_path), str(final_abs_path))
         
         # 5. Update DB (Technical fields only)
-        cursor.execute("""
-            UPDATE books SET 
-                path = ?, 
-                file_hash = ?, 
-                size_bytes = ?, 
-                page_count = ?,
-                last_modified = ?
-            WHERE id = ?
-        """, (str(final_rel_path), new_hash, final_abs_path.stat().st_size, new_page_count, time.time(), book_id))
-        
-        conn.commit()
-        conn.close()
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE books SET 
+                    path = ?, 
+                    file_hash = ?, 
+                    size_bytes = ?, 
+                    page_count = ?,
+                    last_modified = ?
+                WHERE id = ?
+            """, (str(final_rel_path), new_hash, final_abs_path.stat().st_size, new_page_count, time.time(), book_id))
         
         return jsonify({
             'success': True, 
@@ -970,7 +809,6 @@ def replace_book_file(book_id):
         })
         
     except Exception as e:
-        import traceback
         return jsonify({'error': f"Internal error: {str(e)}", 'trace': traceback.format_exc()}), 500
 
 @api_v1.route('/books/<int:book_id>', methods=['DELETE'])
