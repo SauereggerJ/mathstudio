@@ -103,18 +103,22 @@
     </main>
 
     <!-- Gemini Terminal Drawer (Floating) -->
-    <div id="gemini-drawer" class="fixed bottom-0 right-0 z-40 w-full h-1/2 md:w-1/2 lg:w-1/3 md:h-[600px] bg-white border-t border-l border-gray-200 shadow-2xl transform translate-y-full transition-transform duration-300 ease-in-out">
-        <div class="flex justify-between items-center p-4 border-b bg-gray-50">
-            <h5 class="text-base font-semibold text-gray-700 flex items-center">
+    <div id="gemini-drawer" class="fixed bottom-0 right-0 z-40 w-full h-1/2 md:w-1/2 lg:w-2/5 md:h-[600px] bg-white border-t border-l border-gray-200 shadow-2xl transform translate-y-full transition-all duration-300 ease-in-out">
+        <div class="flex justify-between items-center p-3 border-b bg-gray-50 cursor-move" id="drawer-header">
+            <h5 class="text-sm font-bold text-slate-700 flex items-center">
                 <i class="fas fa-terminal mr-2 text-blue-600"></i> Gemini CLI
             </h5>
-            <button onclick="toggleGeminiDrawer()" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center">
-                <i class="fas fa-times"></i>
-                <span class="sr-only">Close menu</span>
-            </button>
+            <div class="flex items-center space-x-2">
+                <button onclick="maximizeGeminiDrawer()" type="button" class="text-gray-400 hover:bg-gray-200 hover:text-gray-900 rounded text-xs p-1.5 inline-flex justify-center items-center">
+                    <i id="maximize-icon" class="fas fa-expand-alt"></i>
+                </button>
+                <button onclick="toggleGeminiDrawer()" type="button" class="text-gray-400 hover:bg-gray-200 hover:text-gray-900 rounded text-xs p-1.5 inline-flex justify-center items-center">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
-        <div class="h-[calc(100%-60px)] w-full bg-black">
-            <iframe id="gemini-iframe" data-src="http://192.168.178.2:8081" class="w-full h-full border-none"></iframe>
+        <div class="h-[calc(100%-53px)] w-full bg-black overflow-hidden">
+            <iframe id="gemini-iframe" data-src=":8081" class="w-full h-full border-none"></iframe>
         </div>
     </div>
 
@@ -131,16 +135,90 @@
             const iframe = document.getElementById('gemini-iframe');
             
             if (drawer.classList.contains('translate-y-full')) {
-                // Open drawer
-                if (!iframe.src) {
-                    iframe.src = iframe.getAttribute('data-src');
+                if (!iframe.src || iframe.src === window.location.href) {
+                    const port = iframe.getAttribute('data-src');
+                    iframe.src = window.location.protocol + "//" + window.location.hostname + port;
                 }
                 drawer.classList.remove('translate-y-full');
+                // Reset position if it was dragged
+                drawer.style.top = '';
+                drawer.style.left = '';
             } else {
-                // Close drawer
                 drawer.classList.add('translate-y-full');
+                if (drawer.classList.contains('is-maximized')) {
+                    maximizeGeminiDrawer();
+                }
             }
         }
+
+        function maximizeGeminiDrawer() {
+            const drawer = document.getElementById('gemini-drawer');
+            const icon = document.getElementById('maximize-icon');
+            
+            if (drawer.classList.contains('is-maximized')) {
+                // Restore to default anchored state
+                drawer.classList.remove('is-maximized', 'md:w-[90vw]', 'md:h-[85vh]', 'lg:w-[80vw]', 'lg:h-[80vh]');
+                drawer.classList.add('md:w-1/2', 'lg:w-2/5', 'md:h-[600px]');
+                icon.classList.remove('fa-compress-alt');
+                icon.classList.add('fa-expand-alt');
+                
+                // Reset position to bottom-right anchor
+                drawer.style.top = '';
+                drawer.style.left = '';
+                drawer.style.bottom = '0';
+                drawer.style.right = '0';
+            } else {
+                // Maximize
+                drawer.classList.add('is-maximized', 'md:w-[90vw]', 'md:h-[85vh]', 'lg:w-[80vw]', 'lg:h-[80vh]');
+                drawer.classList.remove('md:w-1/2', 'lg:w-2/5', 'md:h-[600px]');
+                icon.classList.remove('fa-expand-alt');
+                icon.classList.add('fa-compress-alt');
+                // Position in center area
+                drawer.style.top = '10vh';
+                drawer.style.left = '10vw';
+                drawer.style.bottom = 'auto';
+                drawer.style.right = 'auto';
+            }
+        }
+
+        function initDraggable() {
+            const drawer = document.getElementById("gemini-drawer");
+            const header = document.getElementById("drawer-header");
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+            header.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                if (drawer.classList.contains('is-maximized')) return;
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                drawer.style.top = (drawer.offsetTop - pos2) + "px";
+                drawer.style.left = (drawer.offsetLeft - pos1) + "px";
+                drawer.style.bottom = 'auto';
+                drawer.style.right = 'auto';
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+        
+        // Start draggable on load
+        window.onload = initDraggable;
     </script>
     {% block scripts %}{% endblock %}
 
