@@ -2,6 +2,10 @@
 
 {% block title %}Admin Dashboard - MathStudio{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
@@ -16,7 +20,7 @@
 </div>
 
 <!-- Stats Grid -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
     <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div class="flex items-center justify-between mb-4">
             <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl">
@@ -25,7 +29,18 @@
             <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Inventory</span>
         </div>
         <div class="text-3xl font-black text-slate-900 mb-1" id="stat-total-books">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Total Indexed Volumes</p>
+        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Volumes</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-xl">
+                <i class="fas fa-fingerprint"></i>
+            </div>
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Identity</span>
+        </div>
+        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-doi-count">--</div>
+        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Books with DOI</p>
     </div>
 
     <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -36,18 +51,18 @@
             <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Capacity</span>
         </div>
         <div class="text-3xl font-black text-slate-900 mb-1" id="stat-total-size">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Library Storage Footprint</p>
+        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Storage</p>
     </div>
 
     <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div class="flex items-center justify-between mb-4">
             <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl">
-                <i class="fas fa-folder-tree"></i>
+                <i class="fas fa-link"></i>
             </div>
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Structure</span>
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">zbMATH</span>
         </div>
-        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-total-cats">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Active Subject Categories</p>
+        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-zbl-count">--</div>
+        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Verified Zbl IDs</p>
     </div>
 </div>
 
@@ -150,10 +165,69 @@
         </div>
     </div>
 </div>
+
+<!-- Library Insights Section -->
+<div class="mb-12">
+    <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
+        <i class="fas fa-chart-pie mr-3"></i> Library Insights
+    </h3>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Distribution Charts -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <div class="flex items-center justify-between mb-6">
+                <h4 class="font-bold text-slate-900">Collection Breakdown</h4>
+                <select id="chartSelector" onchange="updateCharts()" class="text-xs bg-slate-50 border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <option value="category">By Category</option>
+                    <option value="publisher">Top Publishers</option>
+                    <option value="year">Chronological</option>
+                </select>
+            </div>
+            <div class="h-[350px] relative">
+                <canvas id="mainChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Quick Query Tool -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
+            <h4 class="font-bold text-slate-900 mb-4">Statistic Explorer</h4>
+            <p class="text-xs text-slate-500 mb-4 italic">Quickly query specific collection details.</p>
+            
+            <div class="space-y-4 flex-grow">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Target Keyword</label>
+                    <input type="text" id="statsQuery" placeholder="e.g. Springer, Analysis, 2020" 
+                        class="w-full text-sm bg-slate-50 border-slate-200 rounded-xl focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <button onclick="exploreStats()" class="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl text-sm hover:bg-slate-800 transition-colors shadow-lg">
+                    Analyze Segment
+                </button>
+                
+                <div id="statsResult" class="hidden mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Result</div>
+                    <div class="text-xl font-black text-blue-900" id="statsValue">--</div>
+                    <div class="text-[10px] font-bold text-blue-600 uppercase" id="statsLabel">Matches Found</div>
+                </div>
+            </div>
+            
+            <div class="mt-6 pt-4 border-t border-slate-50">
+                <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase mb-2">
+                    <span>Recent Milestones</span>
+                </div>
+                <ul class="text-[11px] space-y-2" id="milestones">
+                    <!-- Milestones will be injected -->
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    let statsData = null;
+    let currentChart = null;
+
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
         loadLogs();
@@ -163,14 +237,107 @@
     async function loadStats() {
         try {
             const res = await fetch('/api/v1/admin/stats');
-            const data = await res.json();
-            document.getElementById('stat-total-books').textContent = data.total_books.toLocaleString();
-            document.getElementById('stat-total-size').textContent = data.total_size_gb.toFixed(1) + ' GB';
-            document.getElementById('stat-total-cats').textContent = data.categories.length;
+            statsData = await res.json();
+            
+            document.getElementById('stat-total-books').textContent = statsData.total_books.toLocaleString();
+            document.getElementById('stat-doi-count').textContent = statsData.doi_count.toLocaleString();
+            document.getElementById('stat-total-size').textContent = statsData.total_size_gb.toFixed(1) + ' GB';
+            document.getElementById('stat-zbl-count').textContent = statsData.zbl_count.toLocaleString();
+
+            updateCharts();
+            updateMilestones();
         } catch (e) {
             console.error(e);
             document.getElementById('stat-total-books').textContent = 'ERR';
         }
+    }
+
+    function updateCharts() {
+        const type = document.getElementById('chartSelector').value;
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        
+        if (currentChart) currentChart.destroy();
+
+        let labels, data, label, chartType = 'bar';
+        let colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
+
+        if (type === 'category') {
+            const topCats = statsData.categories.slice(0, 8);
+            labels = topCats.map(c => c.name.split('_').pop().substring(0, 15));
+            data = topCats.map(c => c.count);
+            label = 'Books per Category';
+            chartType = 'pie';
+        } else if (type === 'publisher') {
+            labels = statsData.publishers.map(p => p.name);
+            data = statsData.publishers.map(p => p.count);
+            label = 'Top Publishers';
+        } else if (type === 'year') {
+            // Group by decade or show last 30 years
+            const filteredYears = statsData.years.filter(y => y.year > 1990);
+            labels = filteredYears.map(y => y.year);
+            data = filteredYears.map(y => y.count);
+            label = 'Documents by Year';
+            chartType = 'line';
+        }
+
+        currentChart = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: data,
+                    backgroundColor: chartType === 'pie' ? colors : '#3b82f6',
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: chartType === 'line'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: chartType === 'pie', position: 'right' }
+                },
+                scales: chartType !== 'pie' ? {
+                    y: { beginAtZero: true, grid: { display: false } },
+                    x: { grid: { display: false } }
+                } : {}
+            }
+        });
+    }
+
+    async function exploreStats() {
+        const query = document.getElementById('statsQuery').value.trim();
+        if (!query) return;
+
+        const resultDiv = document.getElementById('statsResult');
+        const statsValue = document.getElementById('statsValue');
+        const statsLabel = document.getElementById('statsLabel');
+
+        try {
+            // Use the search API with fts and vector enabled to get a realistic count
+            const res = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}&limit=1&fts=true&vec=true`);
+            const data = await res.json();
+            
+            resultDiv.classList.remove('hidden');
+            statsValue.textContent = (data.total_count || 0).toLocaleString();
+            statsLabel.textContent = `Documents matching "${query}"`;
+        } catch (e) {
+            console.error(e);
+            statsValue.textContent = "ERR";
+        }
+    }
+
+    function updateMilestones() {
+        const list = document.getElementById('milestones');
+        list.innerHTML = statsData.newest.map(book => `
+            <li class="flex items-center text-slate-600">
+                <i class="fas fa-check-circle text-emerald-500 mr-2"></i>
+                <span class="truncate">Added <strong>${book.title}</strong></span>
+            </li>
+        `).join('');
     }
 
     async function loadLogs() {

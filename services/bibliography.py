@@ -1,116 +1,114 @@
 import json
 import re
-from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+import logging
+import requests
 import fitz  # PyMuPDF
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple, Any
 from core.database import db
-from core.ai import ai
-from core.config import LIBRARY_ROOT, DB_FILE
+from core.config import LIBRARY_ROOT, GEMINI_MODEL, get_api_key
 
-BIB_KEYWORDS = [
-    "bibliography", "references", "cited works", "works cited", "literature cited",
-    "literaturverzeichnis", "bibliographie", "quellenverzeichnis", "literatur",
-    "list of references", "reference list"
-]
+logger = logging.getLogger(__name__)
 
 class BibliographyService:
+    BIB_KEYWORDS = ["bibliography", "references", "cited works", "works cited", "literature cited",
+                    "literaturverzeichnis", "bibliographie", "quellenverzeichnis", "literatur",
+                    "list of references", "reference list"]
+
     def __init__(self):
-        self.db = db
-        self.ai = ai
+        self.api_key = get_api_key()
+        self.model = GEMINI_MODEL
 
-    def find_bib_pages(self, book_id: int) -> Tuple[Optional[List[int]], Optional[str]]:
-        """Finds bibliography pages in a book (PDF only for now)."""
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
-            row = cursor.fetchone()
-            
-        if not row: return None, "Book not found"
-        
-        book_path = LIBRARY_ROOT / row['path']
-        if not book_path.exists(): return None, "File not found"
-        if book_path.suffix.lower() != '.pdf': return None, "Only PDF supported"
-
+    def find_bib_pages(self, book_path: Path) -> List[int]:
+        pages = []
         try:
             doc = fitz.open(str(book_path))
             total_pages = len(doc)
-            start_page = max(0, total_pages - 30)
-            bib_pages = []
-            
-            for page_num in range(start_page, total_pages):
-                text = doc[page_num].get_text().lower()
-                for keyword in BIB_KEYWORDS:
-                    if keyword in text and text.index(keyword) < 500:
-                        bib_pages.append(page_num + 1)
-                        break
+            for i in range(total_pages - 1, max(-1, total_pages - 60), -1):
+                text = doc[i].get_text().lower()
+                if any(kw in text[:500] for kw in self.BIB_KEYWORDS):
+                    pages.append(i + 1)
+                    curr = i - 1
+                    while curr >= 0:
+                        prev_text = doc[curr].get_text().lower()
+                        if len(re.findall(r"\[\d+\]", prev_text)) > 5 or len(re.findall(r"19\d{2}|20\d{2}", prev_text)) > 5:
+                            pages.append(curr + 1)
+                            curr -= 1
+                        else: break
+                    break
             doc.close()
-            
-            if not bib_pages: return None, "No bibliography found in last 30 pages"
-            
-            first = min(bib_pages)
-            last = min(first + 9, total_pages)
-            return list(range(first, last + 1)), None
-        except Exception as e:
-            return None, str(e)
+        except Exception as e: logger.error(f"Error finding bib pages: {e}")
+        return sorted(list(set(pages)))
 
-    def parse_citations(self, book_id: int, pages: List[int]) -> Tuple[Optional[List[Dict]], Optional[str]]:
-        """Extracts book citations from specific pages using AI."""
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT path FROM books WHERE id = ?", (book_id,))
-            row = cursor.fetchone()
-            
-        book_path = LIBRARY_ROOT / row['path']
-        
+    def extract_and_structure_page(self, pdf_path: Path, page_num: int) -> List[Dict]:
         try:
-            doc = fitz.open(str(book_path))
-            bib_text = ""
-            for p in pages:
-                if p <= len(doc):
-                    bib_text += f"\n--- Page {p} ---\n" + doc[p-1].get_text()
+            doc = fitz.open(str(pdf_path))
+            text = doc[page_num - 1].get_text()
             doc.close()
-
-            prompt = (
-                "You are a bibliography extraction expert. Extract all BOOK citations from the following text.\n"
-                "Return a JSON array of objects: [{'title': '...', 'author': '...'}].\n"
-                "IGNORE journals and conference papers.\n\n"
-                f"Text:\n{bib_text[:20000]}"
-            )
+            if len(text.strip()) < 100: return []
             
-            citations = self.ai.generate_json(prompt)
-            if not citations: return None, "AI failed to extract citations"
-            return citations, None
-        except Exception as e:
-            return None, str(e)
+            prompt = (
+                "You are a bibliography expert. Extract all bibliography entries from the following text.\n"
+                "For each entry, create a JSON object with: 'title', 'author', 'year', and 'raw_text' (verbatim).\n"
+                "Return a JSON array of these objects.\n"
+                f"TEXT:\n{text}"
+            )
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+            payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
+            res = requests.post(url, json=payload, timeout=60)
+            if res.status_code == 200:
+                return json.loads(res.json()['candidates'][0]['content']['parts'][0]['text'])
+        except Exception as e: logger.error(f"Extraction failed: {e}")
+        return []
 
     def scan_book(self, book_id: int) -> Dict:
-        """Full bibliography scan workflow."""
-        pages, error = self.find_bib_pages(book_id)
-        if error: return {"success": False, "error": error}
+        """Schneller Scan: Extrahiert nur die Daten, Auflösung macht der Background-Worker."""
+        with db.get_connection() as conn:
+            book = conn.execute("SELECT title, path FROM books WHERE id = ?", (book_id,)).fetchone()
         
-        citations, error = self.parse_citations(book_id, pages)
-        if error: return {"success": False, "error": error, "pages": pages}
+        if not book: return {"success": False, "error": "Book not found"}
+        abs_path = LIBRARY_ROOT / book['path']
+        pages = self.find_bib_pages(abs_path)
+        if not pages: return {"success": False, "error": "No bibliography pages found"}
+
+        # 1. Extraktion (nur wenn noch nicht geschehen)
+        with db.get_connection() as conn:
+            exists = conn.execute("SELECT COUNT(*) FROM bib_entries WHERE book_id = ?", (book_id,)).fetchone()[0]
         
-        # Cross-check logic
-        from services.fuzzy_matcher import FuzzyBookMatcher
-        matcher = FuzzyBookMatcher(str(DB_FILE), threshold=0.75)
-        results = matcher.batch_match(citations)
-        
-        enriched = []
+        if exists == 0:
+            for p in pages:
+                structured_entries = self.extract_and_structure_page(abs_path, p)
+                if structured_entries:
+                    with db.get_connection() as conn:
+                        for entry in structured_entries:
+                            if not isinstance(entry, dict): continue
+                            conn.execute('''
+                                INSERT INTO bib_entries (book_id, raw_text, title, author)
+                                VALUES (?, ?, ?, ?)
+                            ''', (book_id, entry.get('raw_text', ''), entry.get('title'), entry.get('author')))
+
+        # 2. Aktuellen Stand aus DB laden (schnell)
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, raw_text, title, author, resolved_zbl_id as doi, confidence 
+                FROM bib_entries WHERE book_id = ?
+            """, (book_id,))
+            rows = [dict(r) for r in cursor.fetchall()]
+
+        citations = []
         owned_count = 0
-        for i, res in enumerate(results):
-            c = citations[i]
-            status = 'owned' if res['found'] else 'missing'
-            if res['found']: owned_count += 1
-            enriched.append({**c, 'status': status, 'match': res.get('match')})
+        for r in rows:
+            status = 'owned' if r['confidence'] and r['confidence'] >= 1.0 else 'missing'
+            if status == 'owned': owned_count += 1
+            citations.append({**r, 'status': status})
             
         return {
             "success": True,
-            "book_id": book_id,
+            "book_title": book['title'],
             "pages": pages,
-            "citations": enriched,
-            "stats": {"total": len(enriched), "owned": owned_count, "missing": len(enriched) - owned_count}
+            "citations": citations,
+            "stats": {"total": len(citations), "owned": owned_count, "missing": len(citations) - owned_count}
         }
 
-# Global instance
 bibliography_service = BibliographyService()

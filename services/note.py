@@ -94,8 +94,50 @@ class NoteService:
             print(f"[NoteService] Recommendation failed: {e}")
             return []
 
+    def get_cached_page(self, book_id, page_number):
+        """Checks if a page has already been extracted and returns its content."""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT latex_path, markdown_path FROM extracted_pages WHERE book_id = ? AND page_number = ?",
+                (book_id, page_number)
+            )
+            row = cursor.fetchone()
+            
+        if row:
+            latex_path = Path(row['latex_path'])
+            markdown_path = Path(row['markdown_path'])
+            
+            if latex_path.exists() and markdown_path.exists():
+                with open(latex_path, 'r', encoding='utf-8') as f:
+                    latex = f.read()
+                with open(markdown_path, 'r', encoding='utf-8') as f:
+                    markdown = f.read()
+                return {'latex': latex, 'markdown': markdown}
+        return None
+
+    def save_page_to_cache(self, book_id, page_number, latex, markdown):
+        """Saves extracted page content to the structured repository and database."""
+        book_dir = CONVERTED_NOTES_DIR / str(book_id)
+        book_dir.mkdir(parents=True, exist_ok=True)
+        
+        latex_path = book_dir / f"page_{page_number}.tex"
+        markdown_path = book_dir / f"page_{page_number}.md"
+        
+        with open(latex_path, 'w', encoding='utf-8') as f:
+            f.write(latex)
+        with open(markdown_path, 'w', encoding='utf-8') as f:
+            f.write(markdown)
+            
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO extracted_pages (book_id, page_number, latex_path, markdown_path)
+                VALUES (?, ?, ?, ?)
+            """, (book_id, page_number, str(latex_path), str(markdown_path)))
+
     def create_note_from_pdf(self, book_id, pages):
-        """Converts PDF pages to structured notes."""
+        """Converts PDF pages to structured notes, utilizing the cache."""
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT path, title, author FROM books WHERE id = ?", (book_id,))
@@ -111,18 +153,34 @@ class NoteService:
         combined_latex = ""
         
         for page_num in pages:
-            result_data, error = converter.convert_page(str(abs_path), page_num)
-            if error:
-                combined_markdown += f"\n\n> [Error extracting Page {page_num}: {error}]\n\n"
-                continue
-            combined_markdown += f"\n\n## Page {page_num}\n\n" + result_data.get('markdown', '')
-            combined_latex += f"\n% --- Page {page_num} ---\n" + result_data.get('latex', '')
+            # 1. Check Cache
+            cached = self.get_cached_page(book_id, page_num)
+            
+            if cached:
+                page_markdown = cached['markdown']
+                page_latex = cached['latex']
+            else:
+                # 2. Extract via AI
+                result_data, error = converter.convert_page(str(abs_path), page_num)
+                if error:
+                    combined_markdown += f"\n\n> [Error extracting Page {page_num}: {error}]\n\n"
+                    continue
+                
+                page_markdown = result_data.get('markdown', '')
+                page_latex = result_data.get('latex', '')
+                
+                # 3. Save to Cache
+                self.save_page_to_cache(book_id, page_num, page_latex, page_markdown)
+
+            combined_markdown += f"\n\n## Page {page_num}\n\n" + page_markdown
+            combined_latex += f"\n% --- Page {page_num} ---\n" + page_latex
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         page_ref = f"p. {pages[0]}" if len(pages) == 1 else f"pp. {pages[0]}-{pages[-1]}"
         header = f"---\ntitle: Note from {title} ({page_ref})\nauthor: {author}\ndate: {timestamp}\ntags: [auto-note, {title}]\n---\n\n"
         full_markdown = header + combined_markdown
         
+        # Save aggregate note (keep existing behavior for Obsidian sync)
         safe_title = "".join(x for x in title if x.isalnum() or x in " -_")[:50]
         filename_base = f"{safe_title}_p{pages[0]}"
         if len(pages) > 1: filename_base += f"-{pages[-1]}"

@@ -14,18 +14,24 @@ class AIService:
         self.client = genai.Client(api_key=self.api_key)
         self.model_name = model_name
 
-    def generate_json(self, prompt, retry_count=3):
-        """Generates a structured JSON response from Gemini."""
+    def generate_json(self, contents, retry_count=3):
+        """Generates a structured JSON response. 'contents' can be a string or SDK types."""
         backoff = 5
+        # Normalize to Content object if string
+        if isinstance(contents, str):
+            contents = types.Content(role="user", parts=[types.Part.from_text(text=contents)])
+            
         for attempt in range(retry_count):
             try:
                 response = self.client.models.generate_content(
                     model=self.model_name,
-                    contents=prompt,
+                    contents=contents,
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
                 return json.loads(response.text)
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 if '429' in str(e) and attempt < retry_count - 1:
                     time.sleep(backoff)
                     backoff *= 2

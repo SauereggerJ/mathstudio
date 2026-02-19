@@ -142,6 +142,14 @@ class IndexerService:
                             full_text = self.extract_full_text(file_path)
                             cursor.execute('INSERT INTO books_fts (rowid, title, author, content) VALUES (?, ?, ?, ?)', 
                                            (book_id, meta['title'], meta['author'], full_text))
+                            
+                            # Start Bibliography Extraction (Phase 2)
+                            try:
+                                from .bib_extractor import bib_service
+                                bib_service.process_book_bibliography(book_id)
+                            except Exception as e:
+                                print(f"  [BIB] Failed to process bibliography for {file}: {e}")
+
                             count_new += 1
                         else:
                             book_id, db_mtime, db_version = existing['id'], existing['last_modified'], existing['index_version']
@@ -161,6 +169,14 @@ class IndexerService:
                                  row = cursor.fetchone()
                                  cursor.execute('INSERT INTO books_fts (rowid, title, author, content) VALUES (?, ?, ?, ?)', 
                                                 (book_id, row['title'], row['author'], full_text))
+                                 
+                                 # Start Bibliography Extraction (Phase 2)
+                                 try:
+                                     from .bib_extractor import bib_service
+                                     bib_service.process_book_bibliography(book_id)
+                                 except Exception as e:
+                                     print(f"  [BIB] Failed to process bibliography for {file}: {e}")
+
                                  count_updated += 1
 
                 except Exception as e:
@@ -224,6 +240,103 @@ class IndexerService:
             cursor.execute("UPDATE books_fts SET index_content = ? WHERE rowid = ?", (clean_text, book_id))
             
         return True, f"Index updated ({len(clean_text)} chars)"
+
+    def calculate_toc_metrics(self, toc_data, page_count):
+        """Analyzes TOC structure and returns quality metrics."""
+        if not toc_data or not isinstance(toc_data, list):
+            return 0, 0, 0, []
+
+        count = len(toc_data)
+        max_level = 0
+        max_page = 0
+        out_of_order = 0
+        last_p = -1
+        
+        for item in toc_data:
+            p = 0
+            lvl = 0
+            if isinstance(item, dict):
+                p = item.get('pdf_page') or item.get('page') or 0
+                lvl = item.get('level', 0)
+            elif isinstance(item, list) and len(item) >= 2:
+                lvl = item[0]
+                p = item[2] if len(item) > 2 else 0
+            
+            if lvl > max_level: max_level = lvl
+            if p > max_page: max_page = p
+            if p < last_p and p > 0: out_of_order += 1
+            if p > 0: last_p = p
+
+        flags = []
+        if count < 5: flags.append("SHORT")
+        if max_level == 0 and count > 10: flags.append("FLAT")
+        if page_count and max_page < (page_count * 0.7): flags.append("INCOMPLETE")
+        if out_of_order > 0: flags.append("DISORDERED")
+
+        return count, max_level, max_page, flags
+
+    def audit_tocs(self):
+        """Scans the database for low-quality Tables of Contents."""
+        results = []
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, toc_json, page_count FROM books")
+            for row in cursor.fetchall():
+                toc_data = []
+                if row['toc_json']:
+                    try: toc_data = json.loads(row['toc_json'])
+                    except: continue
+                
+                count, depth, max_p, flags = self.calculate_toc_metrics(toc_data, row['page_count'])
+                
+                if not toc_data: flags.append("MISSING")
+                
+                if flags:
+                    results.append({
+                        "id": row['id'],
+                        "title": row['title'],
+                        "count": count,
+                        "depth": depth,
+                        "coverage": f"{max_p}/{row['page_count'] or '?'}",
+                        "flags": flags
+                    })
+        return results
+
+    def repair_missing_tocs(self):
+        """Attempts to extract native PDF bookmarks for books with missing TOCs."""
+        repaired = 0
+        import fitz
+        
+        # We need IngestorService for sync_chapters
+        from .ingestor import ingestor_service
+        
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, path, title FROM books WHERE toc_json IS NULL OR toc_json = '[]' OR toc_json = ''")
+            candidates = cursor.fetchall()
+            
+        print(f"Attempting to repair {len(candidates)} books with missing TOCs...")
+        
+        for row in candidates:
+            book_id = row['id']
+            abs_path = LIBRARY_ROOT / row['path']
+            
+            if not abs_path.exists() or abs_path.suffix.lower() != '.pdf':
+                continue
+                
+            try:
+                doc = fitz.open(abs_path)
+                toc = doc.get_toc()
+                doc.close()
+                
+                if toc:
+                    print(f"  [FIX] Found {len(toc)} bookmarks for '{row['title']}'")
+                    ingestor_service.sync_chapters(book_id, toc)
+                    repaired += 1
+            except Exception as e:
+                print(f"  [ERR] Failed to read bookmarks for {row['title']}: {e}")
+                
+        return repaired
 
     def calculate_index_metrics(self, text):
         if not text:

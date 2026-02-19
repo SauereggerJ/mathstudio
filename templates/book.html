@@ -4,329 +4,177 @@
 
 {% block extra_head %}
 <style>
-    .book-detail-grid {
-        display: grid;
-        grid-template-columns: 300px 1fr;
-        gap: 2.5rem;
+    .book-detail-layout { display: flex; flex-direction: column; gap: 2rem; }
+    @media (min-width: 1024px) {
+        .book-detail-layout { flex-direction: row; align-items: flex-start; }
+        .sidebar { width: 300px; flex-shrink: 0; position: sticky; top: 6rem; }
+        .main-content { flex-grow: 1; }
     }
-    @media (max-width: 768px) {
-        .book-detail-grid { grid-template-columns: 1fr; }
-    }
-    .sticky-sidebar {
-        position: sticky;
-        top: 6rem;
-    }
-    .toc-container::-webkit-scrollbar { width: 6px; }
-    .toc-container::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="book-detail-grid">
-    <!-- Left Sidebar: Visuals & Core Actions -->
-    <div class="sticky-sidebar">
+<div class="book-detail-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
         <div class="bg-white rounded-2xl p-4 shadow-xl border border-slate-100 mb-6">
-            <div class="aspect-[3/4] rounded-xl overflow-hidden bg-slate-50 border border-slate-100 shadow-inner group relative">
-                <img src="{{ cover_url }}" alt="Cover" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                     onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
-                <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                    <span class="text-white text-xs font-medium"><i class="fas fa-expand mr-2"></i>View Fullscreen</span>
-                </div>
+            <div class="aspect-[3/4] rounded-xl overflow-hidden bg-slate-50">
+                <img src="{{ cover_url }}" alt="Cover" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
             </div>
         </div>
 
         <div class="space-y-3">
-            {% if path.lower().endswith('.djvu') %}
-            <a href="/view-pdf/{{ id }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
-                <i class="fas fa-file-pdf mr-3"></i> Convert & Read
-            </a>
-            {% else %}
-            <a href="/open/{{ path }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
+            <a href="/open/{{ path|e }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg transition-all">
                 <i class="fas fa-book-open mr-3"></i> Read Document
             </a>
-            {% endif %}
-            
             <div class="grid grid-cols-2 gap-3">
-                <a href="/open/{{ path }}" download class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">
-                    <i class="fas fa-download mr-2 text-slate-400"></i> Save
-                </a>
-                <button onclick="openExternal('{{ path }}')" class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">
-                    <i class="fas fa-desktop mr-2 text-slate-400"></i> Desktop
-                </button>
+                <button onclick="openExternal('{{ path|e }}')" class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"><i class="fas fa-desktop mr-2 text-slate-400"></i> Desktop</button>
+                <a href="/open/{{ path|e }}" download class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"><i class="fas fa-download mr-2 text-slate-400"></i> Save</a>
             </div>
 
-            <!-- Management Menu Dropdown -->
-            <button id="adminDropdownButton" data-dropdown-toggle="adminDropdown" class="w-full text-slate-500 hover:text-slate-800 font-medium rounded-xl text-sm px-5 py-2.5 text-center inline-flex items-center justify-center border border-dashed border-slate-200 hover:border-slate-400 transition-all" type="button">
-                Management Tools <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
-            </button>
-            <div id="adminDropdown" class="z-10 hidden bg-white divide-y divide-gray-100 rounded-xl shadow-2xl w-full border border-slate-100">
-                <ul class="py-2 text-sm text-gray-700" aria-labelledby="adminDropdownButton">
-                    <li>
-                        <button onclick="document.getElementById('fileInput').click()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-emerald-600 font-semibold">
-                            <i class="fas fa-upload mr-3"></i> Replace File
-                        </button>
-                        <input type="file" id="fileInput" class="hidden" onchange="replaceFile(this)">
-                    </li>
-                    <li>
-                        <a href="/book/{{ id }}/edit" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-blue-600 font-semibold">
-                            <i class="fas fa-edit mr-3"></i> Manual Edit
-                        </a>
-                    </li>
-                    <li>
-                        <button id="reindexBtn" onclick="reindexBook()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-indigo-600 font-semibold">
-                            <i class="fas fa-sync mr-3"></i> AI Re-Index
-                        </button>
-                    </li>
-                    <li>
-                        <button onclick="deleteBook()" class="flex items-center w-full px-4 py-2 hover:bg-slate-50 text-rose-600 font-semibold">
-                            <i class="fas fa-trash-alt mr-3"></i> Delete Book
-                        </button>
-                    </li>
-                </ul>
+            <div class="pt-4 mt-4 border-t border-slate-100 space-y-2">
+                <button id="reindexBtn" onclick="reindexBook()" class="w-full flex items-center justify-center py-2.5 px-4 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-semibold rounded-lg transition-colors"><i class="fas fa-sync mr-2"></i> AI Re-Index</button>
+                <a href="/book/{{ id }}/edit" class="w-full flex items-center justify-center py-2.5 px-4 text-blue-600 bg-blue-50 hover:bg-blue-100 font-semibold rounded-lg transition-colors"><i class="fas fa-edit mr-2"></i> Edit Metadata</a>
+                <button onclick="deleteBook()" class="w-full flex items-center justify-center py-2.5 px-4 text-rose-600 bg-rose-50 hover:bg-rose-100 font-semibold rounded-lg transition-colors"><i class="fas fa-trash-alt mr-2"></i> Delete</button>
             </div>
         </div>
-    </div>
+    </aside>
 
-    <!-- Right Side: Content & Tabs -->
-    <div>
-        <nav class="flex mb-6" aria-label="Breadcrumb">
-            <ol class="inline-flex items-center space-x-1 md:space-x-2">
-                <li class="inline-flex items-center">
-                    <a href="/" class="text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors">Library</a>
-                </li>
-                <li>
-                    <div class="flex items-center">
-                        <svg class="rtl:rotate-180 w-3 h-3 text-slate-400 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/></svg>
-                        <span class="ms-1 text-sm font-medium text-slate-400 md:ms-2">Detail View</span>
-                    </div>
-                </li>
-            </ol>
-        </nav>
-
+    <!-- Main Content -->
+    <main class="main-content">
         <header class="mb-8">
-            <h1 class="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-2">{{ title }}</h1>
-            <p class="text-xl text-slate-500 font-medium italic">{{ author }}</p>
-            
+            <h1 class="text-2xl md:text-4xl font-black text-slate-900 leading-tight mb-2">{{ title or 'Unknown Title' }}</h1>
+            <p class="text-lg md:text-xl text-slate-500 font-medium italic">{{ author or 'Unknown Author' }}</p>
             <div class="flex flex-wrap gap-2 mt-4">
                 {% if year %}<span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">{{ year }}</span>{% endif %}
                 {% if level %}<span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider">{{ level }}</span>{% endif %}
                 {% if msc_code %}<span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wider">MSC: {{ msc_code }}</span>{% endif %}
-                {% if path.endswith('.djvu') %}<span class="px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold uppercase tracking-wider">DjVu Format</span>{% endif %}
             </div>
         </header>
 
+        <!-- Stabile Custom Tabs Navigation -->
         <div class="mb-4 border-b border-gray-200">
-            <ul class="flex flex-wrap -mb-px text-sm font-bold text-center" id="bookTabs" data-tabs-toggle="#bookTabsContent" role="tablist">
-                <li class="me-2" role="presentation">
-                    <button class="inline-block p-4 border-b-2 rounded-t-lg" id="overview-tab" data-tabs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">Overview</button>
-                </li>
-                <li class="me-2" role="presentation">
-                    <button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="contents-tab" data-tabs-target="#contents" type="button" role="tab" aria-controls="contents" aria-selected="false">Structure</button>
-                </li>
-                <li class="me-2" role="presentation">
-                    <button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="lab-tab" data-tabs-target="#lab" type="button" role="tab" aria-controls="lab" aria-selected="false">The Lab</button>
-                </li>
-                <li role="presentation">
-                    <button class="inline-block p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="related-tab" data-tabs-target="#related" type="button" role="tab" aria-controls="related" aria-selected="false">Similar</button>
-                </li>
+            <ul class="flex flex-wrap -mb-px text-sm font-bold text-center">
+                <li class="me-2"><button class="tab-btn active p-4" onclick="openTab(event, 'overview')">Overview</button></li>
+                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'contents')">Structure</button></li>
+                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'bibliography')">Bibliography</button></li>
+                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'lab')">The Lab</button></li>
+                <li><button class="tab-btn p-4" onclick="openTab(event, 'related')">Similar</button></li>
             </ul>
         </div>
-        <div id="bookTabsContent">
+
+        <div id="tabContents">
             <!-- TAB: OVERVIEW -->
-            <div class="hidden p-4 rounded-lg bg-white border border-slate-100 shadow-sm" id="overview" role="tabpanel" aria-labelledby="overview-tab">
-                {% if summary %}
+            <div class="tab-content active p-4 rounded-lg bg-white border border-slate-100 shadow-sm" id="overview">
                 <div class="prose prose-slate max-w-none">
-                    <h3 class="text-lg font-bold text-slate-800 mb-2">Content Synthesis</h3>
-                    <p class="text-slate-600 leading-relaxed">{{ summary }}</p>
+                    <h3 class="text-lg font-bold text-slate-800 mb-2">Summary</h3>
+                    <p class="text-slate-600 leading-relaxed">{{ summary or 'No summary available.' }}</p>
+                    {% if description %}<p class="mt-4 text-sm text-slate-500 italic">{{ description }}</p>{% endif %}
                 </div>
-                {% else %}
-                <div class="text-center py-12 text-slate-400 italic">
-                    <i class="fas fa-brain block text-4xl mb-3 opacity-20"></i>
-                    No AI summary available. Click "AI Re-Index" to generate one.
-                </div>
-                {% endif %}
-
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Technical Intel</h4>
-                        <ul class="space-y-2 text-sm">
-                            <li class="flex justify-between"><span class="text-slate-500">Publisher:</span> <span class="font-semibold">{{ publisher or 'Unknown' }}</span></li>
-                            <li class="flex justify-between"><span class="text-slate-500">ISBN:</span> <span class="font-mono text-xs">{{ isbn or 'N/A' }}</span></li>
-                            <li class="flex justify-between"><span class="text-slate-500">Page Count:</span> <span class="font-semibold">{{ page_count }}</span></li>
-                        </ul>
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Technical Details</h4>
+                        <p><span class="text-slate-500">Publisher:</span> <span class="font-semibold">{{ publisher or 'Unknown' }}</span></p>
+                        <p><span class="text-slate-500">ISBN:</span> <span class="font-mono text-xs">{{ isbn or 'N/A' }}</span></p>
+                        {% if doi %}
+                        <p><span class="text-slate-500">DOI:</span> <a href="https://doi.org/{{ doi }}" target="_blank" rel="noreferrer" class="text-blue-600 font-mono text-xs hover:underline">{{ doi }}</a></p>
+                        {% endif %}
+                        {% if arxiv_id %}
+                        <p><span class="text-slate-500">zbMATH:</span> <a href="https://zbmath.org/?q=an:{{ arxiv_id }}" target="_blank" rel="noreferrer" class="text-emerald-600 font-bold text-xs hover:underline">Zbl {{ arxiv_id }}</a></p>
+                        {% endif %}
+                        <p><span class="text-slate-500">Pages:</span> <span class="font-semibold">{{ page_count or '?' }}</span></p>
                     </div>
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Content Intel</h4>
-                        <ul class="space-y-2 text-sm">
-                            <li class="flex justify-between"><span class="text-slate-500">Exercises:</span> <span class="font-semibold">{{ exercises }}</span></li>
-                            <li class="flex justify-between"><span class="text-slate-500">Solutions:</span> <span class="font-semibold">{{ solutions }}</span></li>
-                            <li class="flex justify-between"><span class="text-slate-500">Search Rank:</span> <span class="font-semibold text-green-600">Verified</span></li>
-                        </ul>
-                    </div>
-                </div>
-
-                {% if tags %}
-                <div class="mt-8 pt-6 border-t border-slate-100">
-                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Categorization Tags</h4>
-                    <div class="flex flex-wrap gap-2">
-                        {% for tag in tags.split(',') %}
-                        <span class="px-3 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium">{{ tag.strip() }}</span>
-                        {% endfor %}
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Resources</h4>
+                        <p><span class="text-slate-500">Exercises:</span> <span class="font-semibold">{{ exercises or '0' }}</span></p>
+                        <p><span class="text-slate-500">Solutions:</span> <span class="font-semibold">{{ solutions or '0' }}</span></p>
                     </div>
                 </div>
-                {% endif %}
             </div>
 
-            <!-- TAB: STRUCTURE (TOC) -->
-            <div class="hidden p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden" id="contents" role="tabpanel" aria-labelledby="contents-tab">
-                <div class="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
-                    <h3 class="text-sm font-black text-slate-500 uppercase tracking-widest">Table of Contents</h3>
-                    <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">SMART INDEX ACTIVE</span>
-                </div>
+            <!-- TAB: STRUCTURE -->
+            <div class="tab-content p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden" id="contents">
                 <div class="toc-container max-h-[600px] overflow-y-auto p-4 space-y-1">
-                    {% if chapters %}
-                        {% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
-                        <div class="group flex items-baseline justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors" style="margin-left: {{ c_level * 1.5 }}rem;">
-                            <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600 font-medium' }}">
-                                {% if c_page %}
-                                <a href="/open/{{ path }}#page={{ c_page }}" target="_blank" class="hover:text-blue-600">
-                                    {{ c_title }}
-                                </a>
-                                {% else %}
-                                {{ c_title }}
-                                {% endif %}
+                    {% if chapters %}{% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
+                        <div class="flex items-baseline justify-between p-2 hover:bg-slate-50" style="margin-left: {{ c_level * 1.5 }}rem;">
+                            <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600' }}">
+                                <a href="/open/{{ path|e }}#page={{ c_page or 1 }}" target="_blank">{{ c_title }}</a>
                             </span>
-                            {% if c_page %}
-                            <span class="text-xs font-bold text-slate-300 group-hover:text-blue-400 transition-colors">P. {{ c_page }}</span>
-                            {% endif %}
+                            {% if c_page %}<span class="text-xs font-bold text-slate-300">P. {{ c_page }}</span>{% endif %}
                         </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center py-20 text-slate-400 italic">
-                            No structure data detected.
-                        </div>
-                    {% endif %}
+                    {% endfor %}{% else %}<p class="text-center py-20 text-slate-400 italic">No structure data.</p>{% endif %}
                 </div>
             </div>
 
-            <!-- TAB: THE LAB (AI Note Taker & Bib Hunter) -->
-            <div class="hidden space-y-6" id="lab" role="tabpanel" aria-labelledby="lab-tab">
-                <!-- AI Note Taker -->
-                <div class="bg-gradient-to-br from-emerald-50 to-white p-6 rounded-2xl border border-emerald-100 shadow-sm">
-                    <h3 class="flex items-center text-lg font-bold text-emerald-800 mb-4">
-                        <i class="fas fa-sparkles mr-3 text-emerald-500"></i> AI Synthesis Lab
-                    </h3>
-                    <p class="text-sm text-emerald-700/70 mb-6">Convert any page into structured LaTeX/Markdown notes using Gemini 2.5 Flash.</p>
-                    
-                    <div class="flex gap-3">
-                        <div class="relative flex-grow">
-                            <input type="number" id="notePage" class="block w-full p-3 ps-10 text-sm border-emerald-200 rounded-xl bg-white focus:ring-emerald-500 focus:border-emerald-500" placeholder="Target Page Number">
-                            <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none text-emerald-300">
-                                <i class="fas fa-hashtag"></i>
-                            </div>
+            <!-- TAB: BIBLIOGRAPHY -->
+            <div class="tab-content p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden" id="bibliography">
+                <div class="max-h-[600px] overflow-y-auto p-4 space-y-4">
+                    {% if bibliography %}{% for bib in bibliography %}
+                        <div class="p-4 rounded-xl border border-slate-100 bg-white text-sm">
+                            <p class="text-slate-700">{% if bib.title %}<strong class="block text-slate-900">{{ bib.title|e }}</strong><span class="block text-xs text-slate-500 italic mt-1">{{ bib.author|e }}</span>{% else %}{{ bib.raw_text|e }}{% endif %}</p>
                         </div>
-                        <button onclick="createNote()" id="convertBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-emerald-600/20">
-                            Synthesize
-                        </button>
-                    </div>
-                    <div id="noteStatus" class="mt-3 text-xs font-bold text-emerald-600 min-height-[1.2em]"></div>
-
-                    <div id="noteResult" class="hidden mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <!-- Raw Source -->
-                            <div class="bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
-                                <div class="flex justify-between items-center px-4 py-2 bg-slate-800 border-b border-slate-700">
-                                    <span class="text-[10px] font-black text-slate-400 uppercase">Source (Markdown)</span>
-                                    <button onclick="copyNote()" class="text-slate-400 hover:text-white transition-colors text-xs flex items-center">
-                                        <i class="fas fa-copy mr-2"></i> Copy
-                                    </button>
-                                </div>
-                                <textarea id="noteText" oninput="renderNotePreview()" class="w-full h-96 p-4 bg-slate-900 text-emerald-400 font-mono text-sm border-none focus:ring-0 resize-none"></textarea>
-                            </div>
-                            <!-- Rendered Preview -->
-                            <div class="bg-white rounded-xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
-                                <div class="px-4 py-2 bg-slate-50 border-b border-slate-200">
-                                    <span class="text-[10px] font-black text-slate-500 uppercase">Rendered Preview</span>
-                                </div>
-                                <div id="notePreview" class="p-6 overflow-y-auto h-96 prose prose-slate max-w-none text-slate-800">
-                                    <!-- Rendered content goes here -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {% endfor %}{% else %}<p class="text-center py-20 text-slate-400 italic">No bibliography extracted.</p>{% endif %}
                 </div>
+            </div>
 
-                <!-- Bib Hunter -->
-                <div class="bg-gradient-to-br from-amber-50 to-white p-6 rounded-2xl border border-amber-100 shadow-sm">
-                    <h3 class="flex items-center text-lg font-bold text-amber-800 mb-4">
-                        <i class="fas fa-magnifying-glass-chart mr-3 text-amber-500"></i> Bibliography Hunter
-                    </h3>
-                    <p class="text-sm text-amber-700/70 mb-6">Scan references and cross-check against your existing library holdings.</p>
-                    <button onclick="scanBibliography()" id="bibScanBtn" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-amber-600/20">
-                        Scan for Cited Works
-                    </button>
-                    <div id="bibStatus" class="mt-3 text-xs font-bold text-amber-600 text-center"></div>
+            <!-- TAB: THE LAB -->
+            <div class="tab-content space-y-6" id="lab">
+                <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                    <h3 class="text-lg font-bold text-emerald-800 mb-4">AI Note Taker</h3>
+                    <div class="flex gap-3">
+                        <input type="number" id="notePage" class="block w-full p-3 text-sm border-emerald-200 rounded-xl" placeholder="Page Number">
+                        <button onclick="createNote()" class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Synthesize</button>
+                    </div>
+                    <div id="noteStatus" class="mt-3 text-xs font-bold text-emerald-600"></div>
+                    <div id="noteResult" class="hidden mt-6 bg-slate-900 rounded-xl p-4 text-emerald-400 font-mono text-xs overflow-auto max-h-96"></div>
+                </div>
+                <div class="bg-amber-50 p-6 rounded-2xl border border-amber-100 text-center">
+                    <button onclick="scanBibliography()" class="w-full bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg">Scan Bibliography</button>
+                    <div id="bibStatus" class="mt-3 text-xs font-bold text-amber-600"></div>
                 </div>
             </div>
 
             <!-- TAB: SIMILAR -->
-            <div class="hidden p-4" id="related" role="tabpanel" aria-labelledby="related-tab">
+            <div class="tab-content p-4" id="related">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% for s_id, s_title, s_author, s_path in similar_books %}
-                    <a href="/book/{{ s_id }}" class="group bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-lg transition-all border-l-4 border-l-blue-500">
-                        <h4 class="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">{{ s_title }}</h4>
-                        <p class="text-xs text-slate-500 italic mt-1">{{ s_author }}</p>
+                    <a href="/book/{{ s_id }}" class="group bg-white p-4 rounded-xl border border-slate-100 hover:shadow-lg transition-all">
+                        <h4 class="text-sm font-bold text-slate-900 group-hover:text-blue-600 line-clamp-2">{{ s_title }}</h4>
+                        <p class="text-xs text-slate-500 italic">{{ s_author }}</p>
                     </a>
                     {% endfor %}
                 </div>
             </div>
         </div>
 
+        <!-- SEARCH HIGHLIGHTS (MODERATE LIST) -->
         {% if query %}
-        <div class="mt-12">
-            <h3 class="text-lg font-black text-slate-400 uppercase tracking-widest mb-6">Semantic Search Highlights</h3>
+        <div class="mt-12 border-t border-slate-100 pt-8">
+            <h3 class="text-lg font-black text-slate-400 uppercase tracking-widest mb-6">Search Highlights</h3>
             <div class="space-y-4">
                 {% for match in matches %}
                 <div class="bg-white p-6 rounded-2xl border-l-4 border-l-blue-600 shadow-sm border border-slate-100">
-                    <div class="flex items-center mb-3">
-                        <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-black uppercase mr-3 tracking-tighter">Page {{ match.page }}</span>
-                        <div class="h-px bg-slate-100 flex-grow"></div>
-                    </div>
-                    <p class="text-slate-700 font-serif leading-relaxed italic">...{{ match.snippet|safe }}...</p>
+                    <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-black uppercase mb-3 inline-block">Page {{ match.page }}</span>
+                    <p class="text-slate-700 font-serif italic">"...{{ match.snippet|safe }}..."</p>
                 </div>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
-    </div>
+    </main>
 </div>
 
-<!-- Review Modal -->
-<div id="reviewModal" class="hidden fixed inset-0 z-[60] overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h3 class="text-xl font-black text-slate-800">Review AI Proposal</h3>
-            <button onclick="closeReview()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="p-6 overflow-y-auto flex-grow">
-            <div class="grid grid-cols-2 gap-8">
-                <div class="space-y-4">
-                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">Current Data</h4>
-                    <div id="currentMeta" class="text-sm space-y-2 opacity-60"></div>
-                </div>
-                <div class="space-y-4">
-                    <h4 class="text-xs font-black text-blue-500 uppercase tracking-widest">AI Proposal</h4>
-                    <div id="proposedMeta" class="text-sm space-y-2"></div>
-                </div>
-            </div>
-        </div>
-        <div class="p-6 border-t border-slate-100 bg-slate-50 flex gap-4">
-            <button onclick="applyProposal()" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
-                Apply Changes
-            </button>
-            <button onclick="closeReview()" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all">
-                Reject
-            </button>
+<!-- Modal -->
+<div id="reviewModal" class="hidden fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
+        <h3 class="text-xl font-black text-slate-800 mb-4">AI Re-Index</h3>
+        <div id="proposedMeta" class="text-sm text-slate-600 mb-6 bg-slate-50 p-4 rounded-lg overflow-y-auto max-h-60"></div>
+        <div class="flex gap-4">
+            <button onclick="applyProposal()" class="flex-grow bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg">Apply</button>
+            <button onclick="closeReview()" class="px-8 py-3 bg-white border border-slate-200 rounded-xl">Discard</button>
         </div>
     </div>
 </div>
@@ -334,207 +182,54 @@
 
 {% block scripts %}
 <script>
+    // Bulletproof Vanilla JS Tab Logic
+    function openTab(evt, tabName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) { tabcontent[i].classList.remove("active"); }
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) { tablinks[i].classList.remove("active"); }
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
     let currentProposal = null;
-
-    async function openExternal(path) {
-        try {
-            const res = await fetch(`/api/open-external?path=${encodeURIComponent(path)}`);
-            if(!res.ok) alert("Error opening file locally.");
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    async function createNote() {
-        const page = document.getElementById('notePage').value;
-        const status = document.getElementById('noteStatus');
-        const resultDiv = document.getElementById('noteResult');
-        const noteText = document.getElementById('noteText');
-        const btn = document.getElementById('convertBtn');
-
-        if (!page) {
-            status.textContent = "Enter a valid page number.";
-            return;
-        }
-
-        btn.disabled = true;
-        status.textContent = "AI AT WORK: ANALYZING PAGE STRUCTURE...";
-        resultDiv.classList.add('hidden');
-
-        try {
-            const response = await fetch('/api/v1/tools/pdf-to-note', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) })
-            });
-            const data = await response.json();
-            if (data.error) {
-                status.textContent = "ERROR: " + data.error;
-            } else {
-                status.textContent = "SYNTHESIS COMPLETE.";
-                noteText.value = data.content;
-                resultDiv.classList.remove('hidden');
-                renderNotePreview(); // Initial render
-            }
-        } catch (e) {
-            status.textContent = "CONNECTION ERROR.";
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    function copyNote() {
-        const noteText = document.getElementById('noteText');
-        noteText.select();
-        document.execCommand('copy');
-        alert("Markdown copied to clipboard.");
-    }
-
-    function renderNotePreview() {
-        const source = document.getElementById('noteText').value;
-        const preview = document.getElementById('notePreview');
-        
-        // Simple conversion: newlines to <br>, but we want to be careful with math blocks
-        // For a true markdown experience, we would use marked.js, 
-        // but for now, we'll let KaTeX handle the math in the text.
-        preview.innerHTML = source.replace(/\n/g, '<br>');
-        
-        if (window.renderMathInElement) {
-            renderMathInElement(preview, {
-                delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '$', right: '$', display: false},
-                    {left: '\\(', right: '\\)', display: false},
-                    {left: '\\[', right: '\\]', display: true}
-                ],
-                throwOnError : false
-            });
-        }
-    }
-
-    async function scanBibliography() {
-        const btn = document.getElementById('bibScanBtn');
-        const status = document.getElementById('bibStatus');
-        btn.disabled = true;
-        status.textContent = "INITIALIZING HUNTER...";
-        try {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/api/v1/tools/bib-scan';
-            form.target = '_blank';
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'book_id';
-            input.value = {{ id }};
-            form.appendChild(input);
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-            status.textContent = "RESULTS REDIRECTED.";
-        } catch (e) {
-            status.textContent = "HUNTER FAILED.";
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
     async function reindexBook() {
         const btn = document.getElementById('reindexBtn');
-        const originalText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-3"></i> Analyzing...';
-        
+        btn.disabled = true; btn.innerHTML = 'Analyzing...';
         try {
-            const response = await fetch('/api/v1/books/{{ id }}/reindex/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ai_care: true })
-            });
-            const data = await response.json();
+            const res = await fetch('/api/v1/books/{{ id }}/reindex/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ai_care: true}) });
+            const data = await res.json();
             if (data.success) {
                 currentProposal = data.proposed;
-                showReview(data.current, data.proposed);
-            } else {
-                alert(data.error);
+                document.getElementById('proposedMeta').innerHTML = `<p><strong>Title:</strong> ${currentProposal.title}</p><p><strong>Author:</strong> ${currentProposal.author}</p><p class="mt-2"><strong>Summary:</strong> ${currentProposal.summary}</p>`;
+                document.getElementById('reviewModal').classList.remove('hidden');
             }
-        } catch (e) { alert("Connection error during preview."); }
-        finally { 
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
+        } catch(e) { alert("Error"); }
+        finally { btn.disabled = false; btn.innerHTML = 'AI Re-Index'; }
     }
-
-    function showReview(cur, prop) {
-        const curDiv = document.getElementById('currentMeta');
-        const propDiv = document.getElementById('proposedMeta');
-        
-        const format = (d) => `
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Title</label>
-                <p class="font-bold text-slate-800">${d.title || 'N/A'}</p>
-            </div>
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Author</label>
-                <p class="italic text-slate-600">${d.author || 'N/A'}</p>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Publisher</label>
-                    <p class="text-slate-700">${d.publisher || '?'}</p>
-                </div>
-                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Year</label>
-                    <p class="text-slate-700">${d.year || '?'}</p>
-                </div>
-            </div>
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <label class="block text-[10px] font-black uppercase text-slate-400 mb-1">Summary</label>
-                <p class="text-xs text-slate-600 leading-relaxed line-clamp-4">${d.summary || 'No summary proposed.'}</p>
-            </div>
-        `;
-        
-        curDiv.innerHTML = format(cur);
-        propDiv.innerHTML = format(prop);
-        document.getElementById('reviewModal').classList.remove('hidden');
-    }
-
-    function closeReview() {
-        document.getElementById('reviewModal').classList.add('hidden');
-    }
-
     async function applyProposal() {
-        if (!currentProposal) return;
-        try {
-            const response = await fetch('/api/v1/books/{{ id }}/metadata', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(currentProposal)
-            });
-            const data = await response.json();
-            if (data.success) { location.reload(); } else { alert(data.error); }
-        } catch (e) { alert("Failed to apply metadata."); }
+        if(!currentProposal) return;
+        const res = await fetch('/api/v1/books/{{ id }}/metadata', { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(currentProposal) });
+        if((await res.json()).success) location.reload();
     }
-
-    async function deleteBook() {
-        if (!confirm("CRITICAL: Move to Archive and purge all records?")) return;
-        try {
-            const response = await fetch('/api/v1/books/{{ id }}', { method: 'DELETE' });
-            const data = await response.json();
-            if (data.success) { window.location.href = "/"; } else { alert(data.error); }
-        } catch (e) { alert(e); }
+    function closeReview() { document.getElementById('reviewModal').classList.add('hidden'); }
+    async function scanBibliography() {
+        const status = document.getElementById('bibStatus'); status.textContent = "Scanning...";
+        const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/v1/tools/bib-scan'; form.target = '_blank';
+        const input = document.createElement('input'); input.type = 'hidden'; input.name = 'book_id'; input.value = {{ id }};
+        form.appendChild(input); document.body.appendChild(form); form.submit(); status.textContent = "Done.";
     }
-
-    async function replaceFile(input) {
-        if (!input.files || input.files.length === 0) return;
-        const file = input.files[0];
-        if (!confirm(`Upgrade existing record with "${file.name}"?`)) { input.value = ''; return; }
-        const formData = new FormData();
-        formData.append('file', file);
+    async function createNote() {
+        const page = document.getElementById('notePage').value; const status = document.getElementById('noteStatus'); const resDiv = document.getElementById('noteResult');
+        if (!page) return; status.textContent = "AI AT WORK...";
         try {
-            const response = await fetch('/api/v1/books/{{ id }}/replace', { method: 'POST', body: formData });
-            const data = await response.json();
-            if (data.success) { location.reload(); } else { alert(data.error); }
-        } catch (e) { alert(e); } finally { input.value = ''; }
+            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) }) });
+            const data = await res.json();
+            if (data.content) { status.textContent = "DONE."; resDiv.textContent = data.content; resDiv.classList.remove('hidden'); }
+        } catch (e) { status.textContent = "FAILED."; }
     }
+    async function openExternal(path) { try { await fetch(`/api/open-external?path=${encodeURIComponent(path)}`); } catch (e) {} }
+    async function deleteBook() { if (confirm("Delete?")) { const res = await fetch('/api/v1/books/{{ id }}', { method: 'DELETE' }); if((await res.json()).success) window.location.href = "/"; } }
 </script>
 {% endblock %}

@@ -22,3 +22,5 @@ arxiv
 rapidfuzz>=3.0.0
 pymupdf
 python-dateutil
+tenacity
+beautifulsoup4

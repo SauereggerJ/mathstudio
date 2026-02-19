@@ -346,7 +346,7 @@ def open_external_tool():
 
 @api_v1.route('/tools/bib-scan', methods=['POST'])
 def bib_scan_tool():
-    """Scans a book's bibliography, extracts pages, and shows results page."""
+    """Scans a book's bibliography, extracts entries, and shows results."""
     try:
         data = request.json if request.is_json else request.form
         book_id = data.get('book_id')
@@ -356,29 +356,12 @@ def bib_scan_tool():
         if not result['success']:
             return jsonify({'success': False, 'error': result.get('error')}), 500
         
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT title, author, path FROM books WHERE id = ?", (book_id,))
-            book = cursor.fetchone()
-
-        extracted_pdf_filename = None
-        if result.get('pages') and book['path']:
-            from services.metadata import metadata_service # Actually should be in bibliography?
-            # For now I'll use the existing bib_extractor if it still works or migrate it.
-            # Actually, I migrated bib_hunter to bibliography_service.
-            from services import bib_extractor
-            pdf_path, error = bib_extractor.extract_bib_pages(book['path'], book_id, book['title'], result['pages'])
-            if pdf_path and not error:
-                extracted_pdf_filename = Path(pdf_path).name
-        
         return render_template('bib_results.html',
             book_id=book_id,
-            book_title=book['title'],
-            book_author=book['author'],
+            book_title=result.get('book_title', 'Book Details'),
             bib_pages=result.get('pages', []),
             citations=result.get('citations', []),
-            stats=result.get('stats', {}),
-            extracted_pdf_filename=extracted_pdf_filename
+            stats=result.get('stats', {})
         )
     except Exception as e:
          return jsonify({'success': False, 'error': str(e)}), 500
@@ -446,10 +429,11 @@ def update_book_metadata(book_id):
             return jsonify({'error': message}), 400
             
         # Handle ToC update if provided (usually from AI proposal)
-        if 'toc' in data:
+        toc_data = data.get('toc') or data.get('chapters')
+        if toc_data:
             try:
                 from services.ingestor import ingestor_service
-                ingestor_service.sync_chapters(book_id, data['toc'], page_offset=data.get('page_offset', 0))
+                ingestor_service.sync_chapters(book_id, toc_data, page_offset=data.get('page_offset', 0))
             except Exception as e:
                 print(f"Failed to sync chapters: {e}")
 
@@ -575,6 +559,12 @@ def admin_stats():
             cursor.execute("SELECT COUNT(*) FROM books")
             total_books = cursor.fetchone()[0]
             
+            cursor.execute("SELECT COUNT(*) FROM books WHERE doi IS NOT NULL AND doi != ''")
+            doi_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM books WHERE arxiv_id IS NOT NULL AND arxiv_id != ''")
+            zbl_count = cursor.fetchone()[0]
+            
             cursor.execute("SELECT SUM(size_bytes) FROM books")
             total_size = cursor.fetchone()[0] or 0
             
@@ -585,12 +575,47 @@ def admin_stats():
             # 3. Newest Books
             cursor.execute("SELECT id, title, author, last_modified FROM books ORDER BY last_modified DESC LIMIT 5")
             newest = [{'id': r['id'], 'title': r['title'], 'author': r['author']} for r in cursor.fetchall()]
+
+            # 4. Top Publishers (Playful Stats)
+            cursor.execute("""
+                SELECT publisher, COUNT(*) as count 
+                FROM books 
+                WHERE publisher IS NOT NULL AND publisher != 'Unknown' AND publisher != ''
+                GROUP BY publisher 
+                ORDER BY count DESC 
+                LIMIT 10
+            """)
+            publishers = [{'name': r[0], 'count': r[1]} for r in cursor.fetchall()]
+
+            # 5. Year Distribution
+            cursor.execute("""
+                SELECT year, COUNT(*) as count 
+                FROM books 
+                WHERE year IS NOT NULL AND year > 1800 AND year < 2100
+                GROUP BY year 
+                ORDER BY year ASC
+            """)
+            years = [{'year': r[0], 'count': r[1]} for r in cursor.fetchall()]
+
+            # 6. Difficulty Levels
+            cursor.execute("""
+                SELECT level, COUNT(*) as count 
+                FROM books 
+                WHERE level IS NOT NULL AND level != ''
+                GROUP BY level
+            """)
+            levels = [{'name': r[0], 'count': r[1]} for r in cursor.fetchall()]
         
         return jsonify({
             'total_books': total_books,
+            'doi_count': doi_count,
+            'zbl_count': zbl_count,
             'total_size_gb': round(total_size / (1024**3), 2),
             'categories': [{'name': c[0], 'count': c[1]} for c in categories],
-            'newest': newest
+            'newest': newest,
+            'publishers': publishers,
+            'years': years,
+            'levels': levels
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -616,7 +641,7 @@ def admin_sanity_fix():
 @api_v1.route('/admin/logs', methods=['GET'])
 def admin_logs():
     """Retrieves the last 100 lines of the process log."""
-    log_file = parent_dir / "process_notes.log"
+    log_file = LIBRARY_ROOT / "mathstudio" / "process_notes.log"
     try:
         if not log_file.exists():
             return jsonify({'logs': 'Log file not found.'})

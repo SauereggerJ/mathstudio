@@ -40,12 +40,25 @@ class SearchService:
 
     def search_books_fts(self, query, limit=50, field='all'):
         """Performs a Full Text Search using the books_fts table."""
-        clean_query = query.replace('"', '""')
-        fts_query = f'"{clean_query}"'
+        # Remove quotes and special characters
+        tokens = re.findall(r'\w+', query.lower())
         
-        if field == 'title': fts_query = f'title : "{clean_query}"'
-        elif field == 'author': fts_query = f'author : "{clean_query}"'
-        elif field == 'index': fts_query = f'index_content : "{clean_query}"'
+        if not tokens:
+            return []
+
+        # Join tokens with OR for broad recall, especially for AI expanded queries
+        # FTS5 ranking will still prioritize documents containing more tokens.
+        clean_query = " OR ".join(tokens)
+        
+        # Construct the FTS query
+        if field == 'title': 
+            fts_query = f'title : ({clean_query})'
+        elif field == 'author': 
+            fts_query = f'author : ({clean_query})'
+        elif field == 'index': 
+            fts_query = f'index_content : ({clean_query})'
+        else:
+            fts_query = clean_query
 
         snippet_col = 3 if field == 'index' else -1
 
@@ -62,8 +75,14 @@ class SearchService:
         
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(sql, (fts_query, limit))
-            return [dict(row) for row in cursor.fetchall()]
+            try:
+                cursor.execute(sql, (fts_query, limit))
+                return [dict(row) for row in cursor.fetchall()]
+            except sqlite3.OperationalError:
+                # Fallback to a simple term match if OR logic fails for some reason
+                simple_query = " ".join(tokens)
+                cursor.execute(sql, (simple_query, limit))
+                return [dict(row) for row in cursor.fetchall()]
 
     def search_books_semantic(self, query_vec, top_k=50):
         """Performs semantic search using vector embeddings."""

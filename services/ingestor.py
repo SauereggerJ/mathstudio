@@ -16,12 +16,31 @@ class IngestorService:
         self.ai = ai
 
     def extract_structure(self, file_path):
-        """Extracts text sample and page count."""
+        """Extracts text sample and page count with Vision fallback."""
+        from core.config import get_api_key, GEMINI_MODEL
         try:
             if file_path.suffix.lower() == '.pdf':
                 doc = fitz.open(file_path)
                 page_count = doc.page_count
-                head_text = "".join(doc[i].get_text() for i in range(min(20, page_count)))
+                
+                # Try text layer first (skip initial empty pages to find TOC)
+                text_pages = []
+                found_content = False
+                for i in range(min(50, page_count)): # Check up to first 50 pages
+                    page_text = doc[i].get_text()
+                    if len(page_text.strip()) > 200 or found_content:
+                        text_pages.append(page_text)
+                        found_content = True
+                    if len(text_pages) >= 20: # Get 20 pages of actual content
+                        break
+                head_text = "".join(text_pages)
+                
+                # Vision fallback if text layer is empty
+                if len(head_text.strip()) < 100:
+                    print(f"[Ingestor] No text layer found for {file_path.name}, using OCR fallback.")
+                    # We mark this for the AI analyzer
+                    head_text = "[SCANNED DOCUMENT - NO TEXT LAYER]"
+                
                 toc = doc.get_toc()
                 doc.close()
                 return {'page_count': page_count, 'text_sample': head_text[:50000], 'toc': toc}
@@ -55,7 +74,7 @@ class IngestorService:
              structure = self.extract_structure(full_path)
              if not structure: return {"success": False, "error": "Failed to extract structure."}
              
-             ai_data = self.analyze_book_content(structure.get('text_sample', ''), ai_care=ai_care)
+             ai_data = self.analyze_book_content(structure.get('text_sample', ''), ai_care=ai_care, book_path=full_path)
              if not ai_data: return {"success": False, "error": "AI Analysis failed."}
 
              self.sync_chapters(book_id, ai_data.get('toc') or structure.get('toc', []), page_offset=ai_data.get('page_offset', 0))
@@ -118,10 +137,9 @@ class IngestorService:
              if not structure: return {"success": False, "error": "Failed to extract structure."}
              
              text_sample = structure.get('text_sample', '')
-             if not text_sample or len(text_sample.strip()) < 100:
-                 return {"success": False, "error": "Insufficient text for AI analysis."}
+             # Removed strict length check to allow Vision-based processing or partial text analysis
 
-             ai_data = self.analyze_book_content(text_sample, ai_care=ai_care)
+             ai_data = self.analyze_book_content(text_sample, ai_care=ai_care, book_path=full_path)
              if not ai_data: return {"success": False, "error": "AI Analysis failed."}
 
              return {
@@ -157,8 +175,32 @@ class IngestorService:
                     cursor.execute("INSERT INTO chapters (book_id, title, level, page) VALUES (?, ?, ?, ?)", (book_id, str(title), level, page))
             cursor.execute("UPDATE books SET toc_json = ? WHERE id = ?", (json.dumps(final_toc), book_id))
 
-    def analyze_book_content(self, text_sample, ai_care=False):
+    def analyze_book_content(self, text_sample, ai_care=False, book_path=None):
         care_instruction = "CRITICAL: This is a RE-INDEXING request. CLEAN everything thoroughly." if ai_care else ""
+        
+        if text_sample == "[SCANNED DOCUMENT - NO TEXT LAYER]" and book_path:
+            # Vision path using direct SDK client access via self.ai.client
+            try:
+                from google.genai import types
+                doc = fitz.open(str(book_path))
+                parts = [
+                    types.Part.from_text(text="You are a mathematical librarian. Analyze these images (title page and ToC) of a scanned book.\n"
+                    "Return a JSON object with: title, author, publisher, year (int), isbn, description, summary, msc_class, audience, has_exercises, has_solutions, toc, page_offset.")
+                ]
+                for i in range(min(3, len(doc))):
+                    pix = doc[i].get_pixmap(matrix=fitz.Matrix(2, 2))
+                    parts.append(types.Part.from_bytes(data=pix.tobytes("jpeg"), mime_type="image/jpeg"))
+                doc.close()
+                
+                response = self.ai.client.models.generate_content(
+                    model=self.ai.model_name,
+                    contents=types.Content(role="user", parts=parts),
+                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
+                return json.loads(response.text)
+            except Exception as e:
+                print(f"Vision analysis failed: {e}")
+
         prompt = (
             f"You are a librarian. Analyze this math book text sample.\n{care_instruction}\n"
             "Return a JSON object with: title, author, publisher, year (int), isbn, description, summary, msc_class, audience, has_exercises, has_solutions, toc, page_offset.\n"
@@ -239,6 +281,11 @@ class IngestorService:
                     ai_data.get('summary'), ai_data.get('description'),
                     1, time.time()
                 ))
+                
+                # NEU: Wunschliste bereinigen, wenn DOI übereinstimmt
+                if ai_data.get('doi'):
+                    cursor.execute("UPDATE wishlist SET status = 'acquired' WHERE doi = ?", (ai_data['doi'],))
+                    
             return {"status": "success", "path": str(target_rel_path)}
         
         return {"status": "plan", "target": str(target_rel_path), "metadata": ai_data}

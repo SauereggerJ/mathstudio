@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Research Wishlist - MathStudio{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-center">
+    <div>
+        <h1 class="text-3xl font-black text-slate-900 tracking-tight">Research Wishlist</h1>
+        <p class="text-slate-500 font-medium">Books cited in your library that you don't own yet.</p>
+    </div>
+    <div class="bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+        <span class="text-blue-700 font-bold">{{ items|length }} Targets Identified</span>
+    </div>
+</div>
+
+<div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+    <table class="w-full text-left border-collapse">
+        <thead class="bg-slate-50 border-b border-slate-100">
+            <tr>
+                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Book Details</th>
+                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Source</th>
+                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital ID</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50">
+            {% for item in items %}
+            <tr class="hover:bg-slate-50/50 transition-colors">
+                <td class="px-6 py-4">
+                    {% if item.status == 'acquired' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                        <i class="fas fa-check-circle mr-1.5"></i> Acquired
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                        <i class="fas fa-search mr-1.5"></i> Missing
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4">
+                    <div class="font-bold text-slate-900">{{ item.title }}</div>
+                    <div class="text-xs text-slate-500 italic">{{ item.author }}</div>
+                </td>
+                <td class="px-6 py-4">
+                    {% if item.source_title %}
+                    <a href="/book/{{ item.source_book_id }}" class="text-xs text-blue-600 hover:underline">
+                        Cited in: {{ item.source_title[:40] }}...
+                    </a>
+                    {% else %}
+                    <span class="text-xs text-slate-400">Manual Entry</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4">
+                    <a href="https://doi.org/{{ item.doi }}" target="_blank" rel="noreferrer" class="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-1 rounded hover:bg-blue-600 hover:text-white transition-colors">
+                        {{ item.doi }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    {% if not items %}
+    <div class="py-20 text-center text-slate-400 italic">
+        <i class="fas fa-list-check block text-4xl mb-4 opacity-20"></i>
+        Your wishlist is empty. Run a "Bibliography Scan" in The Lab to find targets.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

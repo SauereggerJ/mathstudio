@@ -1,5 +1,24 @@
+# Critical: Exclude all databases and system files
+*.db
+*.db-wal
+*.db-shm
+*.log
+credentials.json
+.env
+
+# Critical: Exclude all dynamic research data folders
+bib_extracts/
+converted_notes/
+notes_output/
+static/thumbnails/
+static/cache/
+temp_uploads/
+archive/
+
+# Standard Python/Docker ignores
 venv/
 .venv/
 __pycache__/
-*.db
-*.log
+.pytest_cache/
+.docker/
+.git/

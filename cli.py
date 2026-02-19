@@ -101,6 +101,27 @@ def handle_audit_index(args):
     print("-" * 80)
     print(f"Total: {len(results)} potentially bad indexes.")
 
+def handle_audit_toc(args):
+    if args.fix:
+        print("Starting Table of Contents repair...")
+        repaired = indexer_service.repair_missing_tocs()
+        print(f"Repair complete. Successfully extracted bookmarks for {repaired} books.")
+        return
+
+    print("Auditing Table of Contents quality...")
+    results = indexer_service.audit_tocs()
+    if not results:
+        print("No issues found.")
+        return
+        
+    print(f"{'ID':<5} | {'Title':<40} | {'Entries':<7} | {'Depth':<5} | {'Coverage':<10} | {'Flag'}")
+    print("-" * 90)
+    for r in results:
+        title = (r['title'][:37] + '...') if len(r['title']) > 37 else r['title']
+        print(f"{r['id']:<5} | {title:<40} | {r['count']:<7} | {r['depth']:<5} | {r['coverage']:<10} | {','.join(r['flags'])}")
+    print("-" * 90)
+    print(f"Total: {len(results)} books with suboptimal TOCs.")
+
 from services.metadata import metadata_service
 
 def handle_bib(args):
@@ -169,6 +190,10 @@ def main():
     # Audit Index
     p_audit = subparsers.add_parser("audit-index", help="Scan for low-quality indexes")
 
+    # Audit TOC
+    p_audit_toc = subparsers.add_parser("audit-toc", help="Scan for low-quality Tables of Contents")
+    p_audit_toc.add_argument("--fix", action="store_true", help="Try to repair missing TOCs from PDF bookmarks")
+
     # Bib
     p_bib = subparsers.add_parser("bib", help="Generate BibTeX for a book")
     p_bib.add_argument("query", nargs="+")
@@ -178,6 +203,7 @@ def main():
     p_bib_scan.add_argument("book_id", type=int)
 
     # Sanity
+    p_sanity = subparsers.add_parser("sanity", help="Run database sanity check")
     p_sanity.add_argument("--fix", action="store_true", help="Fix broken entries")
 
     args = parser.parse_args()
@@ -196,6 +222,8 @@ def main():
         handle_clear_index(args)
     elif args.command == "audit-index":
         handle_audit_index(args)
+    elif args.command == "audit-toc":
+        handle_audit_toc(args)
     elif args.command == "bib":
         handle_bib(args)
     elif args.command == "bib-scan":
