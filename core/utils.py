@@ -9,7 +9,7 @@ from typing import List, Dict, Tuple
 logger = logging.getLogger(__name__)
 
 class PDFHandler:
-    """Memory-guarded PDF handler implementing strict sequential I/O."""
+    """Memory-guarded PDF handler implementing strict sequential I/O and zero-duplication slicing."""
     
     TOC_MARKERS = ["contents", "inhaltsverzeichnis", "inhalt", "table des matières"]
     BIB_MARKERS = ["bibliography", "references", "literaturverzeichnis", "bibliographie"]
@@ -55,21 +55,25 @@ class PDFHandler:
         return ranges
 
     def create_slice(self, page_indices: List[int], output_path: Path):
-        """Creates a physical PDF file on disk and releases all memory."""
+        """Creates a physical PDF file on disk with zero memory duplication."""
         src_doc, t_path = self._open_source()
         try:
-            dest_doc = fitz.open()
-            dest_doc.insert_pdf(src_doc, from_page=0, to_page=len(src_doc)-1)
-            dest_doc.select(page_indices)
-            dest_doc.save(str(output_path), garbage=4, deflate=True)
-            dest_doc.close()
-            del dest_doc
+            # Behalte im RAM nur die exakt benötigten Seiten
+            src_doc.select(page_indices)
+            # Speichere diesen manipulierten State als neue Datei
+            src_doc.save(str(output_path), garbage=4, deflate=True)
         finally:
             src_doc.close()
             del src_doc
             if t_path and t_path.exists(): t_path.unlink()
             gc.collect()
         return output_path
+
+    def create_skeleton_slice(self, output_path: Path) -> Path:
+        """Legacy support for the full skeleton."""
+        ranges = self.estimate_slicing_ranges()
+        all_pages = sorted(list(set(ranges["metadata"] + ranges["bibliography"])))
+        return self.create_slice(all_pages, output_path)
 
 def parse_page_range(pages_str: str, total_pages: int) -> List[int]:
     """Parses a string like '1-5, 10, 12' into a list of page numbers."""
@@ -88,4 +92,3 @@ def parse_page_range(pages_str: str, total_pages: int) -> List[int]:
                 if 1 <= p <= total_pages: pages.add(p)
             except: pass
     return sorted(list(pages))
-
