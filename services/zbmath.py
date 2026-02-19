@@ -29,6 +29,65 @@ class ZBMathService:
             time.sleep(self.min_delay - elapsed)
         self.last_request_time = time.time()
 
+    def verify_metadata(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 4: Deterministic Verification.
+        Checks LLM data against Crossref/OpenAlex.
+        Handles book-chapter -> master book resolution.
+        """
+        query_title = extracted_data.get('title')
+        query_doi = extracted_data.get('doi')
+        query_isbn = extracted_data.get('isbn')
+        
+        results = {"verified": False, "source": None, "master_data": {}, "conflicts": []}
+
+        # 1. Primary path: ISBN (The Golden Key)
+        if query_isbn:
+            isbn_res = self.resolve_isbn(query_isbn)
+            if isbn_res:
+                results.update({"verified": True, "source": "ISBN", "master_data": isbn_res})
+                return results
+
+        # 2. Secondary path: DOI check
+        target_doi = query_doi
+        if target_doi:
+            try:
+                r = self.session.get(f"{self.CROSSREF_URL}/{target_doi}", timeout=10)
+                if r.status_code == 200:
+                    data = r.json().get('message', {})
+                    # TYPE FILTERING
+                    if data.get('type') == 'book-chapter':
+                        # RESOLVE TO PARENT
+                        # Springer logic: prefix before underscore
+                        if '10.1007' in target_doi and '_' in target_doi:
+                            parent_doi = target_doi.split('_')[0]
+                            parent_r = self.session.get(f"{self.CROSSREF_URL}/{parent_doi}", timeout=5)
+                            if parent_r.status_code == 200:
+                                data = parent_r.json().get('message', {})
+                                results['conflicts'].append(f"DOI upgrade: chapter {target_doi} -> book {parent_doi}")
+                    
+                    results.update({
+                        "verified": True, 
+                        "source": "DOI", 
+                        "master_data": {
+                            "doi": data.get('DOI'),
+                            "title": data.get('title', [None])[0],
+                            "author": ", ".join([f"{a.get('family')}, {a.get('given')}" for a in data.get('author', [])]),
+                            "publisher": data.get('publisher'),
+                            "year": data.get('published-print', data.get('issued', {})).get('date-parts', [[None]])[0][0]
+                        }
+                    })
+                    return results
+            except: pass
+
+        # 3. Tertiary path: Bibliographic search (Title/Author)
+        if query_title:
+            search_res = self.resolve_citation(f"{query_title} {extracted_data.get('author', '')}")
+            if search_res and search_res.get('score', 0) > 80: # High confidence only
+                results.update({"verified": True, "source": "Crossref-Search", "master_data": search_res})
+        
+        return results
+
     def resolve_citation(self, raw_string: str) -> Optional[Dict[str, Any]]:
         """Stage 1: Resolve raw string to DOI via Crossref."""
         clean_query = re.sub(r'^\[\d+\]\s*', '', raw_string)

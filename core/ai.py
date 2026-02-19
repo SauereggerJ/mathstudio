@@ -2,9 +2,13 @@ import json
 import re
 import time
 import sys
+import logging
+from pathlib import Path
 from google import genai
 from google.genai import types
 from .config import get_api_key, GEMINI_MODEL
+
+logger = logging.getLogger(__name__)
 
 class AIService:
     def __init__(self, model_name=GEMINI_MODEL):
@@ -13,6 +17,28 @@ class AIService:
             raise ValueError("GEMINI_API_KEY not found in credentials.json or environment.")
         self.client = genai.Client(api_key=self.api_key)
         self.model_name = model_name
+
+    def upload_file(self, file_path: Path, display_name: str = None):
+        """Uploads a file to Google File API and returns the file object."""
+        try:
+            # Correct SDK syntax for uploading files
+            file = self.client.files.upload(
+                file=str(file_path),
+                config=types.UploadFileConfig(display_name=display_name or file_path.name)
+            )
+            logger.info(f"File uploaded to Gemini: {file.uri}")
+            return file
+        except Exception as e:
+            logger.error(f"Failed to upload file to Gemini: {e}")
+            return None
+
+    def delete_file(self, file_name: str):
+        """Removes a file from Google File API."""
+        try:
+            self.client.files.delete(name=file_name)
+            logger.info(f"File deleted from Gemini: {file_name}")
+        except Exception as e:
+            logger.error(f"Failed to delete file from Gemini: {e}")
 
     def generate_json(self, contents, retry_count=3):
         """Generates a structured JSON response. 'contents' can be a string or SDK types."""

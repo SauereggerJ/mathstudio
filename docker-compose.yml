@@ -8,20 +8,19 @@ services:
     ports:
       - "5002:5001"
     
-    # We set the working directory to the 'mathstudio' folder INSIDE the library volume.
-    # This allows the Python scripts to refer to books as "../01_Physics/..." naturally.
     working_dir: /library/mathstudio
     
     volumes:
-      # Mount the entire "New_Research_Library" folder (which includes this app and all books)
-      # to "/library" in the container.
       - ../:/library
-      # Mount Obsidian Vault (Server Path)
       - /srv/data/math/obsidian/mathematik_obsidian:/obsidian
-      
-      # Optional: Explicitly mount the DB and thumbnails to ensure they are read/written
-      # correctly if the parent mount has permission oddities, though usually the parent mount is enough.
-      # We will rely on the parent mount "../" -> "/library" covering everything.
       
     environment:
       - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G

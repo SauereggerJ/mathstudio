@@ -1,56 +1,91 @@
-import io
-import re
-from pypdf import PdfReader, PdfWriter
+import fitz  # PyMuPDF
+import logging
+import os
+import subprocess
+import gc
 from pathlib import Path
+from typing import List, Dict, Tuple
 
-def parse_page_range(page_str, max_pages=None):
-    """Parses a page range string into a list of integers."""
-    if not page_str:
-        return []
+logger = logging.getLogger(__name__)
+
+class PDFHandler:
+    """Memory-guarded PDF handler implementing strict sequential I/O."""
     
+    TOC_MARKERS = ["contents", "inhaltsverzeichnis", "inhalt", "table des matières"]
+    BIB_MARKERS = ["bibliography", "references", "literaturverzeichnis", "bibliographie"]
+
+    def __init__(self, file_path: Path):
+        self.file_path = file_path
+
+    def _open_source(self):
+        """Internal helper to provide a clean document handle."""
+        if self.file_path.suffix.lower() == '.djvu':
+            temp_pdf = Path(f"/tmp/conv_{os.getpid()}.pdf")
+            subprocess.run(['ddjvu', '-format=pdf', str(self.file_path), str(temp_pdf)], 
+                           check=True, capture_output=True)
+            return fitz.open(str(temp_pdf)), temp_pdf
+        return fitz.open(str(self.file_path)), None
+
+    def estimate_slicing_ranges(self) -> Dict[str, List[int]]:
+        """Identifies ranges and immediately releases all handles."""
+        doc, t_path = self._open_source()
+        ranges = {"metadata": [], "bibliography": []}
+        try:
+            page_count = len(doc)
+            # Metadata detection
+            f_end = min(20, page_count)
+            for i in range(min(50, page_count)):
+                if any(m in doc[i].get_text().lower() for m in self.TOC_MARKERS):
+                    f_end = min(i + 20, page_count)
+                    break
+            ranges["metadata"] = list(range(0, f_end))
+
+            # Bibliography detection (forward scan in tail)
+            b_start = max(0, page_count - 50)
+            for i in range(max(0, page_count - 150), page_count):
+                if any(m in doc[i].get_text().lower() for m in self.BIB_MARKERS):
+                    b_start = i
+                    break
+            ranges["bibliography"] = list(range(b_start, page_count))
+        finally:
+            doc.close()
+            del doc
+            if t_path and t_path.exists(): t_path.unlink()
+            gc.collect()
+        return ranges
+
+    def create_slice(self, page_indices: List[int], output_path: Path):
+        """Creates a physical PDF file on disk and releases all memory."""
+        src_doc, t_path = self._open_source()
+        try:
+            dest_doc = fitz.open()
+            dest_doc.insert_pdf(src_doc, from_page=0, to_page=len(src_doc)-1)
+            dest_doc.select(page_indices)
+            dest_doc.save(str(output_path), garbage=4, deflate=True)
+            dest_doc.close()
+            del dest_doc
+        finally:
+            src_doc.close()
+            del src_doc
+            if t_path and t_path.exists(): t_path.unlink()
+            gc.collect()
+        return output_path
+
+def parse_page_range(pages_str: str, total_pages: int) -> List[int]:
+    """Parses a string like '1-5, 10, 12' into a list of page numbers."""
     pages = set()
-    parts = re.split(r'[,\s]+', str(page_str))
-    for part in parts:
-        if '-' in part or '–' in part:
-            m = re.match(r'(\d+)[\-–](\d+)', part)
-            if m:
-                start, end = int(m.group(1)), int(m.group(2))
-                start = max(1, start)
-                if max_pages: end = min(max_pages, end)
-                if start <= end:
-                    for p in range(start, end + 1):
-                        pages.add(p)
-        elif part.isdigit():
-            p = int(part)
-            if p >= 1:
-                if max_pages and p > max_pages: continue
-                pages.add(p)
+    if not pages_str: return []
+    for part in pages_str.split(','):
+        part = part.strip()
+        if '-' in part:
+            try:
+                start, end = map(int, part.split('-'))
+                pages.update(range(max(1, start), min(end, total_pages) + 1))
+            except: pass
+        else:
+            try:
+                p = int(part)
+                if 1 <= p <= total_pages: pages.add(p)
+            except: pass
     return sorted(list(pages))
 
-def create_pdf_slice(file_path, page_str, padding=0):
-    """Creates a new PDF containing requested pages."""
-    try:
-        reader = PdfReader(file_path)
-        total_pages = len(reader.pages)
-        requested = parse_page_range(page_str, total_pages)
-        
-        if not requested: return None
-        
-        if padding > 0:
-            padded = set()
-            for p in requested:
-                for i in range(max(1, p - padding), min(total_pages, p + padding) + 1):
-                    padded.add(i)
-            requested = sorted(list(padded))
-
-        writer = PdfWriter()
-        for p in requested:
-            writer.add_page(reader.pages[p - 1])
-
-        output = io.BytesIO()
-        writer.write(output)
-        output.seek(0)
-        return output
-    except Exception as e:
-        print(f"[Utils] Slice error: {e}")
-        return None
