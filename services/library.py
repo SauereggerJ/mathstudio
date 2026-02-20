@@ -94,12 +94,16 @@ class LibraryService:
             cursor = conn.cursor()
             cursor.execute(query, params)
             
-            # Sync FTS
+            # Sync FTS (preserving 'content' column)
+            cursor.execute("SELECT content FROM books_fts WHERE rowid = ?", (book_id,))
+            fts_row = cursor.fetchone()
+            existing_content = fts_row['content'] if fts_row else ""
+
             cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (book_id,))
             cursor.execute("""
-                INSERT INTO books_fts (rowid, title, author, index_content)
-                SELECT id, title, author, index_text FROM books WHERE id = ?
-            """, (book_id,))
+                INSERT INTO books_fts (rowid, title, author, index_content, content)
+                SELECT id, title, author, index_text, ? FROM books WHERE id = ?
+            """, (existing_content, book_id))
             
         return True, "Metadata updated successfully"
 

@@ -1,10 +1,14 @@
 import subprocess
 import sqlite3
 import re
+import os
+import json
+import time
 from pathlib import Path
 from pypdf import PdfReader
 from core.database import db
 from core.config import LIBRARY_ROOT, IGNORED_FOLDERS
+from .bibliography import bibliography_service
 
 class IndexerService:
     def __init__(self):
@@ -92,6 +96,11 @@ class IndexerService:
                 "INSERT INTO pages_fts (book_id, page_number, content) VALUES (?, ?, ?)",
                 pages_data
             )
+            
+            # Register as deep indexed
+            cursor.execute("INSERT OR REPLACE INTO deep_indexed_books (book_id) VALUES (?)", (book_id,))
+            
+        return True, f"Deep indexed {len(pages_data)} pages"
     def scan_library(self, force=False):
         """Scans the library directory and updates the database."""
         count_new = 0
@@ -145,8 +154,7 @@ class IndexerService:
                             
                             # Start Bibliography Extraction (Phase 2)
                             try:
-                                from .bib_extractor import bib_service
-                                bib_service.process_book_bibliography(book_id)
+                                bibliography_service.process_book_bibliography(book_id)
                             except Exception as e:
                                 print(f"  [BIB] Failed to process bibliography for {file}: {e}")
 
@@ -172,8 +180,7 @@ class IndexerService:
                                  
                                  # Start Bibliography Extraction (Phase 2)
                                  try:
-                                     from .bib_extractor import bib_service
-                                     bib_service.process_book_bibliography(book_id)
+                                     bibliography_service.process_book_bibliography(book_id)
                                  except Exception as e:
                                      print(f"  [BIB] Failed to process bibliography for {file}: {e}")
 
@@ -181,6 +188,8 @@ class IndexerService:
 
                 except Exception as e:
                     print(f"Error processing {file}: {e}")
+        
+        return count_new, count_updated
 
     def evaluate_page_heuristic(self, text):
         score = 0

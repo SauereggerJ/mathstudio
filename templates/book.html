@@ -201,12 +201,28 @@
             const res = await fetch('/api/v1/books/{{ id }}/metadata/refresh/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ai_care: true}) });
             const data = await res.json();
             if (data.success) {
-                currentProposal = data.proposed;
-                document.getElementById('proposedMeta').innerHTML = `<p><strong>Title:</strong> ${currentProposal.title}</p><p><strong>Author:</strong> ${currentProposal.author}</p><p class="mt-2"><strong>Summary:</strong> ${currentProposal.summary}</p>`;
+                // Save the ENTIRE result, not just metadata
+                currentProposal = {
+                    ...data.data.metadata,
+                    toc: data.data.toc,
+                    bibliography: data.data.bibliography,
+                    page_offset: data.data.page_offset
+                };
+                
+                const bibCount = data.data.bibliography ? data.data.bibliography.length : 0;
+                
+                document.getElementById('proposedMeta').innerHTML = `
+                    <p><strong>Title:</strong> ${currentProposal.title}</p>
+                    <p><strong>Author:</strong> ${currentProposal.author}</p>
+                    <p class="mt-2 text-emerald-600 font-bold"><i class="fas fa-list-ul mr-2"></i> ${bibCount} Citations extracted</p>
+                    <p class="mt-2"><strong>Summary:</strong> ${currentProposal.summary}</p>
+                `;
                 document.getElementById('reviewModal').classList.remove('hidden');
+            } else {
+                alert("AI Metadata Refresh failed: " + (data.error || "Unknown error"));
             }
         } catch(e) { alert("Error"); }
-        finally { btn.disabled = false; btn.innerHTML = 'AI Metadata Refresh'; }
+        finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic mr-2"></i> AI Metadata Refresh'; }
     }
     async function applyProposal() {
         if(!currentProposal) return;

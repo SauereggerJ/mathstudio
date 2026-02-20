@@ -153,9 +153,35 @@ class ZBMathService:
         try:
             resp = requests.get(self.OAI_URL, params=params, timeout=15)
             if resp.status_code == 200 and "idDoesNotExist" not in resp.text:
-                return self._parse_oai_xml(resp.text, zbl_id)
+                data = self._parse_oai_xml(resp.text, zbl_id)
+                if data:
+                    self._save_to_cache(data)
+                return data
         except Exception as e: logger.error(f"OAI fetch failed: {e}")
         return None
+
+    def _save_to_cache(self, data: Dict[str, Any]):
+        """Persists metadata to SQLite JSONB-ready schema."""
+        try:
+            with self.db.get_connection() as conn:
+                conn.execute("""
+                    INSERT INTO zbmath_cache (zbl_id, msc_code, authors, title, review_markdown)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(zbl_id) DO UPDATE SET
+                        msc_code = excluded.msc_code,
+                        authors = excluded.authors,
+                        title = excluded.title,
+                        review_markdown = excluded.review_markdown,
+                        fetched_at = unixepoch()
+                """, (
+                    data['zbl_id'], 
+                    data.get('msc_code', ''), 
+                    json.dumps(data.get('authors', [])),
+                    data['title'],
+                    data.get('review_markdown', '')
+                ))
+        except Exception as e:
+            logger.error(f"Failed to cache zbMATH data: {e}")
 
     def _parse_oai_xml(self, xml_text: str, original_id: str) -> Dict[str, Any]:
         try:

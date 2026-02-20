@@ -66,9 +66,18 @@ class DatabaseManager:
                     embedding BLOB,
                     file_hash TEXT,
                     index_version INTEGER,
-                    reference_url TEXT
+                    reference_url TEXT,
+                    last_metadata_refresh INTEGER DEFAULT 0,
+                    page_offset INTEGER DEFAULT 0
                 ) STRICT
             ''')
+
+            # 1.1 Simple Migration Loop for missing columns in 'books'
+            for col, col_type in [("last_metadata_refresh", "INTEGER DEFAULT 0"), ("page_offset", "INTEGER DEFAULT 0")]:
+                try:
+                    conn.execute(f"ALTER TABLE books ADD COLUMN {col} {col_type}")
+                except sqlite3.OperationalError:
+                    pass # Already exists
 
             # 2. FTS Virtual Table
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='books_fts'")
@@ -164,6 +173,8 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     book_id INTEGER NOT NULL,
                     raw_text TEXT NOT NULL,
+                    title TEXT,
+                    author TEXT,
                     extracted_at INTEGER DEFAULT (unixepoch()),
                     resolved_zbl_id TEXT,
                     confidence REAL,
@@ -171,6 +182,13 @@ class DatabaseManager:
                     FOREIGN KEY(resolved_zbl_id) REFERENCES zbmath_cache(zbl_id)
                 ) STRICT
             ''')
+
+            # 8.1 Migration for bib_entries
+            for col in ["title", "author"]:
+                try:
+                    conn.execute(f"ALTER TABLE bib_entries ADD COLUMN {col} TEXT")
+                except sqlite3.OperationalError:
+                    pass
 
             # 9. Literature Graph
             cursor.execute('''
@@ -180,6 +198,39 @@ class DatabaseManager:
                     PRIMARY KEY(book_id, zbl_id),
                     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE,
                     FOREIGN KEY(zbl_id) REFERENCES zbmath_cache(zbl_id)
+                ) STRICT
+            ''')
+
+            # 10. Metadata Proposals
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS metadata_proposals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER NOT NULL,
+                    title TEXT,
+                    author TEXT,
+                    year INTEGER,
+                    isbn TEXT,
+                    publisher TEXT,
+                    doi TEXT,
+                    zbl_id TEXT,
+                    confidence REAL,
+                    proposed_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+                ) STRICT
+            ''')
+
+            # 11. Wishlist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS wishlist (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    author TEXT,
+                    doi TEXT UNIQUE,
+                    zbl_id TEXT,
+                    source_book_id INTEGER,
+                    status TEXT DEFAULT 'pending', -- pending, acquired, rejected
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(source_book_id) REFERENCES books(id) ON DELETE SET NULL
                 ) STRICT
             ''')
 

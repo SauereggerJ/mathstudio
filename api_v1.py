@@ -87,6 +87,34 @@ def trigger_deep_indexing(book_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@api_v1.route('/books/<int:book_id>', methods=['GET'])
+def get_book_details_endpoint(book_id):
+    """Returns JSON metadata for a specific book."""
+    try:
+        with db.get_connection() as conn:
+            row = conn.execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
+            is_deep = conn.execute("SELECT 1 FROM deep_indexed_books WHERE book_id = ?", (book_id,)).fetchone()
+        
+        if not row:
+            return jsonify({'error': 'Book not found'}), 404
+            
+        data = dict(row)
+        # Helper flags for UI/MCP
+        data['has_index'] = bool(data.get('index_text'))
+        data['has_toc'] = bool(data.get('toc_json'))
+        data['is_deep_indexed'] = bool(is_deep)
+        
+        # Handle binary embedding
+        if data.get('embedding'):
+            data['has_embedding'] = True
+            del data['embedding']
+        else:
+            data['has_embedding'] = False
+            
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/books/<int:book_id>/search', methods=['GET'])
 def search_within_book_endpoint(book_id):
     query = request.args.get('q', '')
@@ -96,6 +124,36 @@ def search_within_book_endpoint(book_id):
         matches, is_deep = search_service.search_within_book(book_id, query, limit=limit)
         return jsonify({'book_id': book_id, 'query': query, 'matches': matches, 'is_deep_indexed': is_deep})
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/toc', methods=['GET'])
+def get_book_toc_endpoint(book_id):
+    """Returns structured Table of Contents."""
+    try:
+        chapters = search_service.get_chapters(book_id)
+        return jsonify({'book_id': book_id, 'toc': chapters})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/reindex', methods=['POST'])
+@api_v1.route('/books/<int:book_id>/reindex/<mode>', methods=['POST'])
+def trigger_reindex(book_id, mode='auto'):
+    """Triggers AI reconstruction of TOC or Back-of-Book Index."""
+    try:
+        from services.indexer import indexer_service
+        
+        results = {}
+        if mode in ('toc', 'auto'):
+            # Current refresh_metadata in ingestor handles TOC/Metadata
+            res = ingestor_service.refresh_metadata(book_id)
+            results['toc'] = res
+            
+        if mode in ('index', 'auto'):
+            success, msg = indexer_service.reconstruct_index(book_id)
+            results['index'] = {'success': success, 'message': msg}
+            
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # --- 2. Universal Pipeline Tools ---
 
@@ -121,43 +179,128 @@ def preview_metadata_refresh(book_id):
 
 @api_v1.route('/tools/bib-scan', methods=['POST'])
 def bib_scan_tool():
-    """Scans bibliography using the Universal Pipeline."""
+    """Scans bibliography and resolves citations using the specialized service."""
     try:
         data = request.json if request.is_json else request.form
         book_id = data.get('book_id')
         if not book_id: return jsonify({'error': 'book_id is required'}), 400
+        book_id = int(book_id)
         
-        result = ingestor_service.refresh_metadata(int(book_id))
-        if not result.get('success'):
-            return jsonify({'success': False, 'error': result.get('error')}), 500
+        # 1. Extraction (Vision-First)
+        scan_res = bibliography_service.scan_book(book_id)
+        if not scan_res.get('success'):
+            return jsonify({'success': False, 'error': scan_res.get('error')}), 500
+            
+        # 2. Resolution (Optional - can be slow, so we might want to return early and resolve in bg)
+        # For now, let's do a partial resolution or return extraction results
         
         return render_template('bib_results.html',
             book_id=book_id,
-            book_title=result['data']['metadata'].get('title', 'Book Details'),
-            bib_pages="Extracted via Vision-Chunking",
-            citations=result['data'].get('bibliography', []),
-            stats={"total": len(result['data'].get('bibliography', [])), "owned": 0, "missing": len(result['data'].get('bibliography', []))}
+            book_title=scan_res.get('book_title', 'Book Details'),
+            bib_pages="Extracted via specialized Vision-Chunking",
+            citations=scan_res.get('citations', []),
+            stats={"total": len(scan_res.get('citations', [])), "owned": 0, "missing": len(scan_res.get('citations', []))}
         )
     except Exception as e:
          return jsonify({'success': False, 'error': str(e)}), 500
 
+@api_v1.route('/books/<int:book_id>/citations/resolve', methods=['POST'])
+def resolve_book_citations(book_id):
+    """Triggers background resolution of citations for a book."""
+    try:
+        # Since this can take minutes, we'd ideally background it.
+        # For REHAB simplicity, we'll run it and return results.
+        result = bibliography_service.resolve_citations(book_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/books/<int:book_id>/metadata', methods=['PATCH'])
 def update_book_metadata(book_id):
-    """Manually updates book metadata and syncs ToC."""
+    """Manually updates book metadata, syncs ToC and Bibliography."""
     try:
         data = request.json
         success, message = library_service.update_metadata(book_id, data)
         if not success: return jsonify({'error': message}), 400
         
+        # 1. Sync ToC
         toc_data = data.get('toc')
         if toc_data:
             try:
                 ingestor_service.sync_chapters(book_id, toc_data, page_offset=data.get('page_offset', 0))
             except Exception as e: print(f"ToC Sync Error: {e}")
-        return jsonify({'success': True, 'message': message})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+            
+        # 2. Sync Bibliography (New for Universal Pipeline)
+        bib_data = data.get('bibliography')
+        if bib_data and isinstance(bib_data, list):
+            try:
+                with db.get_connection() as conn:
+                    conn.execute("DELETE FROM bib_entries WHERE book_id = ?", (book_id,))
+                    for entry in bib_data:
+                        if isinstance(entry, dict):
+                            conn.execute("""
+                                INSERT INTO bib_entries (book_id, raw_text, title, author)
+                                VALUES (?, ?, ?, ?)
+                            """, (book_id, entry.get('raw_text', ''), entry.get('title', ''), entry.get('author', '')))
+            except Exception as e: print(f"Bib Sync Error: {e}")
 
-# --- 3. Content & File Management ---
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# --- 3. Content & Bookmarks ---
+
+@api_v1.route('/bookmarks', methods=['GET'])
+def list_bookmarks():
+    try:
+        book_id = request.args.get('book_id', type=int)
+        tags = request.args.get('tags')
+        
+        query = """
+            SELECT bkm.*, b.title as book_title 
+            FROM bookmarks bkm
+            JOIN books b ON bkm.book_id = b.id
+        """
+        params = []
+        if book_id:
+            query += " WHERE bkm.book_id = ?"
+            params.append(book_id)
+        if tags:
+            query += (" AND" if book_id else " WHERE") + " bkm.tags LIKE ?"
+            params.append(f"%{tags}%")
+            
+        with db.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/bookmarks', methods=['POST'])
+def create_bookmark():
+    try:
+        data = request.json
+        book_id = data.get('book_id')
+        if not book_id: return jsonify({'error': 'book_id is required'}), 400
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO bookmarks (book_id, page_range, tags, notes)
+                VALUES (?, ?, ?, ?)
+            """, (book_id, data.get('page_range'), data.get('tags'), data.get('notes')))
+            new_id = cursor.lastrowid
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/bookmarks/<int:bookmark_id>', methods=['DELETE'])
+def delete_bookmark(bookmark_id):
+    try:
+        with db.get_connection() as conn:
+            conn.execute("DELETE FROM bookmarks WHERE id = ?", (bookmark_id,))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/books/<int:book_id>/download', methods=['GET'])
 def download_book(book_id):
@@ -206,5 +349,35 @@ def admin_sanity_fix():
         return jsonify({'success': True, 'results': results})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    pass
+@api_v1.route('/tools/pdf-to-text', methods=['POST'])
+def pdf_to_text_tool():
+    """Extracts raw text from a PDF range without AI processing."""
+    data = request.json
+    book_id = data.get('book_id')
+    pages_str = data.get("pages") or data.get("page")
+    
+    if not book_id or not pages_str:
+        return jsonify({'error': 'book_id and pages are required'}), 400
+        
+    try:
+        with db.get_connection() as conn:
+            res = conn.execute("SELECT path FROM books WHERE id = ?", (book_id,)).fetchone()
+        
+        if not res: return jsonify({'error': 'Book not found'}), 404
+        abs_path = (LIBRARY_ROOT / res['path']).resolve()
+        
+        import pypdf
+        reader = pypdf.PdfReader(abs_path)
+        total_pages = len(reader.pages)
+        
+        target_pages = parse_page_range(pages_str, total_pages)
+        full_text = ""
+        for p in target_pages:
+            try:
+                page_text = reader.pages[p-1].extract_text()
+                full_text += f"\n--- Page {p} ---\n{page_text}\n"
+            except: pass
+                
+        return jsonify({'success': True, 'text': full_text})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -40,7 +40,10 @@ MathStudio is a specialized research environment for mathematical and physical s
 ### B. Commits & Versioning
 *   **Mandatory Commits**: Perform a Git commit after every medium-to-large functional change.
 *   **Commit Quality**: Messages must concisely describe *what* was changed and *why* (e.g., "Fix OOM via sequential I/O slicing").
-*   **Masterpiece Backup**: The `TECHNICAL_MANUAL.md` must be kept in sync with architecture changes and pushed to GitHub as the primary technical reference.
+*   **Agentic Extraction**: The AI agent is authorized to perform "Manual Agentic Extraction" for complex bibliographies (e.g., Folland, Yang-Mills) by directly reading PDF pages and injecting structured JSON into the DB, bypassing rigid pipeline heuristics when necessary.
+
+### C. Masterpiece Backup
+*   The `TECHNICAL_MANUAL.md` must be kept in sync with architecture changes and pushed to GitHub as the primary technical reference.
 
 ---
 

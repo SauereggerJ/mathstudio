@@ -17,7 +17,13 @@ class IngestorService:
     def refresh_metadata(self, book_id, ai_care=True):
         """Standard method for UI and manual refresh using the new pipeline."""
         print(f"Triggering Universal Pipeline for Book ID {book_id}...")
-        result = universal_processor.process_book(book_id)
+        result = universal_processor.process_book(book_id, save_to_db=True)
+        return result
+
+    def preview_metadata_update(self, book_id, ai_care=True):
+        """Runs the Universal Pipeline in PREVIEW mode (no DB changes)."""
+        print(f"Generating Metadata Preview for Book ID {book_id}...")
+        result = universal_processor.process_book(book_id, save_to_db=False)
         return result
 
     def process_file(self, file_path: Path, execute=False):
