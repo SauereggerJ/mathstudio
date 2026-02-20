@@ -3,6 +3,7 @@ import time
 import os
 from typing import List, Dict, Any
 from core.database import db
+from core.config import LIBRARY_ROOT
 from services.zbmath import zbmath_service
 
 # Setup dedicated logger for enrichment
@@ -92,7 +93,7 @@ class EnrichmentService:
                 logger.error(f"  ‼ CRITICAL ERROR for book {bid}: {e}")
                 results["errors"] += 1
             
-            time.sleep(1.2)
+            time.sleep(2.0) # Increased delay to give zbMATH more air
             
         logger.info(f"--- Batch Complete: {results['healed']} healed, {results['errors']} errors ---")
         return results

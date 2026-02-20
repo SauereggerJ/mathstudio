@@ -186,24 +186,39 @@ class ZBMathService:
         
         # Clean title for API (remove special chars that might break the parser)
         clean_title = re.sub(r"[:/?#\[\]@!$&'()*+,;=]", " ", title).strip()
-        search_string = f'ti:{clean_title}'
-        if author and author.lower() != 'unknown':
-            # Take first author name
-            first_author = author.split(',')[0].split('&')[0].strip()
-            if first_author:
-                search_string += f' AND au:{first_author}'
-
-        try:
+        
+        def do_search(t_str):
+            search_string = f'ti:{t_str}'
+            if author and author.lower() != 'unknown':
+                # Take first author name
+                first_author = author.split(',')[0].split('&')[0].strip()
+                if first_author:
+                    search_string += f' AND au:{first_author}'
+            
             url = f'https://api.zbmath.org/v1/document/_search?search_string={requests.utils.quote(search_string)}'
             resp = self.session.get(url, timeout=10)
             if resp.ok:
-                results = resp.json().get('result', [])
-                if results:
-                    # Return the identifier if title matches reasonably well
-                    from rapidfuzz import fuzz
-                    zb_title = results[0].get('title', {}).get('title', '')
-                    if fuzz.partial_ratio(title.lower(), zb_title.lower()) > 70:
-                        return results[0].get('identifier')
+                return resp.json().get('result', [])
+            return []
+
+        try:
+            # Try full title first
+            results = do_search(clean_title)
+            
+            # Fallback: Try only the first 5 words of the title (handles long titles/subtitles)
+            if not results:
+                words = clean_title.split()
+                if len(words) > 5:
+                    short_title = " ".join(words[:5])
+                    logger.info(f"  🔍 Trying shorter title: {short_title}")
+                    results = do_search(short_title)
+
+            if results:
+                # Return the identifier if title matches reasonably well
+                from rapidfuzz import fuzz
+                zb_title = results[0].get('title', {}).get('title', '')
+                if fuzz.partial_ratio(title.lower(), zb_title.lower()) > 70:
+                    return results[0].get('identifier')
         except Exception as e:
             logger.error(f"zbMATH Metadata search failed: {e}")
             
@@ -222,7 +237,7 @@ class ZBMathService:
                 results = resp.json().get('result', [])
                 if results:
                     doc = results[0]
-                    authors = [a.get('name') for a in doc.get('contributors', {}).get('authors', [])]
+                    authors = [a.get('name') for a in doc.get('contributors', {}).get('authors', []) if a.get('name')]
                     review = ""
                     if doc.get('editorial_contributions'):
                         review = doc['editorial_contributions'][0].get('text', '')
@@ -231,8 +246,8 @@ class ZBMathService:
                         'zbl_id': zbl_id,
                         'title': doc.get('title', {}).get('title', ''),
                         'authors': authors,
-                        'msc_code': ", ".join([m.get('code') for m in doc.get('msc', [])]),
-                        'keywords': ", ".join(doc.get('keywords', [])),
+                        'msc_code': ", ".join([m.get('code') for m in doc.get('msc', []) if m.get('code')]),
+                        'keywords': ", ".join([kw for kw in doc.get('keywords', []) if kw]),
                         'links': json.dumps(doc.get('links', [])),
                         'review_markdown': review
                     }
