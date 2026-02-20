@@ -4,15 +4,19 @@ import re
 import os
 import json
 import time
+import fitz
 from pathlib import Path
 from pypdf import PdfReader
 from core.database import db
 from core.config import LIBRARY_ROOT, IGNORED_FOLDERS
+from core.ai import ai
+from core.utils import PDFHandler
 from .bibliography import bibliography_service
 
 class IndexerService:
     def __init__(self):
         self.db = db
+        self.ai = ai
 
     def extract_full_text(self, file_path):
         """Extracts full text from a PDF/DjVu file with page markers."""
@@ -206,16 +210,32 @@ class IndexerService:
         return max(0, score)
 
     def extract_index_candidates(self, file_path):
-        import fitz
-        doc = fitz.open(file_path)
-        num_pages = len(doc)
+        handler = PDFHandler(file_path)
+        # Use total page count from djvused/pypdf if available
+        if file_path.suffix.lower() == '.djvu':
+            import subprocess
+            res = subprocess.run(['djvused', '-e', 'n', str(file_path)], capture_output=True, text=True)
+            num_pages = int(res.stdout.strip()) if res.returncode == 0 else 100
+        else:
+            doc_tmp = fitz.open(file_path)
+            num_pages = len(doc_tmp)
+            doc_tmp.close()
+
         start_page = max(0, num_pages - 50)
+        sample_indices = list(range(start_page, num_pages))
+        
+        # Open source with sample indices (handles DjVu conversion automatically)
+        doc, t_path = handler._open_source(page_indices=sample_indices)
         detected = []
-        for i in range(start_page, num_pages):
-            text = doc[i].get_text()
-            if self.evaluate_page_heuristic(text) >= 40:
-                detected.append(text)
-        doc.close()
+        try:
+            for i in range(len(doc)):
+                text = doc[i].get_text()
+                if self.evaluate_page_heuristic(text) >= 40:
+                    detected.append(text)
+        finally:
+            doc.close()
+            if t_path and t_path.exists(): t_path.unlink()
+            
         return "\n".join(detected) if detected else None
 
     def reconstruct_index(self, book_id):

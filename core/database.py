@@ -68,7 +68,9 @@ class DatabaseManager:
                     index_version INTEGER,
                     reference_url TEXT,
                     last_metadata_refresh INTEGER DEFAULT 0,
-                    page_offset INTEGER DEFAULT 0
+                    page_offset INTEGER DEFAULT 0,
+                    metadata_status TEXT DEFAULT 'raw', -- raw, verified, conflict
+                    trust_score REAL DEFAULT 0.0
                 ) STRICT
             ''')
 
@@ -76,7 +78,9 @@ class DatabaseManager:
             for col, col_type in [
                 ("last_metadata_refresh", "INTEGER DEFAULT 0"), 
                 ("page_offset", "INTEGER DEFAULT 0"),
-                ("zbl_id", "TEXT")
+                ("zbl_id", "TEXT"),
+                ("metadata_status", "TEXT DEFAULT 'raw'"),
+                ("trust_score", "REAL DEFAULT 0.0")
             ]:
                 try:
                     conn.execute(f"ALTER TABLE books ADD COLUMN {col} {col_type}")
@@ -177,7 +181,7 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS zbmath_cache (
                     zbl_id TEXT PRIMARY KEY,
                     msc_code TEXT,
-                    authors BLOB, -- SQLite JSONB
+                    authors TEXT, 
                     title TEXT,
                     bibtex TEXT,
                     review_markdown TEXT,

@@ -296,6 +296,20 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="enrich_book_metadata",
+            description=(
+                "Connect to zbMATH Open API to enrich a book with professional metadata, "
+                "MSC classifications, and expert reviews. Requires a DOI or Zbl ID to be present."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer", "description": "Book ID"}
+                },
+                "required": ["book_id"]
+            }
+        ),
+        Tool(
             name="manage_bookmarks",
             description=(
                 "Manage persistent bookmarks for key pages or problems. "
@@ -360,6 +374,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return await manage_bookmarks(arguments)
         elif name == "reindex_book":
             return await reindex_book(arguments)
+        elif name == "enrich_book_metadata":
+            return await enrich_book_metadata(arguments)
         elif name == "deep_index_book":
             return await deep_index_book(arguments)
         elif name == "search_within_book":
@@ -433,6 +449,19 @@ async def reindex_book(args: dict) -> list[TextContent]:
             results.append(f"✗ Index reconstruction failed: {response.json().get('error', 'Unknown error')}")
             
     return [TextContent(type="text", text="\n".join(results))]
+
+
+async def enrich_book_metadata(args: dict) -> list[TextContent]:
+    """Trigger zbMATH enrichment via API."""
+    book_id = args["book_id"]
+    response = requests.post(f"{API_BASE}/books/{book_id}/enrich", timeout=60)
+    
+    if response.ok:
+        data = response.json()
+        return [TextContent(type="text", text=f"✓ Enrichment successful for Zbl {data.get('zbl_id')}. Status: {data.get('status')}, Trust Score: {data.get('trust_score'):.2f}")]
+    else:
+        error_msg = response.json().get('error', 'Unknown error')
+        return [TextContent(type="text", text=f"✗ Enrichment failed: {error_msg}")]
 
 
 async def get_book_details(args: dict) -> list[TextContent]:

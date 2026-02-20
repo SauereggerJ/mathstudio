@@ -16,6 +16,8 @@ from services.note import note_service
 from services.metadata import metadata_service
 from services.bibliography import bibliography_service
 from services.ingestor import ingestor_service
+from services.zbmath import zbmath_service
+from services.enrichment import enrichment_service
 from core.utils import parse_page_range
 
 api_v1 = Blueprint('api_v1', __name__)
@@ -174,6 +176,28 @@ def preview_metadata_refresh(book_id):
     try:
         result = ingestor_service.preview_metadata_update(book_id)
         return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/enrich', methods=['POST'])
+def enrich_book_endpoint(book_id):
+    """Enriches a specific book with zbMATH data."""
+    try:
+        result = zbmath_service.enrich_book(book_id)
+        if result.get('success'):
+            enrichment_service.sync_fts_after_enrichment(book_id)
+            return jsonify(result)
+        return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/enrich/batch', methods=['POST'])
+def batch_enrich_endpoint():
+    """Triggers batch enrichment for books with DOIs."""
+    try:
+        limit = request.json.get('limit', 50) if request.is_json else 50
+        results = enrichment_service.enrich_all_with_doi(limit=limit)
+        return jsonify(results)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -374,25 +398,68 @@ def pdf_to_text_tool():
         
     try:
         with db.get_connection() as conn:
-            res = conn.execute("SELECT path FROM books WHERE id = ?", (book_id,)).fetchone()
+            res = conn.execute("SELECT path, page_count FROM books WHERE id = ?", (book_id,)).fetchone()
         
         if not res: return jsonify({'error': 'Book not found'}), 404
         abs_path = (LIBRARY_ROOT / res['path']).resolve()
         
-        import pypdf
-        reader = pypdf.PdfReader(abs_path)
-        total_pages = len(reader.pages)
+        from core.utils import PDFHandler
+        handler = PDFHandler(abs_path)
         
-        target_pages = parse_page_range(pages_str, total_pages)
+        # Determine target pages
+        page_count = res['page_count'] or 1000 # Fallback
+        target_pages = parse_page_range(str(pages_str), page_count)
+        
+        # Open source with targeted pages (handles DjVu conversion automatically)
+        # indices are 0-based
+        doc, t_path = handler._open_source(page_indices=[p-1 for p in target_pages])
+        
         full_text = ""
-        for p in target_pages:
-            try:
-                page_text = reader.pages[p-1].extract_text()
-                full_text += f"\n--- Page {p} ---\n{page_text}\n"
-            except: pass
+        try:
+            for i, p_idx in enumerate(target_pages):
+                # doc contains only the sliced pages in order
+                page_text = doc[i].get_text()
+                full_text += f"\n--- Page {p_idx} ---\n{page_text}\n"
+        finally:
+            doc.close()
+            if t_path and t_path.exists(): t_path.unlink()
                 
         return jsonify({'success': True, 'text': full_text})
     except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/tools/pdf-to-note', methods=['POST'])
+def pdf_to_note_tool():
+    """Converts PDF pages to structured Markdown/LaTeX notes using AI."""
+    try:
+        data = request.json
+        book_id = data.get('book_id')
+        pages_str = str(data.get('pages') or data.get('page'))
+        
+        if not book_id or not pages_str:
+            return jsonify({'error': 'book_id and pages/page are required'}), 400
+            
+        with db.get_connection() as conn:
+            row = conn.execute("SELECT page_count FROM books WHERE id = ?", (book_id,)).fetchone()
+        
+        if not row: return jsonify({'error': 'Book not found'}), 404
+        
+        target_pages = parse_page_range(pages_str, row['page_count'])
+        if not target_pages: return jsonify({'error': 'Invalid page range'}), 400
+        
+        result, error = note_service.create_note_from_pdf(book_id, target_pages)
+        
+        if error:
+            return jsonify({'success': False, 'error': error}), 500
+            
+        return jsonify({
+            'success': True, 
+            'filename': result['filename'],
+            'content': result['content']
+        })
+    except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/wishlist', methods=['POST'])
