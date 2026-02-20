@@ -292,7 +292,7 @@ class SearchService:
                     if formatted: return formatted
                 except: pass
 
-            cursor.execute("SELECT title, level, page, msc_code, topics FROM chapters WHERE book_id = ? ORDER BY id ASC", (book_id,))
+            cursor.execute("SELECT title, level, page, '' AS msc_code, '' AS topics FROM chapters WHERE book_id = ? ORDER BY id ASC", (book_id,))
             return [tuple(r) for r in cursor.fetchall()]
 
     def get_similar_books(self, book_id, limit=5):

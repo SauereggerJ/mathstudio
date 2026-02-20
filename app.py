@@ -42,7 +42,8 @@ def run_housekeeping():
         
         with db.get_connection() as conn:
             # 1. Wishlist Cleanup (Check for acquired books)
-            wishlist = conn.execute('SELECT id, title, author FROM wishlist WHERE status = "missing"').fetchall()
+            # Fix: Schema status is 'pending', not 'missing'
+            wishlist = conn.execute('SELECT id, title, author FROM wishlist WHERE status = "pending"').fetchall()
             library = conn.execute('SELECT id, title, author FROM books').fetchall()
             
             cleaned = 0
@@ -56,12 +57,12 @@ def run_housekeeping():
             app.logger.info(f"HOUSEKEEPING: Wishlist cleaned. {cleaned} items marked as acquired.")
 
             # 2. DOI to Zbl Bridge Refresher
-            dois_without_zbl = conn.execute('SELECT id, doi FROM books WHERE doi IS NOT NULL AND (arxiv_id IS NULL OR arxiv_id = "") LIMIT 50').fetchall()
+            dois_without_zbl = conn.execute('SELECT id, doi FROM books WHERE doi IS NOT NULL AND (zbl_id IS NULL OR zbl_id = "") LIMIT 50').fetchall()
             zbl_found = 0
             for row in dois_without_zbl:
                 zbl = zbmath_service.get_zbl_id_from_doi(row['doi'])
                 if zbl:
-                    conn.execute('UPDATE books SET arxiv_id = ? WHERE id = ?', (zbl, row['id']))
+                    conn.execute('UPDATE books SET zbl_id = ? WHERE id = ?', (zbl, row['id']))
                     zbl_found += 1
             app.logger.info(f"HOUSEKEEPING: Zbl-Bridge refreshed. {zbl_found} new IDs mapped.")
 
@@ -96,8 +97,15 @@ def enrichment_worker():
             for row in entries:
                 res = zbmath_service.resolve_citation(row['raw_text'])
                 if res and res.get('doi'):
-                    with db.get_connection() as conn:
-                        conn.execute('UPDATE bib_entries SET resolved_zbl_id = ?, confidence = 1.0 WHERE id = ?', (res['doi'], row['id']))
+                    # Fix Discrepancy 7: resolved_zbl_id must be a Zbl ID, not a DOI
+                    zbl_id = zbmath_service.get_zbl_id_from_doi(res['doi'])
+                    if zbl_id:
+                        with db.get_connection() as conn:
+                            conn.execute('UPDATE bib_entries SET resolved_zbl_id = ?, confidence = 1.0 WHERE id = ?', (zbl_id, row['id']))
+                    else:
+                        # Found DOI but no Zbl mapping yet
+                        with db.get_connection() as conn:
+                            conn.execute('UPDATE bib_entries SET confidence = 0.5 WHERE id = ?', (row['id'],))
                 else:
                     with db.get_connection() as conn:
                         conn.execute('UPDATE bib_entries SET confidence = -1.0 WHERE id = ?', (row['id'],))
@@ -155,9 +163,9 @@ def book_details(book_id):
     with db.get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, filename, path, directory, author, title, publisher, year, isbn, doi, arxiv_id,
-                   summary, level, exercises, solutions, msc_code, tags, description, 
-                   toc_json, msc_class, audience, has_exercises, has_solutions, page_count 
+            SELECT id, filename, path, directory, author, title, publisher, year, isbn, doi, zbl_id,
+                   summary, level, has_exercises AS exercises, has_solutions AS solutions, msc_class AS msc_code, tags, description, 
+                   toc_json, audience, page_count 
             FROM books WHERE id = ?
         """, (book_id,))
         book = cursor.fetchone()
@@ -182,7 +190,7 @@ def book_details(book_id):
         """, (book_id,))
         bibliography = [dict(row) for row in cursor.fetchall()]
     update_state("view_book", book_id=book_id, extra={"title": book_dict['title'], "path": str(book_dict['path'])})
-    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png')
+    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png', arxiv_id=book_dict.get('zbl_id'))
 
 @app.route('/view-pdf/<int:book_id>')
 def view_as_pdf(book_id):

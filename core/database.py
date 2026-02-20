@@ -52,6 +52,7 @@ class DatabaseManager:
                     last_modified REAL,
                     arxiv_id TEXT,
                     doi TEXT,
+                    zbl_id TEXT,
                     index_text TEXT,
                     summary TEXT,
                     level TEXT,
@@ -61,7 +62,6 @@ class DatabaseManager:
                     page_count INTEGER,
                     toc_json TEXT,
                     msc_class TEXT,
-                    msc_code TEXT,
                     tags TEXT,
                     embedding BLOB,
                     file_hash TEXT,
@@ -73,11 +73,21 @@ class DatabaseManager:
             ''')
 
             # 1.1 Simple Migration Loop for missing columns in 'books'
-            for col, col_type in [("last_metadata_refresh", "INTEGER DEFAULT 0"), ("page_offset", "INTEGER DEFAULT 0")]:
+            for col, col_type in [
+                ("last_metadata_refresh", "INTEGER DEFAULT 0"), 
+                ("page_offset", "INTEGER DEFAULT 0"),
+                ("zbl_id", "TEXT")
+            ]:
                 try:
                     conn.execute(f"ALTER TABLE books ADD COLUMN {col} {col_type}")
                 except sqlite3.OperationalError:
                     pass # Already exists
+
+            # 1.2 Data Migration: Transfer zbMATH IDs from arxiv_id to zbl_id
+            try:
+                # If zbl_id is null, try to take from arxiv_id if it looks like a Zbl ID
+                conn.execute("UPDATE books SET zbl_id = arxiv_id WHERE zbl_id IS NULL AND (arxiv_id LIKE 'Zbl%' OR arxiv_id LIKE '%:%')")
+            except: pass
 
             # 2. FTS Virtual Table
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='books_fts'")
@@ -102,9 +112,18 @@ class DatabaseManager:
                     title TEXT NOT NULL,
                     level INTEGER DEFAULT 0,
                     page INTEGER,
+                    msc_code TEXT,
+                    topics TEXT,
                     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
                 ) STRICT
             ''')
+
+            # 3.1 Migration for chapters
+            for col in ["msc_code", "topics"]:
+                try:
+                    conn.execute(f"ALTER TABLE chapters ADD COLUMN {col} TEXT")
+                except sqlite3.OperationalError:
+                    pass
 
             # 4. Bookmarks table
             cursor.execute('''

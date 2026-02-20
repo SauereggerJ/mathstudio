@@ -122,13 +122,13 @@ class UniversalProcessor:
             conn.execute("""
                 UPDATE books SET title=?, author=?, publisher=?, year=?, isbn=?, doi=?, 
                 msc_class=?, summary=?, description=?, audience=?, has_exercises=?, 
-                has_solutions=?, index_text=?, last_metadata_refresh=unixepoch() WHERE id=?
+                has_solutions=?, index_text=?, page_offset=?, last_metadata_refresh=unixepoch() WHERE id=?
             """, (
                 meta.get('title'), author_str, meta.get('publisher'), meta.get('year'),
                 meta.get('isbn'), meta.get('doi'), meta.get('msc_class'), meta.get('summary'),
                 meta.get('description'), meta.get('audience'),
                 1 if meta.get('has_exercises') else 0, 1 if meta.get('has_solutions') else 0,
-                index_text, book_id
+                index_text, final_data.get('page_offset', 0), book_id
             ))
             conn.execute("DELETE FROM chapters WHERE book_id = ?", (book_id,))
             for item in toc:
