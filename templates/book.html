@@ -73,6 +73,18 @@
                     <h3 class="text-lg font-bold text-slate-800 mb-2">Summary</h3>
                     <p class="text-slate-600 leading-relaxed">{{ summary or 'No summary available.' }}</p>
                     {% if description %}<p class="mt-4 text-sm text-slate-500 italic">{{ description }}</p>{% endif %}
+
+                    {% if zb_extra and zb_extra.review_markdown %}
+                    <div class="mt-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+                        <h3 class="text-sm font-black text-emerald-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.994 7.994 0 002 12a7.992 7.992 0 007 7.196V4.804zM11 4.804v14.392A7.992 7.992 0 0018 12a7.994 7.994 0 00-7-7.196z"></path></svg>
+                            Official zbMATH Review
+                        </h3>
+                        <div class="prose prose-emerald text-sm text-emerald-900 leading-relaxed italic">
+                            {{ zb_extra.review_markdown|safe }}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm">
@@ -86,6 +98,34 @@
                         <p><span class="text-slate-500">zbMATH:</span> <a href="https://zbmath.org/?q=an:{{ zbl_id }}" target="_blank" rel="noreferrer" class="text-emerald-600 font-bold text-xs hover:underline">Zbl {{ zbl_id }}</a></p>
                         {% endif %}
                         <p><span class="text-slate-500">Pages:</span> <span class="font-semibold">{{ page_count or '?' }}</span></p>
+                        
+                        {% if zb_extra and zb_extra.keywords %}
+                        <div class="mt-4 pt-4 border-t border-slate-200">
+                            <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Expert Keywords</h5>
+                            <div class="flex flex-wrap gap-1">
+                                {% for kw in zb_extra.keywords.split(',') %}
+                                <span class="px-2 py-0.5 bg-white border border-slate-200 text-slate-500 rounded text-[10px]">{{ kw.strip() }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if zb_extra and zb_extra.links %}
+                        {% set links_data = zb_extra.links|from_json %}
+                        {% if links_data %}
+                        <div class="mt-4 pt-4 border-t border-slate-200">
+                            <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">External Links</h5>
+                            <ul class="space-y-1">
+                                {% for link in links_data %}
+                                <li><a href="{{ link.url }}" target="_blank" class="text-blue-500 hover:underline text-[10px] flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                    {{ link.type|upper }}: {{ link.identifier }}
+                                </a></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        {% endif %}
                     </div>
                     <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm">
                         <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Resources</h4>

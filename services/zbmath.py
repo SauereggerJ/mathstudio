@@ -144,29 +144,69 @@ class ZBMathService:
 
     def get_zbl_id_from_doi(self, doi: str) -> Optional[str]:
         """Dual-Bridge: Translate DOI to zbMATH ID using official REST API."""
+        if not doi or doi.lower() in ("unknown", "n/a", "none"):
+            return None
+
+        # Clean DOI: strip prefixes
+        clean_doi = doi.strip()
+        if 'doi.org/' in clean_doi:
+            clean_doi = clean_doi.split('doi.org/')[-1]
+        
         self._ensure_api_access()
         self._wait_for_rate_limit()
         try:
-            url = f'https://api.zbmath.org/v1/document/_search?search_string=doi:{doi}'
+            url = f'https://api.zbmath.org/v1/document/_search?search_string=doi:{clean_doi}'
             resp = self.session.get(url, timeout=10)
             if resp.ok:
                 data = resp.json()
                 results = data.get('result', [])
                 if results:
-                    # identifier field contains the Zbl ID
                     return results[0].get('identifier')
         except Exception as e:
-            logger.error(f"zbMATH API DOI resolution failed for {doi}: {e}")
+            logger.error(f"zbMATH API DOI resolution failed for {clean_doi}: {e}")
 
         # Bridge B: OpenAlex (Fallback)
         self._wait_for_rate_limit()
         try:
-            resp = self.session.get(f"{self.OPENALEX_URL}/https://doi.org/{doi}", timeout=10)
+            resp = self.session.get(f"{self.OPENALEX_URL}/https://doi.org/{clean_doi}", timeout=10)
             if resp.status_code == 200:
                 zbl = resp.json().get('ids', {}).get('zbm')
                 if zbl: return zbl
         except: pass
 
+        return None
+
+    def find_zbl_id_by_metadata(self, title: str, author: str = None) -> Optional[str]:
+        """Search zbMATH by title and author to find a Zbl ID."""
+        if not title or title.lower() in ("unknown", "untitled", ""):
+            return None
+            
+        self._ensure_api_access()
+        self._wait_for_rate_limit()
+        
+        # Clean title for API (remove special chars that might break the parser)
+        clean_title = re.sub(r"[:/?#\[\]@!$&'()*+,;=]", " ", title).strip()
+        search_string = f'ti:{clean_title}'
+        if author and author.lower() != 'unknown':
+            # Take first author name
+            first_author = author.split(',')[0].split('&')[0].strip()
+            if first_author:
+                search_string += f' AND au:{first_author}'
+
+        try:
+            url = f'https://api.zbmath.org/v1/document/_search?search_string={requests.utils.quote(search_string)}'
+            resp = self.session.get(url, timeout=10)
+            if resp.ok:
+                results = resp.json().get('result', [])
+                if results:
+                    # Return the identifier if title matches reasonably well
+                    from rapidfuzz import fuzz
+                    zb_title = results[0].get('title', {}).get('title', '')
+                    if fuzz.partial_ratio(title.lower(), zb_title.lower()) > 70:
+                        return results[0].get('identifier')
+        except Exception as e:
+            logger.error(f"zbMATH Metadata search failed: {e}")
+            
         return None
 
     def get_full_metadata(self, zbl_id: str) -> Optional[Dict[str, Any]]:
@@ -192,6 +232,8 @@ class ZBMathService:
                         'title': doc.get('title', {}).get('title', ''),
                         'authors': authors,
                         'msc_code': ", ".join([m.get('code') for m in doc.get('msc', [])]),
+                        'keywords': ", ".join(doc.get('keywords', [])),
+                        'links': json.dumps(doc.get('links', [])),
                         'review_markdown': review
                     }
                     self._save_to_cache(data)
@@ -216,12 +258,14 @@ class ZBMathService:
         try:
             with self.db.get_connection() as conn:
                 conn.execute("""
-                    INSERT INTO zbmath_cache (zbl_id, msc_code, authors, title, review_markdown)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO zbmath_cache (zbl_id, msc_code, authors, title, keywords, links, review_markdown)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(zbl_id) DO UPDATE SET
                         msc_code = excluded.msc_code,
                         authors = excluded.authors,
                         title = excluded.title,
+                        keywords = excluded.keywords,
+                        links = excluded.links,
                         review_markdown = excluded.review_markdown,
                         fetched_at = unixepoch()
                 """, (
@@ -229,6 +273,8 @@ class ZBMathService:
                     data.get('msc_code', ''), 
                     json.dumps(data.get('authors', [])),
                     data['title'],
+                    data.get('keywords', ''),
+                    data.get('links', '[]'),
                     data.get('review_markdown', '')
                 ))
         except Exception as e:
@@ -272,6 +318,14 @@ class ZBMathService:
         if not zbl_id and doi:
             logger.info(f"Resolving Zbl ID for DOI: {doi}")
             zbl_id = self.get_zbl_id_from_doi(doi)
+            if zbl_id:
+                with self.db.get_connection() as conn:
+                    conn.execute("UPDATE books SET zbl_id = ? WHERE id = ?", (zbl_id, book_id))
+
+        # 1.1 Fallback: Search by metadata
+        if not zbl_id:
+            logger.info(f"Fallback: Searching Zbl ID by metadata for: {book['title']}")
+            zbl_id = self.find_zbl_id_by_metadata(book['title'], book['author'])
             if zbl_id:
                 with self.db.get_connection() as conn:
                     conn.execute("UPDATE books SET zbl_id = ? WHERE id = ?", (zbl_id, book_id))

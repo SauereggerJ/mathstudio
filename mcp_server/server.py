@@ -503,8 +503,22 @@ async def get_book_details(args: dict) -> list[TextContent]:
     
     if data.get('summary'):
         output += f"## Summary\n{data['summary']}\n\n"
+    
+    if data.get('msc_class'):
+        output += f"MSC Classification: {data['msc_class']}\n"
+        
     if data.get('tags'):
         output += f"Tags: {data['tags']}\n"
+
+    # Fetch extra zbmath cache if available
+    if data.get('zbl_id'):
+        try:
+            # We assume the API returns enriched fields in the main book object or we can check a separate endpoint
+            # For now, let's check if they are already in the 'data' from GET /books/<id>
+            if data.get('keywords'):
+                output += f"Expert Keywords: {data['keywords']}\n"
+        except: pass
+
     if data.get('similar_books'):
         output += "\n## Similar Books\n"
         for b in data['similar_books']:

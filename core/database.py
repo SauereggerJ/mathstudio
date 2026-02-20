@@ -183,6 +183,8 @@ class DatabaseManager:
                     msc_code TEXT,
                     authors TEXT, 
                     title TEXT,
+                    keywords TEXT,
+                    links TEXT,
                     bibtex TEXT,
                     review_markdown TEXT,
                     fetched_at INTEGER DEFAULT (unixepoch()), -- Using unixepoch for STRICT

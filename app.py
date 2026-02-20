@@ -19,6 +19,13 @@ from core.ai import ai
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
+@app.template_filter('from_json')
+def from_json_filter(value):
+    try:
+        return json.loads(value)
+    except:
+        return []
+
 def update_state(action, **kwargs):
     """Updates the current_state.json file for agent awareness."""
     state_file = Path(app.root_path) / "current_state.json"
@@ -64,47 +71,12 @@ def run_housekeeping():
         app.logger.error(f"HOUSEKEEPING Error: {e}")
 
 def enrichment_worker():
-    """Background thread to process bibliography and check book metadata."""
+    """Background thread for automated tasks (temporarily idling for batch operations)."""
     time.sleep(15)
-    app.logger.info("Starting MathStudio Enrichment Worker...")
-    
-    last_housekeeping = 0
-    
+    app.logger.info("Enrichment Worker started (IDLE MODE).")
     while True:
-        try:
-            now = time.time()
-            if now - last_housekeeping > 43200:
-                run_housekeeping()
-                last_housekeeping = now
-
-            # Regular task: Process a small batch of bibliography entries
-            with db.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT id, book_id, raw_text FROM bib_entries 
-                    WHERE resolved_zbl_id IS NULL AND confidence IS NULL
-                    LIMIT 3
-                ''')
-                entries = [dict(row) for row in cursor.fetchall()]
-            
-            for row in entries:
-                res = zbmath_service.resolve_citation(row['raw_text'])
-                if res and res.get('doi'):
-                    zbl_id = zbmath_service.get_zbl_id_from_doi(res['doi'])
-                    if zbl_id:
-                        with db.get_connection() as conn:
-                            conn.execute('UPDATE bib_entries SET resolved_zbl_id = ?, confidence = 1.0 WHERE id = ?', (zbl_id, row['id']))
-                    else:
-                        with db.get_connection() as conn:
-                            conn.execute('UPDATE bib_entries SET confidence = 0.5 WHERE id = ?', (row['id'],))
-                else:
-                    with db.get_connection() as conn:
-                        conn.execute('UPDATE bib_entries SET confidence = -1.0 WHERE id = ?', (row['id'],))
-
-            time.sleep(60) 
-        except Exception as e:
-            app.logger.error(f"Error in enrichment worker: {e}")
-            time.sleep(120)
+        # Idle loop to prevent DB locking during massive manual batch enrichment
+        time.sleep(60)
 
 # Register API
 app.register_blueprint(api_v1, url_prefix='/api/v1')
@@ -112,11 +84,22 @@ app.register_blueprint(api_v1, url_prefix='/api/v1')
 # Start Worker
 threading.Thread(target=enrichment_worker, daemon=True).start()
 
+# --- Frontend Routes ---
+
 @app.route('/')
 def index(): return render_template('index.html')
 
 @app.route('/admin')
 def admin_dashboard(): return render_template('admin.html')
+
+@app.route('/book/<int:book_id>/edit')
+def edit_book(book_id):
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+    if not book: return "Book not found", 404
+    return render_template('edit_book.html', **dict(book))
 
 @app.route('/book/<int:book_id>')
 def book_details(book_id):
@@ -144,7 +127,8 @@ def book_details(book_id):
             if index_matches: index_matches = index_matches[:20]
 
         cursor.execute("""
-            SELECT b.*, z.title as zb_title, z.authors as zb_authors, z.msc_code
+            SELECT b.*, z.title as zb_title, z.authors as zb_authors, z.msc_code, 
+                   z.keywords, z.links, z.review_markdown as zb_review
             FROM bib_entries b
             LEFT JOIN zbmath_cache z ON b.resolved_zbl_id = z.zbl_id
             WHERE b.book_id = ?
@@ -152,8 +136,19 @@ def book_details(book_id):
         """, (book_id,))
         bibliography = [dict(row) for row in cursor.fetchall()]
 
+        # Also fetch primary zbmath cache for the book itself if linked
+        zb_extra = None
+        if book_dict.get('zbl_id'):
+            cursor.execute("SELECT * FROM zbmath_cache WHERE zbl_id = ?", (book_dict['zbl_id'],))
+            row = cursor.fetchone()
+            if row: zb_extra = dict(row)
+
     update_state("view_book", book_id=book_id, extra={"title": book_dict['title'], "path": str(book_dict['path'])})
-    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png')
+    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png', zb_extra=zb_extra)
+
+@app.route('/view-pdf/<int:book_id>')
+def view_as_pdf(book_id):
+    return redirect(url_for('api_v1.download_book', book_id=book_id))
 
 @app.route('/open/<path:filepath>')
 def open_file(filepath):
@@ -165,6 +160,17 @@ def open_file(filepath):
         
         abs_path = (LIBRARY_ROOT / filepath).resolve()
         if abs_path.suffix.lower() == '.pdf': return send_from_directory(abs_path.parent, abs_path.name)
+        
+        if abs_path.suffix.lower() == '.djvu':
+            cache_dir = Path(app.root_path) / "static/cache/pdf"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            import hashlib
+            file_hash = hashlib.md5(str(abs_path).encode()).hexdigest()
+            pdf_path = cache_dir / f"legacy_{file_hash}.pdf"
+            if not pdf_path.exists():
+                subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True)
+            return send_from_directory(cache_dir, pdf_path.name)
+            
         return "Unsupported type or access denied", 400
     except Exception as e: return str(e), 500
 
@@ -173,11 +179,45 @@ def list_notes():
     notes = note_service.list_notes()
     return render_template('notes.html', notes=[n['filename'] for n in notes])
 
+@app.route('/view-note/<filename>')
+def view_note(filename):
+    base_name = os.path.splitext(filename)[0]
+    content, notes_dir = None, None
+    for d in [NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR]:
+        f = d / filename
+        if f.exists():
+            with open(f, 'r', encoding='utf-8') as f_obj: content = f_obj.read()
+            notes_dir = d
+            break
+    if not content: return "Not found", 404
+    meta = note_service.get_note_metadata(base_name, notes_dir)
+    return render_template('view_note.html', filename=filename, content=content, has_pdf=(notes_dir / (base_name + ".pdf")).exists(), pdf_filename=base_name + ".pdf", has_markdown=(notes_dir / (base_name + ".md")).exists(), markdown_filename=base_name + ".md", recommendations=meta.get('recommendations', []))
+
+@app.route('/delete-note/<filename>', methods=['POST'])
+def delete_note(filename):
+    base_name = os.path.splitext(filename)[0]
+    note_service.delete_note(base_name)
+    return redirect(url_for('list_notes'))
+
+@app.route('/rename-note/<filename>', methods=['POST'])
+def rename_note(filename):
+    new_name = request.form.get('new_name')
+    if not new_name: return redirect(url_for('view_note', filename=filename))
+    old_base = os.path.splitext(filename)[0]
+    new_base = "".join(x for x in new_name if (x.isalnum() or x in "._- "))
+    if note_service.rename_note(old_base, new_base):
+        return redirect(url_for('view_note', filename=new_base + ".tex"))
+    return redirect(url_for('list_notes'))
+
 @app.route('/wishlist')
 def wishlist_view():
     with db.get_connection() as conn:
         items = [dict(r) for r in conn.execute("SELECT w.*, b.title as source_title FROM wishlist w LEFT JOIN books b ON w.source_book_id = b.id ORDER BY w.created_at DESC").fetchall()]
     return render_template('wishlist.html', items=items)
+
+@app.route('/wishlist-check')
+def wishlist_check():
+    return render_template('wishlist_check.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5001)

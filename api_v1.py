@@ -91,10 +91,16 @@ def trigger_deep_indexing(book_id):
 
 @api_v1.route('/books/<int:book_id>', methods=['GET'])
 def get_book_details_endpoint(book_id):
-    """Returns JSON metadata for a specific book."""
+    """Returns JSON metadata for a specific book, joined with zbmath facts."""
     try:
         with db.get_connection() as conn:
-            row = conn.execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
+            # Join with zbmath_cache to get the 'good shit'
+            row = conn.execute("""
+                SELECT b.*, z.msc_code as zb_msc, z.keywords, z.links, z.review_markdown as zb_review
+                FROM books b
+                LEFT JOIN zbmath_cache z ON b.zbl_id = z.zbl_id
+                WHERE b.id = ?
+            """, (book_id,)).fetchone()
             is_deep = conn.execute("SELECT 1 FROM deep_indexed_books WHERE book_id = ?", (book_id,)).fetchone()
         
         if not row:
@@ -193,10 +199,10 @@ def enrich_book_endpoint(book_id):
 
 @api_v1.route('/admin/enrich/batch', methods=['POST'])
 def batch_enrich_endpoint():
-    """Triggers batch enrichment for books with DOIs."""
+    """Triggers batch enrichment for raw books."""
     try:
         limit = request.json.get('limit', 50) if request.is_json else 50
-        results = enrichment_service.enrich_all_with_doi(limit=limit)
+        results = enrichment_service.enrich_batch(limit=limit)
         return jsonify(results)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
