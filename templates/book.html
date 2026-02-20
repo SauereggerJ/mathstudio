@@ -82,8 +82,8 @@
                         {% if doi %}
                         <p><span class="text-slate-500">DOI:</span> <a href="https://doi.org/{{ doi }}" target="_blank" rel="noreferrer" class="text-blue-600 font-mono text-xs hover:underline">{{ doi }}</a></p>
                         {% endif %}
-                        {% if arxiv_id %}
-                        <p><span class="text-slate-500">zbMATH:</span> <a href="https://zbmath.org/?q=an:{{ arxiv_id }}" target="_blank" rel="noreferrer" class="text-emerald-600 font-bold text-xs hover:underline">Zbl {{ arxiv_id }}</a></p>
+                        {% if zbl_id %}
+                        <p><span class="text-slate-500">zbMATH:</span> <a href="https://zbmath.org/?q=an:{{ zbl_id }}" target="_blank" rel="noreferrer" class="text-emerald-600 font-bold text-xs hover:underline">Zbl {{ zbl_id }}</a></p>
                         {% endif %}
                         <p><span class="text-slate-500">Pages:</span> <span class="font-semibold">{{ page_count or '?' }}</span></p>
                     </div>

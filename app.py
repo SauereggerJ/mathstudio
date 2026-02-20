@@ -190,7 +190,7 @@ def book_details(book_id):
         """, (book_id,))
         bibliography = [dict(row) for row in cursor.fetchall()]
     update_state("view_book", book_id=book_id, extra={"title": book_dict['title'], "path": str(book_dict['path'])})
-    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png', arxiv_id=book_dict.get('zbl_id'))
+    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png')
 
 @app.route('/view-pdf/<int:book_id>')
 def view_as_pdf(book_id):
