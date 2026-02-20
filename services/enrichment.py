@@ -42,7 +42,7 @@ class EnrichmentService:
         logger.info(f"--- Starting Enrichment Batch (Limit: {limit}) ---")
         with self.db.get_connection() as conn:
             candidates = conn.execute("""
-                SELECT id, title FROM books 
+                SELECT id, title, path, page_count FROM books 
                 WHERE (metadata_status = 'raw' OR metadata_status IS NULL)
                 AND title IS NOT NULL AND title != '' AND title NOT LIKE 'Unknown%'
                 ORDER BY id ASC
@@ -53,6 +53,31 @@ class EnrichmentService:
         for cand in candidates:
             bid = cand['id']
             title = cand['title']
+            path = cand['path']
+            
+            # 1. Heal Page Count if missing
+            if not cand['page_count'] or cand['page_count'] <= 0:
+                try:
+                    abs_path = LIBRARY_ROOT / path
+                    if abs_path.exists():
+                        import fitz
+                        if abs_path.suffix.lower() == '.djvu':
+                            import subprocess
+                            res = subprocess.run(['djvused', '-e', 'n', str(abs_path)], capture_output=True, text=True)
+                            count = int(res.stdout.strip())
+                        else:
+                            doc = fitz.open(abs_path)
+                            count = len(doc)
+                            doc.close()
+                        
+                        if count > 0:
+                            with self.db.get_connection() as conn:
+                                conn.execute("UPDATE books SET page_count = ? WHERE id = ?", (count, bid))
+                            logger.info(f"  📏 Healed Page Count: {count} for ID {bid}")
+                except Exception as e:
+                    logger.warning(f"  📏 Failed to heal page count for ID {bid}: {e}")
+
+            # 2. zbMATH Enrichment
             logger.info(f"Processing Book ID {bid}: {title}...")
             try:
                 res = zbmath_service.enrich_book(bid)
@@ -67,7 +92,7 @@ class EnrichmentService:
                 logger.error(f"  ‼ CRITICAL ERROR for book {bid}: {e}")
                 results["errors"] += 1
             
-            time.sleep(1.2) # Avoid aggressive rate limiting
+            time.sleep(1.2)
             
         logger.info(f"--- Batch Complete: {results['healed']} healed, {results['errors']} errors ---")
         return results
