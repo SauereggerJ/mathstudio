@@ -206,13 +206,9 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS metadata_proposals (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     book_id INTEGER NOT NULL,
-                    title TEXT,
-                    author TEXT,
-                    year INTEGER,
-                    isbn TEXT,
-                    publisher TEXT,
-                    doi TEXT,
-                    zbl_id TEXT,
+                    field_name TEXT NOT NULL,
+                    proposed_value TEXT NOT NULL,
+                    source TEXT,
                     confidence REAL,
                     proposed_at INTEGER DEFAULT (unixepoch()),
                     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE

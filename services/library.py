@@ -178,5 +178,35 @@ class LibraryService:
         
         return True, f"Cleared indexes for {len(book_ids)} books."
 
+    def get_file_for_serving(self, book_id):
+        """Resolves book file, converting DjVu to PDF if needed, and returns path."""
+        with self.db.get_connection() as conn:
+            row = conn.execute("SELECT id, path FROM books WHERE id = ?", (book_id,)).fetchone()
+        if not row: return None, "Book not found"
+        
+        abs_path = (LIBRARY_ROOT / row['path']).resolve()
+        if not abs_path.exists(): return None, "Physical file missing"
+        
+        if abs_path.suffix.lower() == '.pdf':
+            return abs_path, None
+            
+        if abs_path.suffix.lower() == '.djvu':
+            # Use current_app context or PROJECT_ROOT for cache
+            from core.config import PROJECT_ROOT
+            cache_dir = PROJECT_ROOT / "static" / "cache" / "pdf"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Consistent cache key: book_id
+            pdf_path = cache_dir / f"{book_id}.pdf"
+            if not pdf_path.exists():
+                import subprocess
+                try:
+                    subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True)
+                except Exception as e:
+                    return None, f"DjVu conversion failed: {e}"
+            return pdf_path, None
+            
+        return None, "Unsupported file type"
+
 # Global instance
 library_service = LibraryService()

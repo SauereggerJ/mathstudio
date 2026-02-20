@@ -198,16 +198,17 @@ class NoteService:
         notes = []
         for d in [NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR]:
             if not d.exists(): continue
-            for f in d.glob("*.tex"):
-                meta = self.get_note_metadata(f.stem, d)
-                notes.append({
-                    'filename': f.name,
-                    'base_name': f.stem,
-                    'title': meta.get('title', f.stem),
-                    'created': meta.get('created', ''),
-                    'modified': f.stat().st_mtime,
-                    'directory': str(d.name)
-                })
+            for ext in ["*.tex", "*.md"]:
+                for f in d.glob(ext):
+                    meta = self.get_note_metadata(f.stem, d)
+                    notes.append({
+                        'filename': f.name,
+                        'base_name': f.stem,
+                        'title': meta.get('title', f.stem),
+                        'created': meta.get('created', ''),
+                        'modified': f.stat().st_mtime,
+                        'directory': str(d.name)
+                    })
         notes.sort(key=lambda x: x['modified'], reverse=True)
         return notes
 

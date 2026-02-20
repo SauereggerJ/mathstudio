@@ -305,20 +305,33 @@ def delete_bookmark(bookmark_id):
 @api_v1.route('/books/<int:book_id>/download', methods=['GET'])
 def download_book(book_id):
     try:
-        with db.get_connection() as conn:
-            res = conn.execute("SELECT path FROM books WHERE id = ?", (book_id,)).fetchone()
-        if not res: return jsonify({'error': 'Book not found'}), 404
-        abs_path = (LIBRARY_ROOT / res['path']).resolve()
-        if abs_path.suffix.lower() == '.pdf': return send_from_directory(abs_path.parent, abs_path.name)
-        if abs_path.suffix.lower() == '.djvu':
-            cache_dir = Path(current_app.root_path) / "static/cache/pdf"
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            pdf_path = cache_dir / f"{book_id}.pdf"
-            if not pdf_path.exists():
-                subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True)
-            return send_from_directory(cache_dir, f"{book_id}.pdf")
-        return jsonify({'error': 'Unsupported format'}), 400
-    except Exception as e: return jsonify({'error': str(e)}), 500
+        file_path, error = library_service.get_file_for_serving(book_id)
+        if error:
+            return jsonify({'error': error}), 404 if "not found" in error else 400
+        return send_from_directory(file_path.parent, file_path.name)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<filename>', methods=['DELETE'])
+def delete_note_endpoint(filename):
+    """Deletes a specific note file."""
+    try:
+        base_name = os.path.splitext(filename)[0]
+        if note_service.delete_note(base_name):
+            return jsonify({'success': True})
+        return jsonify({'error': 'Note not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/bulk-delete', methods=['POST'])
+def delete_notes_bulk():
+    """Deletes multiple notes at once."""
+    try:
+        data = request.get_json()
+        deleted = sum(1 for f in data.get('filenames', []) if note_service.delete_note(os.path.splitext(f)[0]))
+        return jsonify({'success': True, 'deleted': deleted})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/admin/ingest', methods=['POST'])
 def admin_ingest():
@@ -379,5 +392,52 @@ def pdf_to_text_tool():
             except: pass
                 
         return jsonify({'success': True, 'text': full_text})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/wishlist', methods=['POST'])
+def add_to_wishlist():
+    """Adds a new item to the wishlist."""
+    try:
+        data = request.json
+        if not data.get('title'): return jsonify({'error': 'title is required'}), 400
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO wishlist (title, author, doi, source_book_id, status)
+                VALUES (?, ?, ?, ?, 'pending')
+            """, (data['title'], data.get('author'), data.get('doi'), data.get('source_book_id')))
+            new_id = cursor.lastrowid
+        return jsonify({'success': True, 'id': new_id})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'DOI already in wishlist'}), 409
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/tools/open-external', methods=['GET'])
+def open_external_tool():
+    """Opens a file path using the system's default handler (Desktop mode)."""
+    try:
+        rel_path = request.args.get('path')
+        if not rel_path: return jsonify({'error': 'path is required'}), 400
+        
+        abs_path = (LIBRARY_ROOT / rel_path).resolve()
+        if LIBRARY_ROOT.resolve() not in abs_path.parents:
+            return jsonify({'error': 'Access denied'}), 403
+            
+        if not abs_path.exists():
+            return jsonify({'error': 'File not found'}), 404
+            
+        import subprocess
+        import platform
+        if platform.system() == 'Darwin':       # macOS
+            subprocess.call(('open', str(abs_path)))
+        elif platform.system() == 'Windows':    # Windows
+            os.startfile(str(abs_path))
+        else:                                   # linux variants
+            subprocess.call(('xdg-open', str(abs_path)))
+            
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

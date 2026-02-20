@@ -190,22 +190,39 @@ def view_as_pdf(book_id):
 
 @app.route('/open/<path:filepath>')
 def open_file(filepath):
+    """
+    Frontend helper to serve files.
+    Prefers book_id-based serving if it can resolve the path.
+    """
     try:
+        # Try to find the book_id for this path to use consistent cache
+        book = library_service.get_book_by_path(filepath)
+        if book:
+            file_path, error = library_service.get_file_for_serving(book['id'])
+            if not error:
+                return send_from_directory(file_path.parent, file_path.name)
+
+        # Fallback to direct serving (legacy/direct links)
         abs_path = (LIBRARY_ROOT / filepath).resolve()
         if LIBRARY_ROOT.resolve() not in abs_path.parents and abs_path != LIBRARY_ROOT.resolve():
             return "Access denied", 403
         if not abs_path.exists(): return "File not found", 404
+        
         if abs_path.suffix.lower() == '.pdf':
             return send_from_directory(abs_path.parent, abs_path.name)
+        
         if abs_path.suffix.lower() == '.djvu':
+            # Redirect to the canonical ID-based serving if possible, 
+            # or use path-based hash as absolute fallback
             cache_dir = Path(app.root_path) / "static/cache/pdf"
-            if not cache_dir.exists(): cache_dir.mkdir(parents=True)
+            cache_dir.mkdir(parents=True, exist_ok=True)
             import hashlib
             file_hash = hashlib.md5(str(abs_path).encode()).hexdigest()
-            pdf_path = cache_dir / f"{file_hash}.pdf"
+            pdf_path = cache_dir / f"legacy_{file_hash}.pdf"
             if not pdf_path.exists():
                 subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True)
             return send_from_directory(cache_dir, pdf_path.name)
+            
         return "Unsupported type", 400
     except Exception as e: return str(e), 500
 
@@ -230,10 +247,6 @@ def wishlist_view():
 @app.route('/wishlist-check')
 def wishlist_check():
     return render_template('wishlist_check.html')
-
-@app.route('/api/notes/metadata')
-def notes_metadata():
-    return jsonify(note_service.list_notes())
 
 @app.route('/delete-note/<filename>', methods=['POST'])
 def delete_note(filename):
@@ -265,11 +278,8 @@ def rename_note(filename):
         return redirect(url_for('view_note', filename=new_base + ".tex"))
     return redirect(url_for('list_notes'))
 
-@app.route('/delete-notes', methods=['POST'])
-def delete_notes_bulk():
-    data = request.get_json()
-    deleted = sum(1 for f in data.get('filenames', []) if note_service.delete_note(os.path.splitext(f)[0]))
-    return jsonify({'success': True, 'deleted': deleted})
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', debug=True, port=5001)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5001)
