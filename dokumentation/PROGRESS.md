@@ -11,11 +11,11 @@
 
 ## Status: Phase B (Knowledge Service)
 
-- [ ] **B1: Create Service** (`services/knowledge.py`)
-- [ ] **B2: CRUD Logic** (Concepts, Entries, Relations)
-- [ ] **B3: Search & Graph Logic**
-- [ ] **B4: Vault Rendering Logic**
-- [ ] **B5: Task Queue Logic**
+- [x] **B1: Create Service** (`services/knowledge.py`)
+- [x] **B2: CRUD Logic** (Concepts, Entries, Relations)
+- [x] **B3: Search & Graph Logic**
+- [x] **B4: Vault Rendering Logic**
+- [x] **B5: Task Queue Logic**
 
 ---
 
