@@ -21,8 +21,8 @@
 
 ## Status: Phase C (API Endpoints)
 
-- [ ] **C1: Add Endpoints** (`api_v1.py`)
-- [ ] **C2: Manual API Verification**
+- [x] **C1: Add Endpoints** (`api_v1.py`)
+- [x] **C2: Manual API Verification**
 
 ---
 

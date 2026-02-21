@@ -19,6 +19,7 @@ from services.bibliography import bibliography_service
 from services.ingestor import ingestor_service
 from services.zbmath import zbmath_service
 from services.enrichment import enrichment_service
+from services.knowledge import knowledge_service
 from core.utils import parse_page_range
 
 api_v1 = Blueprint('api_v1', __name__)
@@ -608,3 +609,98 @@ def open_external_tool():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# --- 4. Knowledge Base ---
+
+@api_v1.route('/kb/concepts', methods=['POST'])
+def kb_add_concept():
+    data = request.json
+    if not data.get('name') or not data.get('kind'):
+        return jsonify({'error': 'name and kind are required'}), 400
+    result = knowledge_service.add_concept(
+        name=data['name'], kind=data['kind'],
+        domain=data.get('domain'), aliases=data.get('aliases'))
+    return jsonify(result), 200 if result.get('success') else 409
+
+@api_v1.route('/kb/concepts/<int:concept_id>', methods=['GET'])
+def kb_get_concept(concept_id):
+    result = knowledge_service.get_concept(concept_id)
+    if not result: return jsonify({'error': 'Not found'}), 404
+    return jsonify(result)
+
+@api_v1.route('/kb/concepts/search', methods=['GET'])
+def kb_search_concepts():
+    query = request.args.get('q', '')
+    if not query: return jsonify({'error': 'q is required'}), 400
+    results = knowledge_service.search_concepts(
+        query, kind=request.args.get('kind'),
+        domain=request.args.get('domain'),
+        limit=request.args.get('limit', 20, type=int))
+    return jsonify(results)
+
+@api_v1.route('/kb/entries', methods=['POST'])
+def kb_add_entry():
+    data = request.json
+    if not data.get('concept_id') or not data.get('statement'):
+        return jsonify({'error': 'concept_id and statement are required'}), 400
+    result = knowledge_service.add_entry(**{
+        k: data[k] for k in data
+        if k in ('concept_id','statement','book_id','page_start','page_end',
+                 'proof','notes','scope','language','style','confidence')
+    })
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/relations', methods=['POST'])
+def kb_add_relation():
+    data = request.json
+    required = ('from_concept_id', 'to_concept_id', 'relation_type')
+    if not all(data.get(k) for k in required):
+        return jsonify({'error': f'{required} are all required'}), 400
+    result = knowledge_service.add_relation(**{
+        k: data[k] for k in data
+        if k in ('from_concept_id','to_concept_id','relation_type',
+                 'context','source_entry_id','confidence')
+    })
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/concepts/<int:concept_id>/related', methods=['GET'])
+def kb_get_related(concept_id):
+    depth = min(request.args.get('depth', 1, type=int), 3)  # Hard cap
+    result = knowledge_service.get_related_concepts(concept_id, depth=depth)
+    return jsonify(result)
+
+@api_v1.route('/kb/vault/render/<int:concept_id>', methods=['POST'])
+def kb_render_note(concept_id):
+    result = knowledge_service.write_obsidian_note(concept_id)
+    return jsonify(result)
+
+@api_v1.route('/kb/vault/regenerate', methods=['POST'])
+def kb_regenerate_vault():
+    result = knowledge_service.regenerate_vault()
+    return jsonify(result)
+
+@api_v1.route('/kb/tasks', methods=['GET'])
+def kb_get_tasks():
+    tasks = knowledge_service.get_pending_tasks(
+        limit=request.args.get('limit', 10, type=int))
+    return jsonify(tasks)
+
+@api_v1.route('/kb/tasks', methods=['POST'])
+def kb_queue_task():
+    data = request.json
+    if not data.get('task_type'):
+        return jsonify({'error': 'task_type is required'}), 400
+    result = knowledge_service.queue_task(
+        data['task_type'], data.get('payload'), data.get('priority', 5))
+    return jsonify(result)
+
+@api_v1.route('/kb/tasks/<int:task_id>/complete', methods=['POST'])
+def kb_complete_task(task_id):
+    result = knowledge_service.complete_task(task_id, request.json)
+    return jsonify(result)
+
+@api_v1.route('/kb/tasks/<int:task_id>/fail', methods=['POST'])
+def kb_fail_task(task_id):
+    data = request.json
+    result = knowledge_service.fail_task(task_id, data.get('error', 'Unknown'))
+    return jsonify(result)
