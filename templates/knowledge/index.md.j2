@@ -1,0 +1,15 @@
+---
+generated_at: {{ now }}
+total_concepts: {{ concepts | length }}
+---
+
+# Knowledge Base Index
+
+{% for domain, group in concepts | groupby('domain') %}
+## {{ domain }}
+
+{% for c in group %}
+- [[{{ c.name }}]] ({{ c.kind }}){% if c.entry_count > 1 %} — {{ c.entry_count }} variants{% endif %}
+
+{% endfor %}
+{% endfor %}

@@ -23,13 +23,25 @@ BIB_EXTRACTS_DIR = PROJECT_ROOT / "bib_extracts"
 DUPLICATES_DIR = LIBRARY_ROOT / "_Admin" / "Duplicates"
 UNSORTED_DIR = LIBRARY_ROOT / "99_General_and_Diverse" / "Unsorted"
 
+# Knowledge Vault
+KNOWLEDGE_VAULT_ROOT = PROJECT_ROOT / "knowledge_vault"
+KNOWLEDGE_GENERATED_DIR = KNOWLEDGE_VAULT_ROOT / "Generated"
+KNOWLEDGE_DRAFTS_DIR = KNOWLEDGE_VAULT_ROOT / "Drafts"
+KNOWLEDGE_TEMPLATES_DIR = PROJECT_ROOT / "templates" / "knowledge"
+
 IGNORED_FOLDERS = {
     'mathstudio', '_Admin', 'gemini', '.gemini', '.git', '.venv', 
     'notes_output', 'archive', 'lost+found', '__pycache__'
 }
 
 # Ensure directories exist
-for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_DIR]:
+for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_DIR,
+          KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR,
+          KNOWLEDGE_GENERATED_DIR / "Definitions",
+          KNOWLEDGE_GENERATED_DIR / "Theorems",
+          KNOWLEDGE_GENERATED_DIR / "Examples",
+          KNOWLEDGE_GENERATED_DIR / "Notations",
+          KNOWLEDGE_TEMPLATES_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # AI Settings

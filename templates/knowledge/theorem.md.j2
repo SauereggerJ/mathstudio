@@ -1,0 +1,54 @@
+---
+concept_id: {{ concept.id }}
+kind: {{ concept.kind }}
+domain: "{{ concept.domain }}"
+canonical_source: "{{ canonical.book_title }}, p. {{ canonical.page_start }}"
+sources: {{ entries | length }}
+trust: {{ canonical.confidence }}
+generated_at: {{ now }}
+---
+
+# {{ concept.name }}
+{% if concept.aliases %}
+**Also known as:** {{ concept.aliases | join(', ') }}
+{% endif %}
+
+## Statement
+
+{{ canonical.statement }}
+
+{% if entries | length > 1 %}
+## Variants
+
+| Source | Formulation | Scope | Style |
+|---|---|---|---|
+{% for e in entries %}
+| {{ e.book_author }}, p. {{ e.page_start }} | {{ e.statement | truncate(80) }} | {{ e.scope }} | {{ e.style }} |
+{% endfor %}
+{% endif %}
+
+{% if relations %}
+## Relations
+
+{% for r in relations %}
+- {% if r.relation_type == 'prerequisite' %}**Requires:** {% elif r.relation_type == 'generalizes' %}**Generalizes:** {% elif r.relation_type == 'special_case_of' %}**Special case of:** {% elif r.relation_type == 'equivalent_to' %}**Equivalent to:** {% elif r.relation_type == 'see_also' %}**See also:** {% else %}**{{ r.relation_type }}:** {% endif %}[[{{ r.target_name }}]]{% if r.context %} *({{ r.context }})*{% endif %}
+
+{% endfor %}
+{% endif %}
+
+## Proof
+
+{% if canonical.proof %}
+{{ canonical.proof }}
+{% else %}
+*Proof not yet extracted.*
+{% endif %}
+
+{% if canonical.notes %}
+## Notes
+
+{{ canonical.notes }}
+{% endif %}
+
+---
+*Auto-generated from MathStudio KB. Do not edit — changes will be overwritten.*

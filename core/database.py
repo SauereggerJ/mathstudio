@@ -255,5 +255,89 @@ class DatabaseManager:
                 ) STRICT
             ''')
 
+            # 12. Knowledge Base: Concepts
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS concepts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    aliases TEXT,
+                    domain TEXT,
+                    kind TEXT NOT NULL,
+                    canonical_entry_id INTEGER,
+                    obsidian_path TEXT,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    updated_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(canonical_entry_id) REFERENCES entries(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 13. Knowledge Base: Entries (specific formulations)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    concept_id INTEGER NOT NULL,
+                    book_id INTEGER,
+                    page_start INTEGER,
+                    page_end INTEGER,
+                    statement TEXT NOT NULL,
+                    proof TEXT,
+                    notes TEXT,
+                    scope TEXT,
+                    language TEXT DEFAULT 'en',
+                    style TEXT,
+                    is_canonical INTEGER DEFAULT 0,
+                    confidence REAL DEFAULT 1.0,
+                    extracted_by TEXT DEFAULT 'llm',
+                    embedding BLOB,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 14. Knowledge Base: Relations (graph edges)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS relations (
+                    from_concept_id INTEGER NOT NULL,
+                    to_concept_id INTEGER NOT NULL,
+                    relation_type TEXT NOT NULL,
+                    context TEXT,
+                    source_entry_id INTEGER,
+                    confidence REAL DEFAULT 1.0,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    PRIMARY KEY(from_concept_id, to_concept_id, relation_type),
+                    FOREIGN KEY(from_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(to_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(source_entry_id) REFERENCES entries(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 15. Knowledge Base: FTS over concepts + entries
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='concept_fts'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE VIRTUAL TABLE concept_fts USING fts5(
+                        name, aliases, statement, notes,
+                        tokenize='porter unicode61 remove_diacritics 1'
+                    );
+                ''')
+
+            # 16. LLM Task Queue
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS llm_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_type TEXT NOT NULL,
+                    payload TEXT,
+                    status TEXT DEFAULT 'pending',
+                    priority INTEGER DEFAULT 5,
+                    retry_count INTEGER DEFAULT 0,
+                    max_retries INTEGER DEFAULT 3,
+                    error_log TEXT,
+                    result TEXT,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    completed_at INTEGER
+                ) STRICT
+            ''')
+
 # Global instance
 db = DatabaseManager()
