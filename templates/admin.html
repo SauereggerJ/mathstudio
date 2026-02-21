@@ -1,153 +1,100 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard - MathStudio{% endblock %}
-
-{% block extra_head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-{% endblock %}
+{% block title %}Admin Control - MathStudio{% endblock %}
 
 {% block content %}
 <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight">Control Center</h1>
-        <p class="text-slate-500 font-medium">Manage library assets, ingestion, and database health.</p>
+        <h1 class="text-3xl font-black text-slate-900 tracking-tight">Library Admin</h1>
+        <p class="text-slate-500 font-medium">Monitoring enrichment progress and system health.</p>
     </div>
     <div class="flex gap-2">
-        <button onclick="loadStats()" class="p-2.5 text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
-            <i class="fas fa-sync-alt"></i>
+        <button onclick="loadStats()" class="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm font-bold text-sm">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh Stats
         </button>
     </div>
 </div>
 
-<!-- Stats Grid -->
+<!-- Progress Overview -->
 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl">
-                <i class="fas fa-book"></i>
-            </div>
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Inventory</span>
-        </div>
-        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-total-books">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Volumes</p>
+    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-blue-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Library Size</div>
+        <div class="text-3xl font-black text-blue-600 mb-1" id="stat-total">--</div>
+        <p class="text-xs font-bold text-slate-500 uppercase">Total Volumes</p>
     </div>
-
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-xl">
-                <i class="fas fa-fingerprint"></i>
-            </div>
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Identity</span>
-        </div>
-        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-doi-count">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Books with DOI</p>
+    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-emerald-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Enrichment Success</div>
+        <div class="text-3xl font-black text-emerald-600 mb-1" id="stat-verified">--</div>
+        <p class="text-xs font-bold text-slate-500 uppercase">Verified Books</p>
     </div>
-
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl">
-                <i class="fas fa-server"></i>
-            </div>
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Capacity</span>
-        </div>
-        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-total-size">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Storage</p>
+    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-amber-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Metadata Conflicts</div>
+        <div class="text-3xl font-black text-amber-600 mb-1" id="stat-conflict">--</div>
+        <p class="text-xs font-bold text-slate-500 uppercase">Pending Review</p>
     </div>
-
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl">
-                <i class="fas fa-link"></i>
-            </div>
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">zbMATH</span>
+    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-slate-300">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Raw / Ignored</div>
+        <div class="flex items-baseline gap-2">
+            <div class="text-3xl font-black text-slate-400" id="stat-raw">--</div>
+            <div class="text-sm font-bold text-slate-300">/</div>
+            <div class="text-lg font-bold text-slate-300" id="stat-ignored">--</div>
         </div>
-        <div class="text-3xl font-black text-slate-900 mb-1" id="stat-zbl-count">--</div>
-        <p class="text-sm font-bold text-slate-500 uppercase tracking-tighter">Verified Zbl IDs</p>
+        <p class="text-xs font-bold text-slate-500 uppercase">To be processed / Skipped</p>
     </div>
 </div>
 
-<!-- Action Grid -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
+    <!-- Maintenance Actions -->
     <div>
         <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
-            <i class="fas fa-tools mr-3"></i> Maintenance Protocols
+            <i class="fas fa-tools mr-3"></i> System Operations
         </h3>
         <div class="space-y-4">
-            <button onclick="runAction('/api/v1/admin/ingest/report', {}, 'Generating ingestion report...', 'GET')" 
-                class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left">
+            <button onclick="runBatch(100)" class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left">
                 <div class="flex items-center">
                     <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-clipboard-list"></i>
+                        <i class="fas fa-bolt"></i>
                     </div>
                     <div>
-                        <span class="block font-bold text-slate-900">View Ingestion Report</span>
-                        <span class="text-xs text-slate-500">Check 'Unsorted' folder for pending/duplicate books.</span>
+                        <span class="block font-bold text-slate-900">Trigger zbMATH Batch (100)</span>
+                        <span class="text-xs text-slate-500">Continue background metadata enrichment.</span>
                     </div>
                 </div>
-                <i class="fas fa-chevron-right text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all"></i>
-            </button>
-
-            <button onclick="runAction('/api/v1/admin/ingest', {dry_run: false}, 'Ingestion triggered...')" 
-                class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-plus-circle"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900">Run Library Ingestion</span>
-                        <span class="text-xs text-slate-500">Scan 'Unsorted' and route new files.</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all"></i>
             </button>
 
             <button onclick="runAction('/api/v1/admin/indexer', {force: false}, 'FTS Rebuild triggered...')" 
                 class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-500 hover:shadow-lg transition-all text-left">
                 <div class="flex items-center">
                     <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-sync"></i>
+                        <i class="fas fa-search"></i>
                     </div>
                     <div>
                         <span class="block font-bold text-slate-900">Rebuild Search Index</span>
-                        <span class="text-xs text-slate-500">Refresh the SQLite FTS5 keyword table.</span>
+                        <span class="text-xs text-slate-500">Sync all metadata changes to FTS engine.</span>
                     </div>
                 </div>
-                <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all"></i>
             </button>
 
-            <button onclick="runAction('/api/v1/admin/sanity/check', {}, 'Sanity check initialized...')" 
-                class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-stethoscope"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900">Integrity Sanity Check</span>
-                        <span class="text-xs text-slate-500">Verify all DB paths against physical disk.</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all"></i>
-            </button>
-
-            <button onclick="confirmFix()" 
-                class="group w-full flex items-center justify-between p-4 bg-white border border-rose-100 rounded-2xl hover:border-rose-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-rose-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-fire"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900 text-rose-700">Irreversible Sanity FIX</span>
-                        <span class="text-xs text-slate-500">Delete ghost records and physical duplicates.</span>
+            <div class="pt-6">
+                <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Problem Zones</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <a href="/search?q=metadata_status:conflict" class="p-4 bg-amber-50 rounded-xl border border-amber-100 block hover:bg-amber-100 transition-colors">
+                        <span class="block text-xl font-black text-amber-700" id="sub-conflict">--</span>
+                        <span class="text-[10px] font-bold text-amber-600 uppercase">Conflicts</span>
+                    </a>
+                    <div class="p-4 bg-rose-50 rounded-xl border border-rose-100 block">
+                        <span class="block text-xl font-black text-rose-700" id="sub-bad-boys">--</span>
+                        <span class="text-[10px] font-bold text-rose-600 uppercase">Bad Boys (ID -1)</span>
                     </div>
                 </div>
-                <i class="fas fa-warning text-rose-200 group-hover:text-rose-500 group-hover:scale-110 transition-all"></i>
-            </button>
+            </div>
         </div>
     </div>
 
+    <!-- Live Telemetry -->
     <div>
         <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
-            <i class="fas fa-terminal mr-3"></i> Real-time Telemetry
+            <i class="fas fa-terminal mr-3"></i> Enrichment Telemetry
         </h3>
         <div class="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
             <div class="flex justify-between items-center px-4 py-2 bg-slate-800 border-b border-slate-700">
@@ -156,68 +103,24 @@
                     <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                     <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
                 </div>
-                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter">System Terminal</span>
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter">enrichment_full_run.log</span>
             </div>
-            <div id="console" class="h-[380px] p-4 font-mono text-xs overflow-y-auto space-y-1 text-slate-300">
-                <div class="text-blue-400 font-bold tracking-widest border-b border-slate-800 pb-1 mb-2 uppercase">[ System Handshake Established ]</div>
-                <div class="opacity-50 tracking-tighter">Awaiting user instruction...</div>
+            <div id="console" class="h-[400px] p-4 font-mono text-[10px] overflow-y-auto space-y-1 text-slate-300 leading-tight">
+                <div class="opacity-50">Initializing log stream...</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Library Insights Section -->
+<!-- Conflict Resolution Center -->
 <div class="mb-12">
     <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
-        <i class="fas fa-chart-pie mr-3"></i> Library Insights
+        <i class="fas fa-balance-scale mr-3"></i> Conflict Resolution Center
     </h3>
-    
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Distribution Charts -->
-        <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-            <div class="flex items-center justify-between mb-6">
-                <h4 class="font-bold text-slate-900">Collection Breakdown</h4>
-                <select id="chartSelector" onchange="updateCharts()" class="text-xs bg-slate-50 border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                    <option value="category">By Category</option>
-                    <option value="publisher">Top Publishers</option>
-                    <option value="year">Chronological</option>
-                </select>
-            </div>
-            <div class="h-[350px] relative">
-                <canvas id="mainChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Quick Query Tool -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-            <h4 class="font-bold text-slate-900 mb-4">Statistic Explorer</h4>
-            <p class="text-xs text-slate-500 mb-4 italic">Quickly query specific collection details.</p>
-            
-            <div class="space-y-4 flex-grow">
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Target Keyword</label>
-                    <input type="text" id="statsQuery" placeholder="e.g. Springer, Analysis, 2020" 
-                        class="w-full text-sm bg-slate-50 border-slate-200 rounded-xl focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <button onclick="exploreStats()" class="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl text-sm hover:bg-slate-800 transition-colors shadow-lg">
-                    Analyze Segment
-                </button>
-                
-                <div id="statsResult" class="hidden mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Result</div>
-                    <div class="text-xl font-black text-blue-900" id="statsValue">--</div>
-                    <div class="text-[10px] font-bold text-blue-600 uppercase" id="statsLabel">Matches Found</div>
-                </div>
-            </div>
-            
-            <div class="mt-6 pt-4 border-t border-slate-50">
-                <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase mb-2">
-                    <span>Recent Milestones</span>
-                </div>
-                <ul class="text-[11px] space-y-2" id="milestones">
-                    <!-- Milestones will be injected -->
-                </ul>
-            </div>
+    <div id="conflict-list" class="space-y-4">
+        <div class="text-center p-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
+            <i class="fas fa-check-circle text-4xl mb-4 text-emerald-100"></i>
+            <p>Loading conflicts...</p>
         </div>
     </div>
 </div>
@@ -225,136 +128,109 @@
 
 {% block scripts %}
 <script>
-    let statsData = null;
-    let currentChart = null;
-
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
-        loadLogs();
-        setInterval(loadLogs, 10000);
+        loadEnrichmentLogs();
+        loadConflicts();
+        setInterval(loadEnrichmentLogs, 5000);
     });
+
+    async function loadConflicts() {
+        try {
+            const res = await fetch('/api/v1/admin/conflicts');
+            const data = await res.json();
+            const list = document.getElementById('conflict-list');
+            
+            if (data.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center p-12 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-600">
+                        <i class="fas fa-trophy text-4xl mb-4"></i>
+                        <p class="font-bold">Zero Conflicts! All metadata is harmonized.</p>
+                    </div>`;
+                return;
+            }
+
+            list.innerHTML = data.map(c => `
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-7 gap-0">
+                    <div class="md:col-span-3 p-6 border-r border-slate-50">
+                        <div class="flex items-start justify-between mb-2">
+                            <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest block">Local Extraction</span>
+                            <a href="/open/${c.path}" target="_blank" class="text-blue-500 hover:text-blue-700 transition-colors">
+                                <i class="fas fa-file-pdf text-sm"></i>
+                            </a>
+                        </div>
+                        <h4 class="font-bold text-slate-900 leading-snug">${c.local_title}</h4>
+                        <p class="text-xs text-slate-500 mt-1">${c.local_author || 'Unknown Author'}</p>
+                    </div>
+                    <div class="bg-slate-50 flex items-center justify-center p-4">
+                        <i class="fas fa-exchange-alt text-slate-300"></i>
+                    </div>
+                    <div class="md:col-span-2 p-6 bg-emerald-50/30">
+                        <span class="text-[10px] font-black text-emerald-500 uppercase tracking-widest block mb-2">zbMATH Data (Zbl ${c.zbl_id})</span>
+                        <h4 class="font-bold text-emerald-900 leading-snug text-sm">${c.zb_title}</h4>
+                        <p class="text-[10px] text-emerald-700 mt-1">${c.zb_authors}</p>
+                    </div>
+                    <div class="p-6 flex flex-col justify-center gap-2">
+                        <button onclick="resolve(${c.id}, 'accept')" class="w-full py-2 bg-emerald-600 text-white text-xs font-black rounded-lg hover:bg-emerald-700 transition-colors">USE ZBMATH</button>
+                        <button onclick="resolve(${c.id}, 'reject')" class="w-full py-2 border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 transition-colors">REJECT LINK</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function resolve(bookId, action) {
+        try {
+            const res = await fetch('/api/v1/admin/conflicts/resolve', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ book_id: bookId, action: action })
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadConflicts();
+                loadStats();
+            }
+        } catch (e) { alert("Action failed"); }
+    }
 
     async function loadStats() {
         try {
             const res = await fetch('/api/v1/admin/stats');
-            statsData = await res.json();
-            
-            document.getElementById('stat-total-books').textContent = statsData.total_books.toLocaleString();
-            document.getElementById('stat-doi-count').textContent = statsData.doi_count.toLocaleString();
-            document.getElementById('stat-total-size').textContent = statsData.total_size_gb.toFixed(1) + ' GB';
-            document.getElementById('stat-zbl-count').textContent = statsData.zbl_count.toLocaleString();
-
-            updateCharts();
-            updateMilestones();
-        } catch (e) {
-            console.error(e);
-            document.getElementById('stat-total-books').textContent = 'ERR';
-        }
-    }
-
-    function updateCharts() {
-        const type = document.getElementById('chartSelector').value;
-        const ctx = document.getElementById('mainChart').getContext('2d');
-        
-        if (currentChart) currentChart.destroy();
-
-        let labels, data, label, chartType = 'bar';
-        let colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
-
-        if (type === 'category') {
-            const topCats = statsData.categories.slice(0, 8);
-            labels = topCats.map(c => c.name.split('_').pop().substring(0, 15));
-            data = topCats.map(c => c.count);
-            label = 'Books per Category';
-            chartType = 'pie';
-        } else if (type === 'publisher') {
-            labels = statsData.publishers.map(p => p.name);
-            data = statsData.publishers.map(p => p.count);
-            label = 'Top Publishers';
-        } else if (type === 'year') {
-            // Group by decade or show last 30 years
-            const filteredYears = statsData.years.filter(y => y.year > 1990);
-            labels = filteredYears.map(y => y.year);
-            data = filteredYears.map(y => y.count);
-            label = 'Documents by Year';
-            chartType = 'line';
-        }
-
-        currentChart = new Chart(ctx, {
-            type: chartType,
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: label,
-                    data: data,
-                    backgroundColor: chartType === 'pie' ? colors : '#3b82f6',
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: chartType === 'line'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: chartType === 'pie', position: 'right' }
-                },
-                scales: chartType !== 'pie' ? {
-                    y: { beginAtZero: true, grid: { display: false } },
-                    x: { grid: { display: false } }
-                } : {}
-            }
-        });
-    }
-
-    async function exploreStats() {
-        const query = document.getElementById('statsQuery').value.trim();
-        if (!query) return;
-
-        const resultDiv = document.getElementById('statsResult');
-        const statsValue = document.getElementById('statsValue');
-        const statsLabel = document.getElementById('statsLabel');
-
-        try {
-            // Use the search API with fts and vector enabled to get a realistic count
-            const res = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}&limit=1&fts=true&vec=true`);
             const data = await res.json();
             
-            resultDiv.classList.remove('hidden');
-            statsValue.textContent = (data.total_count || 0).toLocaleString();
-            statsLabel.textContent = `Documents matching "${query}"`;
-        } catch (e) {
-            console.error(e);
-            statsValue.textContent = "ERR";
-        }
+            document.getElementById('stat-total').textContent = (data.total_books || 0).toLocaleString();
+            const dist = data.status_distribution || {};
+            document.getElementById('stat-verified').textContent = (dist.verified || 0).toLocaleString();
+            document.getElementById('stat-conflict').textContent = (dist.conflict || 0).toLocaleString();
+            document.getElementById('stat-raw').textContent = (dist.raw || 0).toLocaleString();
+            document.getElementById('stat-ignored').textContent = (dist.ignored || 0).toLocaleString();
+            
+            document.getElementById('sub-conflict').textContent = dist.conflict || 0;
+            // Fetch Bad Boys count specifically
+            const badRes = await fetch('/api/v1/search?q=last_metadata_refresh:-1&limit=1');
+            const badData = await badRes.json();
+            document.getElementById('sub-bad-boys').textContent = badData.total_count || 0;
+
+        } catch (e) { console.error(e); }
     }
 
-    function updateMilestones() {
-        const list = document.getElementById('milestones');
-        list.innerHTML = statsData.newest.map(book => `
-            <li class="flex items-center text-slate-600">
-                <i class="fas fa-check-circle text-emerald-500 mr-2"></i>
-                <span class="truncate">Added <strong>${book.title}</strong></span>
-            </li>
-        `).join('');
-    }
-
-    async function loadLogs() {
+    async function loadEnrichmentLogs() {
         try {
-            const res = await fetch('/api/v1/admin/logs');
+            const res = await fetch('/api/v1/admin/logs?file=enrichment_full_run.log');
             const data = await res.json();
             if (data.logs) {
                 const consoleDiv = document.getElementById('console');
                 const lines = data.logs.split('\n').filter(l => l.trim() !== "");
-                consoleDiv.innerHTML = '<div class="text-blue-400 font-bold tracking-widest border-b border-slate-800 pb-1 mb-2 uppercase">[ Live Log Stream ]</div>';
+                consoleDiv.innerHTML = '';
                 lines.forEach(line => {
                     const div = document.createElement('div');
-                    if (line.includes('ERROR') || line.includes('Error')) div.className = 'text-rose-400';
-                    else if (line.includes('DONE') || line.includes('SUCCESS')) div.className = 'text-emerald-400';
+                    if (line.includes('‼')) div.className = 'text-rose-400 font-bold';
+                    else if (line.includes('✓')) div.className = 'text-emerald-400';
+                    else if (line.includes('✗')) div.className = 'text-slate-500';
                     else if (line.includes('Processing')) div.className = 'text-blue-300';
-                    else div.className = 'opacity-80';
-                    div.textContent = `> ${line}`;
+                    else div.className = 'opacity-60';
+                    div.textContent = line;
                     consoleDiv.appendChild(div);
                 });
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
@@ -362,55 +238,32 @@
         } catch (e) { console.error(e); }
     }
 
-    function logToConsole(msg, type = '') {
-        const consoleDiv = document.getElementById('console');
-        const div = document.createElement('div');
-        if (type === 'error') div.className = 'text-rose-500 font-bold uppercase';
-        else if (type === 'success') div.className = 'text-emerald-500 font-bold uppercase';
-        else if (type === 'pending') div.className = 'text-blue-400 font-bold';
-        else if (type === 'duplicate') div.className = 'text-amber-500 font-bold';
-        else div.className = 'text-slate-400';
-        
-        // Remove [EVENT] prefix for cleaner report
-        div.textContent = (type === 'error' || type === 'success') ? `[EVENT] ${msg}` : msg;
-        consoleDiv.appendChild(div);
-        consoleDiv.scrollTop = consoleDiv.scrollHeight;
-    }
-
-    async function runAction(url, body, msg, method = 'POST') {
-        logToConsole(msg);
+    async function runBatch(limit) {
+        if(!confirm(`Start enrichment batch for ${limit} books?`)) return;
         try {
-            const options = {
-                method: method,
-                headers: { 'Content-Type': 'application/json' }
-            };
-            if (method === 'POST') options.body = JSON.stringify(body);
-            
-            const res = await fetch(url, options);
+            const res = await fetch('/api/v1/admin/enrich/batch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ limit: limit })
+            });
             const data = await res.json();
-            if (data.success || !data.error) {
-                logToConsole('Operation Complete.', 'success');
-                if (data.stdout) {
-                    data.stdout.split('\n').forEach(l => { 
-                        if(l.trim()) {
-                            // Specialized formatting for report
-                            if (l.includes('[NEW / PENDING]')) logToConsole(l, 'pending');
-                            else if (l.includes('[DUPLICATE (HASH)]')) logToConsole(l, 'duplicate');
-                            else logToConsole(l);
-                        }
-                    });
-                }
-            } else {
-                logToConsole('ERROR: ' + (data.error || 'Check logs'), 'error');
-            }
+            alert(`Batch started: ${data.total} candidates identified.`);
             loadStats();
-        } catch (e) { logToConsole('CONNECTION INTERRUPTED', 'error'); }
+        } catch(e) { alert("Failed to start batch"); }
     }
 
-    function confirmFix() {
-        if (confirm("DANGER: This will delete physical files and DB records. Proceed?")) {
-            runAction('/api/v1/admin/sanity/fix', {}, 'PURGE PROTOCOL INITIALIZED...');
-        }
+    async function runAction(url, body, msg) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.success) alert("Operation successful");
+            else alert("Error: " + (data.error || "Unknown"));
+            loadStats();
+        } catch (e) { alert("Network error"); }
     }
 </script>
 {% endblock %}

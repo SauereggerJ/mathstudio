@@ -99,6 +99,18 @@
                         {% endif %}
                         <p><span class="text-slate-500">Pages:</span> <span class="font-semibold">{{ page_count or '?' }}</span></p>
                         
+                        <div class="mt-4 pt-4 border-t border-slate-200">
+                            {% if metadata_status == 'ignored' %}
+                            <div class="px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest text-center">
+                                <i class="fas fa-eye-slash mr-1"></i> Marked as Special Case
+                            </div>
+                            {% else %}
+                            <button onclick="markIgnored({{ id }})" class="w-full py-2 bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:text-slate-600 transition-all">
+                                <i class="fas fa-tag mr-1"></i> Mark as Script / Ignore
+                            </button>
+                            {% endif %}
+                        </div>
+
                         {% if zb_extra and zb_extra.keywords %}
                         <div class="mt-4 pt-4 border-t border-slate-200">
                             <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Expert Keywords</h5>
@@ -287,5 +299,14 @@
     }
     async function openExternal(path) { try { await fetch(`/api/open-external?path=${encodeURIComponent(path)}`); } catch (e) {} }
     async function deleteBook() { if (confirm("Delete?")) { const res = await fetch('/api/v1/books/{{ id }}', { method: 'DELETE' }); if((await res.json()).success) window.location.href = "/"; } }
+    async function markIgnored(bookId) {
+        if (!confirm("Mark this book as a script or special case? It will be skipped by background metadata enrichment.")) return;
+        try {
+            const res = await fetch(`/api/v1/books/${bookId}/ignore`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) window.location.reload();
+            else alert("Error: " + data.error);
+        } catch(e) { console.error(e); }
+    }
 </script>
 {% endblock %}

@@ -377,13 +377,36 @@ def admin_ingest():
 
 @api_v1.route('/admin/stats', methods=['GET'])
 def admin_stats():
+    """Returns general library statistics for the dashboard."""
     try:
         with db.get_connection() as conn:
-            total = conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
-            dois = conn.execute("SELECT COUNT(*) FROM books WHERE doi != ''").fetchone()[0]
-            size = conn.execute("SELECT SUM(size_bytes) FROM books").fetchone()[0] or 0
-        return jsonify({'total_books': total, 'doi_count': dois, 'total_size_gb': round(size / (1024**3), 2)})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+            total = conn.execute("SELECT count(*) FROM books").fetchone()[0]
+            doi_count = conn.execute("SELECT count(*) FROM books WHERE doi IS NOT NULL AND doi != '' AND doi != 'Unknown' AND doi != 'N/A'").fetchone()[0]
+            zbl_count = conn.execute("SELECT count(*) FROM books WHERE zbl_id IS NOT NULL AND zbl_id != ''").fetchone()[0]
+            
+            # Metadata Status breakdown
+            status_counts = conn.execute("SELECT metadata_status, count(*) FROM books GROUP BY metadata_status").fetchall()
+            status_map = {row[0] or 'raw': row[1] for row in status_counts}
+
+            categories = conn.execute("SELECT directory as name, count(*) as count FROM books GROUP BY directory ORDER BY count DESC").fetchall()
+            publishers = conn.execute("SELECT publisher as name, count(*) as count FROM books WHERE publisher IS NOT NULL AND publisher != '' GROUP BY publisher ORDER BY count DESC LIMIT 5").fetchall()
+            newest = conn.execute("SELECT id, title FROM books ORDER BY id DESC LIMIT 5").fetchall()
+
+            # Estimate size
+            total_size_bytes = conn.execute("SELECT sum(size_bytes) FROM books").fetchone()[0] or 0
+            
+        return jsonify({
+            'total_books': total,
+            'doi_count': doi_count,
+            'zbl_count': zbl_count,
+            'status_distribution': status_map,
+            'total_size_gb': round(total_size_bytes / (1024**3), 2),
+            'categories': [dict(c) for c in categories],
+            'publishers': [dict(p) for p in publishers],
+            'newest': [dict(n) for n in newest]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/admin/sanity/fix', methods=['POST'])
 def admin_sanity_fix():
@@ -485,6 +508,76 @@ def add_to_wishlist():
         return jsonify({'success': True, 'id': new_id})
     except sqlite3.IntegrityError:
         return jsonify({'error': 'DOI already in wishlist'}), 409
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/ignore', methods=['POST'])
+def ignore_book(book_id):
+    """Marks a book as ignored/script so it's skipped by background processes."""
+    try:
+        with db.get_connection() as conn:
+            conn.execute("UPDATE books SET metadata_status = 'ignored' WHERE id = ?", (book_id,))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/conflicts', methods=['GET'])
+def get_conflicts():
+    """Returns a list of books currently in conflict status with their zbMATH counterparts."""
+    try:
+        with db.get_connection() as conn:
+            rows = conn.execute("""
+                SELECT b.id, b.title as local_title, b.author as local_author, b.path,
+                       z.title as zb_title, z.authors as zb_authors, b.zbl_id
+                FROM books b
+                LEFT JOIN zbmath_cache z ON b.zbl_id = z.zbl_id
+                WHERE b.metadata_status = 'conflict'
+            """).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/conflicts/resolve', methods=['POST'])
+def resolve_conflict():
+    """Accepts or rejects zbMATH metadata for a book."""
+    try:
+        data = request.json
+        book_id = data.get('book_id')
+        action = data.get('action') # 'accept' or 'reject'
+        
+        if not book_id or action not in ['accept', 'reject']:
+            return jsonify({'error': 'Invalid request'}), 400
+            
+        with db.get_connection() as conn:
+            if action == 'accept':
+                # Master title from zbmath
+                row = conn.execute("SELECT title FROM zbmath_cache WHERE zbl_id = (SELECT zbl_id FROM books WHERE id = ?)", (book_id,)).fetchone()
+                if row:
+                    conn.execute("UPDATE books SET metadata_status = 'verified', title = ? WHERE id = ?", (row['title'], book_id))
+            else:
+                # Nuke the bad link and set back to raw
+                conn.execute("UPDATE books SET metadata_status = 'raw', zbl_id = NULL, trust_score = 0 WHERE id = ?", (book_id,))
+                
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/logs', methods=['GET'])
+def get_admin_logs():
+    """Returns the last lines of the enrichment logs."""
+    log_file = request.args.get('file', 'enrichment_full_run.log')
+    # Prevent path traversal
+    if log_file not in ['enrichment_full_run.log', 'enrichment_batch.log']:
+        return jsonify({'error': 'Access denied'}), 403
+        
+    try:
+        if not os.path.exists(log_file):
+            return jsonify({'logs': 'Log file not found yet.'})
+            
+        with open(log_file, 'r') as f:
+            # Get last 100 lines
+            lines = f.readlines()[-100:]
+            return jsonify({'logs': "".join(lines)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -106,15 +106,24 @@ def book_details(book_id):
     query = request.args.get('q', '')
     with db.get_connection() as conn:
         cursor = conn.cursor()
+        # Fetch book with potential new zbl_id from background process
         cursor.execute("""
             SELECT id, filename, path, directory, author, title, publisher, year, isbn, doi, zbl_id,
-                   summary, level, has_exercises AS exercises, has_solutions AS solutions, msc_class AS msc_code, tags, description, 
-                   toc_json, audience, page_count 
+                   summary, level, has_exercises AS exercises, has_solutions AS solutions, 
+                   msc_class AS msc_code, tags, description, toc_json, audience, page_count 
             FROM books WHERE id = ?
         """, (book_id,))
         book = cursor.fetchone()
         if not book: return "Book not found", 404
         book_dict = dict(book)
+        
+        # Freshly fetch extra zbmath cache for the book itself
+        zb_extra = None
+        if book_dict.get('zbl_id'):
+            cursor.execute("SELECT * FROM zbmath_cache WHERE zbl_id = ?", (book_dict['zbl_id'],))
+            row = cursor.fetchone()
+            if row: zb_extra = dict(row)
+
         similar_books = search_service.get_similar_books(book_id)
         chapters = search_service.get_chapters(book_id)
         matches = []
@@ -135,13 +144,6 @@ def book_details(book_id):
             ORDER BY b.id ASC LIMIT 50
         """, (book_id,))
         bibliography = [dict(row) for row in cursor.fetchall()]
-
-        # Also fetch primary zbmath cache for the book itself if linked
-        zb_extra = None
-        if book_dict.get('zbl_id'):
-            cursor.execute("SELECT * FROM zbmath_cache WHERE zbl_id = ?", (book_dict['zbl_id'],))
-            row = cursor.fetchone()
-            if row: zb_extra = dict(row)
 
     update_state("view_book", book_id=book_id, extra={"title": book_dict['title'], "path": str(book_dict['path'])})
     return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png', zb_extra=zb_extra)

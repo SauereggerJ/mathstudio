@@ -177,50 +177,79 @@ class ZBMathService:
         return None
 
     def find_zbl_id_by_metadata(self, title: str, author: str = None) -> Optional[str]:
-        """Search zbMATH by title and author to find a Zbl ID."""
+        """Search zbMATH using a refined multi-stage strategy for better recall."""
         if not title or title.lower() in ("unknown", "untitled", ""):
             return None
             
         self._ensure_api_access()
         self._wait_for_rate_limit()
         
-        # Clean title for API (remove special chars that might break the parser)
-        clean_title = re.sub(r"[:/?#\[\]@!$&'()*+,;=]", " ", title).strip()
+        from rapidfuzz import fuzz
         
-        def do_search(t_str):
-            search_string = f'ti:{t_str}'
-            if author and author.lower() != 'unknown':
-                # Take first author name
-                first_author = author.split(',')[0].split('&')[0].strip()
-                if first_author:
-                    search_string += f' AND au:{first_author}'
-            
-            url = f'https://api.zbmath.org/v1/document/_search?search_string={requests.utils.quote(search_string)}'
-            resp = self.session.get(url, timeout=10)
-            if resp.ok:
-                return resp.json().get('result', [])
-            return []
+        # Clean title: Remove subtitles and special chars
+        base_title = title.split(':')[0].split(' - ')[0].strip()
+        clean_title = re.sub(r"[:/?#\[\]@!$&'()*+,;=]", " ", base_title).strip()
+        
+        author_name = ""
+        if author and author.lower() != 'unknown':
+            # Use only the first surname for searching
+            first_author = author.split(',')[0].split('&')[0].split(' und ')[0].strip()
+            # If "Bartle | Sherbert", take first name
+            author_name = first_author.split('|')[0].strip()
+            # If "H. Neunzert", take only surname "Neunzert"
+            if ' ' in author_name:
+                author_name = author_name.split()[-1]
 
-        try:
-            # Try full title first
-            results = do_search(clean_title)
-            
-            # Fallback: Try only the first 5 words of the title (handles long titles/subtitles)
-            if not results:
-                words = clean_title.split()
-                if len(words) > 5:
-                    short_title = " ".join(words[:5])
-                    logger.info(f"  🔍 Trying shorter title: {short_title}")
-                    results = do_search(short_title)
+        # Multi-stage Search Queries
+        strategies = []
+        if author_name:
+            # S1: Short Title + Author (Specific fields)
+            strategies.append((f'ti:"{clean_title}" AND au:"{author_name}"', "Title+Author (Strict)"))
+            # S2: Short Title + Author (Flexible fields)
+            strategies.append((f'ti:{clean_title} AND au:{author_name}', "Title+Author (Flexible)"))
+            # S3: Broad Keywords (Author + First 3 words of title)
+            title_keywords = " ".join(clean_title.split()[:3])
+            strategies.append((f'{author_name} {title_keywords}', "Broad Keyword (Author+Title)"))
+        
+        # S4: Title Only (Last resort)
+        strategies.append((f'ti:"{clean_title}"', "Title Only"))
 
-            if results:
-                # Return the identifier if title matches reasonably well
-                from rapidfuzz import fuzz
-                zb_title = results[0].get('title', {}).get('title', '')
-                if fuzz.partial_ratio(title.lower(), zb_title.lower()) > 70:
-                    return results[0].get('identifier')
-        except Exception as e:
-            logger.error(f"zbMATH Metadata search failed: {e}")
+        for q, s_name in strategies:
+            try:
+                url = f'https://api.zbmath.org/v1/document/_search?search_string={requests.utils.quote(q)}'
+                resp = self.session.get(url, timeout=10)
+                if resp.ok:
+                    results = resp.json().get('result', [])
+                    if not results: continue
+
+                    # Examine top 5 results for the best match
+                    best_match = None
+                    best_score = 0
+                    
+                    for match in results[:5]:
+                        zb_title = match.get('title', {}).get('title', '')
+                        # Score: Use partial ratio for better DE/EN and subtitle tolerance
+                        score = fuzz.partial_ratio(title.lower(), zb_title.lower())
+                        
+                        # Author Match check
+                        author_match = False
+                        if author_name:
+                            zb_authors = str(match.get('contributors', {}).get('authors', []))
+                            if author_name.lower() in zb_authors.lower():
+                                author_match = True
+                                score += 5 # Bonus for confirmed author
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_match = match
+                    
+                    if best_match and (best_score > 85 or (author_name and best_score > 65)):
+                        logger.info(f"  ✓ Zbl Match via {s_name}: '{best_match.get('title', {}).get('title', '')}' (Score: {best_score})")
+                        return best_match.get('identifier')
+            except Exception as e:
+                logger.error(f"  ! Search strategy '{s_name}' failed: {e}")
+            
+            self._wait_for_rate_limit()
             
         return None
 
@@ -346,6 +375,8 @@ class ZBMathService:
                     conn.execute("UPDATE books SET zbl_id = ? WHERE id = ?", (zbl_id, book_id))
 
         if not zbl_id:
+            with self.db.get_connection() as conn:
+                conn.execute("UPDATE books SET metadata_status = 'not_found', last_metadata_refresh = unixepoch() WHERE id = ?", (book_id,))
             return {"success": False, "error": "No Zbl ID could be found for this book"}
 
         # 2. Fetch Full Metadata from zbMATH
