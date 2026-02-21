@@ -447,9 +447,13 @@ def pdf_to_text_tool():
         
         full_text = ""
         try:
-            for i, p_idx in enumerate(target_pages):
-                # doc contains only the sliced pages in order
-                page_text = doc[i].get_text()
+            for p_idx in target_pages:
+                # p_idx is 1-based, fitz is 0-based
+                # We use the absolute index because for PDFs _open_source returns the full doc.
+                # For DjVu, _open_source might return a sliced temp doc, but that's handled differently.
+                # Actually, let's make it robust:
+                actual_idx = p_idx - 1 if t_path is None else target_pages.index(p_idx)
+                page_text = doc[actual_idx].get_text()
                 full_text += f"\n--- Page {p_idx} ---\n{page_text}\n"
         finally:
             doc.close()
@@ -656,12 +660,56 @@ def kb_add_relation():
     required = ('from_concept_id', 'to_concept_id', 'relation_type')
     if not all(data.get(k) for k in required):
         return jsonify({'error': f'{required} are all required'}), 400
-    result = knowledge_service.add_relation(**{
-        k: data[k] for k in data
-        if k in ('from_concept_id','to_concept_id','relation_type',
-                 'context','source_entry_id','confidence')
-    })
+    
+    result = knowledge_service.add_relation(
+        from_id=data['from_concept_id'],
+        to_id=data['to_concept_id'],
+        relation_type=data['relation_type'],
+        context=data.get('context'),
+        source_entry_id=data.get('source_entry_id'),
+        confidence=data.get('confidence', 1.0)
+    )
     return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/concepts/<int:concept_id>', methods=['PATCH'])
+def kb_update_concept(concept_id):
+    result = knowledge_service.update_concept(concept_id, **request.json)
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/concepts/<int:concept_id>', methods=['DELETE'])
+def kb_delete_concept(concept_id):
+    result = knowledge_service.delete_concept(concept_id)
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/entries/<int:entry_id>', methods=['PATCH'])
+def kb_update_entry(entry_id):
+    result = knowledge_service.update_entry(entry_id, **request.json)
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/entries/<int:entry_id>', methods=['DELETE'])
+def kb_delete_entry(entry_id):
+    result = knowledge_service.delete_entry(entry_id)
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/relations/delete', methods=['POST'])
+def kb_delete_relation():
+    data = request.json
+    result = knowledge_service.delete_relation(
+        from_id=data['from_concept_id'],
+        to_id=data['to_concept_id'],
+        relation_type=data['relation_type']
+    )
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/books/<int:book_id>/offset', methods=['POST'])
+def kb_set_book_offset(book_id):
+    data = request.json
+    result = knowledge_service.set_book_offset(book_id, data.get('offset', 0))
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/schema', methods=['GET'])
+def kb_get_schema():
+    return jsonify(knowledge_service.get_kb_schema_info())
 
 @api_v1.route('/kb/concepts/<int:concept_id>/related', methods=['GET'])
 def kb_get_related(concept_id):

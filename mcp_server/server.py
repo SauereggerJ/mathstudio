@@ -469,6 +469,90 @@ async def list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
+            name="update_concept",
+            description="Update existing concept fields.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "kind": {"type": "string"},
+                    "domain": {"type": "string"},
+                    "aliases": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["concept_id"]
+            }
+        ),
+        Tool(
+            name="delete_concept",
+            description="Delete a concept and all its associated data.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer"}
+                },
+                "required": ["concept_id"]
+            }
+        ),
+        Tool(
+            name="update_knowledge_entry",
+            description="Update an existing formulation entry.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entry_id": {"type": "integer"},
+                    "statement": {"type": "string"},
+                    "proof": {"type": "string"},
+                    "notes": {"type": "string"},
+                    "scope": {"type": "string"},
+                    "style": {"type": "string"},
+                    "is_canonical": {"type": "integer"}
+                },
+                "required": ["entry_id"]
+            }
+        ),
+        Tool(
+            name="delete_knowledge_entry",
+            description="Delete a specific formulation entry.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entry_id": {"type": "integer"}
+                },
+                "required": ["entry_id"]
+            }
+        ),
+        Tool(
+            name="delete_concept_relation",
+            description="Delete a relationship between two concepts.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "from_concept_id": {"type": "integer"},
+                    "to_concept_id": {"type": "integer"},
+                    "relation_type": {"type": "string"}
+                },
+                "required": ["from_concept_id", "to_concept_id", "relation_type"]
+            }
+        ),
+        Tool(
+            name="set_book_page_offset",
+            description="Store a persistent page offset for a book to align PDF pages with printed pages.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
+                    "offset": {"type": "integer", "description": "Offset value (e.g. 183 means PDF Page 184 = Printed Page 1)"}
+                },
+                "required": ["book_id", "offset"]
+            }
+        ),
+        Tool(
+            name="get_kb_schema",
+            description="Get information about valid concept kinds, relation types, and scopes.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
             name="get_pending_tasks",
             description="Retrieve pending LLM tasks from the queue.",
             inputSchema={
@@ -558,6 +642,20 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return await add_knowledge_entry(arguments)
         elif name == "add_concept_relation":
             return await add_concept_relation(arguments)
+        elif name == "update_concept":
+            return await update_concept(arguments)
+        elif name == "delete_concept":
+            return await delete_concept(arguments)
+        elif name == "update_knowledge_entry":
+            return await update_knowledge_entry(arguments)
+        elif name == "delete_knowledge_entry":
+            return await delete_knowledge_entry(arguments)
+        elif name == "delete_concept_relation":
+            return await delete_concept_relation(arguments)
+        elif name == "set_book_page_offset":
+            return await set_book_page_offset(arguments)
+        elif name == "get_kb_schema":
+            return await get_kb_schema(arguments)
         elif name == "get_related_concepts":
             return await get_related_concepts(arguments)
         elif name == "render_vault_note":
@@ -1035,6 +1133,76 @@ async def add_concept_relation(args: dict) -> list[TextContent]:
     if data.get('success'):
         return [TextContent(type="text", text="✓ Relation added successfully.")]
     return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def update_concept(args: dict) -> list[TextContent]:
+    """Update a concept."""
+    concept_id = args.pop("concept_id")
+    resp = requests.patch(f"{API_BASE}/kb/concepts/{concept_id}", json=args, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Concept updated successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def delete_concept(args: dict) -> list[TextContent]:
+    """Delete a concept."""
+    concept_id = args["concept_id"]
+    resp = requests.delete(f"{API_BASE}/kb/concepts/{concept_id}", timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Concept deleted successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def update_knowledge_entry(args: dict) -> list[TextContent]:
+    """Update an entry."""
+    entry_id = args.pop("entry_id")
+    resp = requests.patch(f"{API_BASE}/kb/entries/{entry_id}", json=args, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Entry updated successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def delete_knowledge_entry(args: dict) -> list[TextContent]:
+    """Delete an entry."""
+    entry_id = args["entry_id"]
+    resp = requests.delete(f"{API_BASE}/kb/entries/{entry_id}", timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Entry deleted successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def delete_concept_relation(args: dict) -> list[TextContent]:
+    """Delete a relation."""
+    resp = requests.post(f"{API_BASE}/kb/relations/delete", json=args, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Relation deleted successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def set_book_page_offset(args: dict) -> list[TextContent]:
+    """Set book page offset."""
+    book_id = args.pop("book_id")
+    resp = requests.post(f"{API_BASE}/kb/books/{book_id}/offset", json=args, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Book offset stored successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def get_kb_schema(args: dict) -> list[TextContent]:
+    """Get KB schema info."""
+    resp = requests.get(f"{API_BASE}/kb/schema", timeout=10)
+    data = resp.json()
+    output = "## Knowledge Base Schema Info\n\n"
+    output += f"**Concept Kinds**: {', '.join(data['concept_kinds'])}\n"
+    output += f"**Relation Types**: {', '.join(data['relation_types'])}\n"
+    output += f"**Scopes**: {', '.join(data['scopes'])}\n"
+    return [TextContent(type="text", text=output)]
 
 
 async def get_related_concepts(args: dict) -> list[TextContent]:

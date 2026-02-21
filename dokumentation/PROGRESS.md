@@ -30,3 +30,12 @@
 
 - [x] **D1: Add Tools** (`mcp_server/server.py`)
 - [x] **D2: End-to-End Verification**
+
+---
+
+## Status: Phase E (MCP Autonomy & Maturity)
+
+- [ ] **E1: Full CRUD** (Update/Delete for all KB entities)
+- [ ] **E2: Persistent Page Offsets** (Offset storage & lookup)
+- [ ] **E3: Tool Documentation** (Self-describing schema info)
+- [ ] **E4: Robustness Fixes** (Commit manual test fixes)

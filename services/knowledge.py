@@ -26,6 +26,12 @@ class KnowledgeService:
     def add_concept(self, name: str, kind: str, domain: str = None,
                     aliases: list = None) -> Dict[str, Any]:
         """Creates a new concept. Returns the new concept dict."""
+        # Valid kinds for enforcement
+        VALID_KINDS = {'definition', 'theorem', 'lemma', 'proposition',
+                       'corollary', 'example', 'axiom', 'notation'}
+        if kind not in VALID_KINDS:
+            return {"success": False, "error": f"Invalid kind. Must be one of: {VALID_KINDS}"}
+
         # Dedup check: exact name match
         with self.db.get_connection() as conn:
             existing = conn.execute(
@@ -42,6 +48,42 @@ class KnowledgeService:
             new_id = cursor.lastrowid
 
         return {"success": True, "id": new_id}
+
+    def update_concept(self, concept_id: int, **kwargs) -> Dict[str, Any]:
+        """Updates concept fields (name, kind, domain, aliases)."""
+        allowed = {'name', 'kind', 'domain', 'aliases'}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        if not updates:
+            return {"success": False, "error": "No valid fields to update"}
+        
+        if 'aliases' in updates:
+            updates['aliases'] = json.dumps(updates['aliases'])
+        
+        updates['updated_at'] = int(time.time())
+        
+        query = "UPDATE concepts SET " + ", ".join(f"{k} = ?" for k in updates.keys())
+        query += " WHERE id = ?"
+        
+        with self.db.get_connection() as conn:
+            cursor = conn.execute(query, list(updates.values()) + [concept_id])
+            if cursor.rowcount == 0:
+                return {"success": False, "error": "Concept not found"}
+            
+            # Sync FTS if name/aliases changed
+            if 'name' in updates or 'aliases' in updates:
+                self._sync_concept_fts(conn, concept_id)
+                
+        return {"success": True}
+
+    def delete_concept(self, concept_id: int) -> Dict[str, Any]:
+        """Deletes a concept and all its entries/relations (via CASCADE)."""
+        with self.db.get_connection() as conn:
+            cursor = conn.execute("DELETE FROM concepts WHERE id = ?", (concept_id,))
+            if cursor.rowcount == 0:
+                return {"success": False, "error": "Concept not found"}
+            # Clean up FTS
+            conn.execute("DELETE FROM concept_fts WHERE rowid = ?", (concept_id,))
+        return {"success": True}
 
     def get_concept(self, concept_id: int) -> Optional[Dict[str, Any]]:
         """Returns concept with all entries and relations."""
@@ -128,6 +170,51 @@ class KnowledgeService:
 
         return {"success": True, "id": new_id}
 
+    def update_entry(self, entry_id: int, **kwargs) -> Dict[str, Any]:
+        """Updates formulation entry fields."""
+        allowed = {'statement', 'proof', 'notes', 'scope', 'style',
+                   'page_start', 'page_end', 'is_canonical', 'confidence'}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        if not updates:
+            return {"success": False, "error": "No valid fields to update"}
+            
+        with self.db.get_connection() as conn:
+            # If canonical is being set to 1, unset others for this concept
+            if updates.get('is_canonical') == 1:
+                concept_id = conn.execute(
+                    "SELECT concept_id FROM entries WHERE id = ?", (entry_id,)
+                ).fetchone()['concept_id']
+                conn.execute("UPDATE entries SET is_canonical = 0 WHERE concept_id = ?", (concept_id,))
+                conn.execute("UPDATE concepts SET canonical_entry_id = ? WHERE id = ?", (entry_id, concept_id))
+
+            query = "UPDATE entries SET " + ", ".join(f"{k} = ?" for k in updates.keys())
+            query += " WHERE id = ?"
+            cursor = conn.execute(query, list(updates.values()) + [entry_id])
+            
+            if cursor.rowcount == 0:
+                return {"success": False, "error": "Entry not found"}
+            
+            # Re-sync FTS if statement/notes changed
+            if 'statement' in updates or 'notes' in updates:
+                concept_id = conn.execute(
+                    "SELECT concept_id FROM entries WHERE id = ?", (entry_id,)
+                ).fetchone()['concept_id']
+                self._sync_concept_fts(conn, concept_id)
+                
+        return {"success": True}
+
+    def delete_entry(self, entry_id: int) -> Dict[str, Any]:
+        """Deletes a formulation entry."""
+        with self.db.get_connection() as conn:
+            concept_id = conn.execute(
+                "SELECT concept_id FROM entries WHERE id = ?", (entry_id,)
+            ).fetchone()['concept_id']
+            cursor = conn.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
+            if cursor.rowcount == 0:
+                return {"success": False, "error": "Entry not found"}
+            self._sync_concept_fts(conn, concept_id)
+        return {"success": True}
+
     # --- CRUD: Relations ---
 
     def add_relation(self, from_id: int, to_id: int, relation_type: str,
@@ -156,6 +243,37 @@ class KnowledgeService:
                 raise
 
         return {"success": True}
+
+    def delete_relation(self, from_id: int, to_id: int, relation_type: str) -> Dict[str, Any]:
+        """Deletes a relation."""
+        with self.db.get_connection() as conn:
+            cursor = conn.execute("""
+                DELETE FROM relations WHERE from_concept_id = ? AND to_concept_id = ? AND relation_type = ?
+            """, (from_id, to_id, relation_type))
+            if cursor.rowcount == 0:
+                return {"success": False, "error": "Relation not found"}
+        return {"success": True}
+
+    # --- Book Metadata & Offsets ---
+
+    def set_book_offset(self, book_id: int, offset: int) -> Dict[str, Any]:
+        """Stores a persistent page offset for a book."""
+        with self.db.get_connection() as conn:
+            cursor = conn.execute("UPDATE books SET page_offset = ? WHERE id = ?", (offset, book_id))
+            if cursor.rowcount == 0:
+                return {"success": False, "error": "Book not found"}
+        return {"success": True}
+
+    def get_kb_schema_info(self) -> Dict[str, Any]:
+        """Returns metadata about valid concept types and relations."""
+        return {
+            "concept_kinds": ['definition', 'theorem', 'lemma', 'proposition',
+                              'corollary', 'example', 'axiom', 'notation'],
+            "relation_types": ['uses', 'implies', 'equivalent_to', 'generalizes',
+                               'special_case_of', 'proved_by', 'counterexample_to',
+                               'see_also', 'prerequisite'],
+            "scopes": ['undergraduate', 'graduate', 'research']
+        }
 
     # --- Search ---
 
