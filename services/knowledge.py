@@ -20,6 +20,26 @@ class KnowledgeService:
             loader=FileSystemLoader(str(KNOWLEDGE_TEMPLATES_DIR)),
             trim_blocks=True, lstrip_blocks=True
         )
+        # Register custom filters
+        self.jinja_env.filters['wikilink'] = self.wikilink_text
+        self.jinja_env.filters['filename_safe'] = lambda x: x.replace(' ', '_').replace('/', '_')
+
+    def wikilink_text(self, text: str) -> str:
+        """Auto-links known concepts within a block of text."""
+        if not text: return ""
+        
+        # Get all concept names from DB to match against
+        with self.db.get_connection() as conn:
+            all_concepts = conn.execute("SELECT name FROM concepts").fetchall()
+            concept_names = sorted([c['name'] for c in all_concepts], key=len, reverse=True)
+            
+        import re
+        for name in concept_names:
+            # Avoid linking if already linked or within a LaTeX block (naively)
+            # This is a simple regex that avoids double-linking
+            pattern = rf"(?<!\[\[)\b({re.escape(name)})\b(?!\]\])"
+            text = re.sub(pattern, r"[[\1]]", text)
+        return text
 
     # --- CRUD: Concepts ---
 
@@ -456,12 +476,19 @@ class KnowledgeService:
         if not canonical and concept['entries']:
             canonical = concept['entries'][0]
 
+        # Get book path for linking
+        with self.db.get_connection() as conn:
+            book = conn.execute("SELECT path FROM books WHERE id = ?", (canonical.get('book_id'),)).fetchone()
+            book_path = book['path'] if book else None
+
         from datetime import datetime
         rendered = template.render(
             concept=concept,
             canonical=canonical,
             entries=concept['entries'],
             relations=concept['relations_out'],
+            relations_in=concept['relations_in'],
+            book_path=book_path,
             now=datetime.now().strftime('%Y-%m-%d')
         )
 
@@ -495,9 +522,21 @@ class KnowledgeService:
         return {"success": True, "path": rel_path}
 
     def regenerate_vault(self) -> Dict[str, Any]:
-        """Re-renders ALL concepts to the vault."""
+        """Re-renders ALL concepts to the vault and updates the index."""
         with self.db.get_connection() as conn:
             concept_ids = [r['id'] for r in conn.execute("SELECT id FROM concepts").fetchall()]
+            concepts_all = conn.execute("""
+                SELECT c.*, (SELECT COUNT(*) FROM entries WHERE concept_id = c.id) as entry_count
+                FROM concepts c
+                ORDER BY c.domain, c.name
+            """).fetchall()
+
+        concepts_processed = []
+        for c in concepts_all:
+            d = dict(c)
+            if d.get('domain') is None:
+                d['domain'] = "General"
+            concepts_processed.append(d)
 
         count = 0
         errors = 0
@@ -507,8 +546,18 @@ class KnowledgeService:
                 count += 1
             else:
                 errors += 1
+        
+        # Render Index
+        template = self.jinja_env.get_template('index.md.j2')
+        from datetime import datetime
+        rendered_index = template.render(
+            concepts=concepts_processed,
+            now=datetime.now().strftime('%Y-%m-%d')
+        )
+        index_path = KNOWLEDGE_GENERATED_DIR / "_Index.md"
+        index_path.write_text(rendered_index, encoding='utf-8')
 
-        return {"success": True, "rendered": count, "errors": errors}
+        return {"success": True, "rendered": count, "errors": errors, "index": "_Index.md"}
 
     # --- FTS Sync Helper ---
 
