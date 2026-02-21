@@ -201,7 +201,7 @@ class LibraryService:
             if not pdf_path.exists():
                 import subprocess
                 try:
-                    subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True)
+                    subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True, stderr=subprocess.DEVNULL)
                 except Exception as e:
                     return None, f"DjVu conversion failed: {e}"
             return pdf_path, None

@@ -391,7 +391,7 @@ class ZBMathService:
         # Calculate Trust Score (Title similarity)
         local_title = book['title'] or ""
         zb_title = zb_data.get('title', '')
-        similarity = fuzz.ratio(local_title.lower(), zb_title.lower()) / 100.0
+        similarity = fuzz.partial_ratio(local_title.lower(), zb_title.lower()) / 100.0
         
         status = 'verified' if similarity > 0.85 else 'conflict'
         if local_title.lower() in ("unknown", "untitled", ""):

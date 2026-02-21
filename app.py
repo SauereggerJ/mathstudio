@@ -170,7 +170,7 @@ def open_file(filepath):
             file_hash = hashlib.md5(str(abs_path).encode()).hexdigest()
             pdf_path = cache_dir / f"legacy_{file_hash}.pdf"
             if not pdf_path.exists():
-                subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True)
+                subprocess.run(['ddjvu', '-format=pdf', str(abs_path), str(pdf_path)], check=True, stderr=subprocess.DEVNULL)
             return send_from_directory(cache_dir, pdf_path.name)
             
         return "Unsupported type or access denied", 400

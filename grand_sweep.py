@@ -1,16 +1,18 @@
 import time
 import os
 import sys
+from pathlib import Path
 from datetime import datetime
 
 # Add project root to path
-sys.path.append('/library/mathstudio')
+PROJECT_ROOT = Path(__file__).parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.database import db
 from services.zbmath import zbmath_service
 from services.enrichment import enrichment_service
 
-LOG_FILE = "/library/mathstudio/grand_sweep.log"
+LOG_FILE = PROJECT_ROOT / "grand_sweep.log"
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
