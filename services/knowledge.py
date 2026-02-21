@@ -25,20 +25,34 @@ class KnowledgeService:
         self.jinja_env.filters['filename_safe'] = lambda x: x.replace(' ', '_').replace('/', '_')
 
     def wikilink_text(self, text: str) -> str:
-        """Auto-links known concepts within a block of text."""
+        """Auto-links known concepts within a block of text, protecting LaTeX."""
         if not text: return ""
         
-        # Get all concept names from DB to match against
+        # 1. Protect LaTeX blocks by temporary substitution
+        import re
+        latex_blocks = []
+        def placeholder(m):
+            latex_blocks.append(m.group(0))
+            return f"__LATEX_BLOCK_{len(latex_blocks)-1}__"
+        
+        # Replace $$...$$ and $...$
+        text = re.sub(r"\$\$.*?\$\$", placeholder, text, flags=re.DOTALL)
+        text = re.sub(r"\$.*?\$", placeholder, text)
+
+        # 2. Perform wikilinking on remaining text
         with self.db.get_connection() as conn:
             all_concepts = conn.execute("SELECT name FROM concepts").fetchall()
             concept_names = sorted([c['name'] for c in all_concepts], key=len, reverse=True)
             
-        import re
         for name in concept_names:
-            # Avoid linking if already linked or within a LaTeX block (naively)
-            # This is a simple regex that avoids double-linking
+            # Avoid linking if already linked
             pattern = rf"(?<!\[\[)\b({re.escape(name)})\b(?!\]\])"
             text = re.sub(pattern, r"[[\1]]", text)
+
+        # 3. Restore LaTeX blocks
+        for i, block in enumerate(latex_blocks):
+            text = text.replace(f"__LATEX_BLOCK_{i}__", block)
+            
         return text
 
     # --- CRUD: Concepts ---
@@ -115,7 +129,7 @@ class KnowledgeService:
                 return None
 
             entries = conn.execute("""
-                SELECT e.*, b.title as book_title, b.author as book_author
+                SELECT e.*, b.title as book_title, b.author as book_author, b.path as book_path
                 FROM entries e
                 LEFT JOIN books b ON e.book_id = b.id
                 WHERE e.concept_id = ?
@@ -157,7 +171,7 @@ class KnowledgeService:
                   page_end: int = None, proof: str = None,
                   notes: str = None, scope: str = None,
                   language: str = 'en', style: str = None,
-                  confidence: float = 1.0) -> Dict[str, Any]:
+                  confidence: float = 1.0, is_canonical: int = None) -> Dict[str, Any]:
         """Adds a formulation to a concept."""
         with self.db.get_connection() as conn:
             # Validate concept exists
@@ -170,17 +184,20 @@ class KnowledgeService:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO entries (concept_id, book_id, page_start, page_end,
-                    statement, proof, notes, scope, language, style, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    statement, proof, notes, scope, language, style, confidence, is_canonical)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (concept_id, book_id, page_start, page_end,
-                  statement, proof, notes, scope, language, style, confidence))
+                  statement, proof, notes, scope, language, style, confidence, 0))
             new_id = cursor.lastrowid
 
-            # Auto-set as canonical if it's the first entry
+            # Canonical Logic
             count = conn.execute(
                 "SELECT COUNT(*) FROM entries WHERE concept_id = ?", (concept_id,)
             ).fetchone()[0]
-            if count == 1:
+            
+            # Auto-set as canonical if it's the first entry OR if explicitly requested
+            if count == 1 or is_canonical == 1:
+                conn.execute("UPDATE entries SET is_canonical = 0 WHERE concept_id = ?", (concept_id,))
                 conn.execute("UPDATE entries SET is_canonical = 1 WHERE id = ?", (new_id,))
                 conn.execute("UPDATE concepts SET canonical_entry_id = ? WHERE id = ?",
                              (new_id, concept_id))
@@ -294,6 +311,50 @@ class KnowledgeService:
                                'see_also', 'prerequisite'],
             "scopes": ['undergraduate', 'graduate', 'research']
         }
+
+    def ingest_from_page(self, concept_id: int, book_id: int, page: int,
+                         kind: str = 'statement_and_proof',
+                         scope: str = None, style: str = None) -> Dict[str, Any]:
+        """
+        High-fidelity extraction: uses note_service to convert a page to LaTeX,
+        then stores it as a KB entry.
+        """
+        from services.note import note_service
+        
+        # 1. Convert page to note (uses cache if available)
+        result, error = note_service.create_note_from_pdf(book_id, [page])
+        if error:
+            return {"success": False, "error": f"Extraction failed: {error}"}
+        
+        content = result['content']
+        
+        # 2. Heuristic split into statement and proof (if applicable)
+        # Note: This is a simple split, the LLM can refine this later via update_entry.
+        statement = content
+        proof = None
+        
+        lower_content = content.lower()
+        proof_markers = ['proof', 'beweis', 'demonstration']
+        for marker in proof_markers:
+            idx = lower_content.find(f"## {marker}")
+            if idx == -1: idx = lower_content.find(f"**{marker}")
+            if idx != -1:
+                statement = content[:idx].strip()
+                proof = content[idx:].strip()
+                break
+        
+        # 3. Add as entry
+        return self.add_entry(
+            concept_id=concept_id,
+            statement=statement,
+            book_id=book_id,
+            page_start=page,
+            page_end=page,
+            proof=proof,
+            scope=scope,
+            style=style,
+            confidence=0.9 # High confidence due to direct extraction
+        )
 
     # --- Search ---
 

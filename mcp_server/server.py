@@ -402,12 +402,12 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="add_knowledge_entry",
-            description="Add a specific formulation (entry) from a book to a concept.",
+            description="Add a specific formulation (entry) to a concept. Use this to 'author' clean definitions based on source material.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "concept_id": {"type": "integer"},
-                    "statement": {"type": "string", "description": "The LaTeX/text of the definition or theorem"},
+                    "statement": {"type": "string", "description": "The curated LaTeX/text of the definition or theorem"},
                     "book_id": {"type": "integer"},
                     "page_start": {"type": "integer"},
                     "page_end": {"type": "integer"},
@@ -415,7 +415,8 @@ async def list_tools() -> list[Tool]:
                     "notes": {"type": "string"},
                     "scope": {"type": "string", "enum": ["undergraduate", "graduate", "research"]},
                     "style": {"type": "string", "description": "e.g. 'epsilon-delta', 'topological'"},
-                    "confidence": {"type": "number", "default": 1.0}
+                    "confidence": {"type": "number", "default": 1.0},
+                    "is_canonical": {"type": "integer", "description": "Set to 1 to make this the primary definition shown in Obsidian."}
                 },
                 "required": ["concept_id", "statement"]
             }
@@ -553,6 +554,21 @@ async def list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
+            name="ingest_knowledge_from_page",
+            description="Extract RAW high-fidelity LaTeX/Markdown from a book page. WARNING: Use this only as a reference; the result should be pruned/curated by the LLM to provide a focused entry.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer"},
+                    "book_id": {"type": "integer"},
+                    "page": {"type": "integer"},
+                    "scope": {"type": "string", "enum": ["undergraduate", "graduate", "research"]},
+                    "style": {"type": "string"}
+                },
+                "required": ["concept_id", "book_id", "page"]
+            }
+        ),
+        Tool(
             name="get_pending_tasks",
             description="Retrieve pending LLM tasks from the queue.",
             inputSchema={
@@ -662,6 +678,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return await render_vault_note(arguments)
         elif name == "regenerate_vault":
             return await regenerate_vault(arguments)
+        elif name == "ingest_knowledge_from_page":
+            return await ingest_knowledge_from_page(arguments)
         elif name == "get_pending_tasks":
             return await get_pending_tasks(arguments)
         elif name == "queue_task":
@@ -1091,7 +1109,7 @@ async def get_concept_details(args: dict) -> list[TextContent]:
     for e in data.get('entries', []):
         output += f"### From {e.get('book_title', 'Unknown Book')}, p. {e.get('page_start', '?')}\n"
         output += f"{e['statement']}\n\n"
-        if e.get('proof'): output += f"**Proof excerpt**: {e['proof'][:200]}...\n\n"
+        if e.get('proof'): output += f"**Proof**:\n{e['proof']}\n\n"
         
     if data.get('relations_out'):
         output += "## Relations\n"
@@ -1235,6 +1253,15 @@ async def regenerate_vault(args: dict) -> list[TextContent]:
     resp = requests.post(f"{API_BASE}/kb/vault/regenerate", timeout=300)
     data = resp.json()
     return [TextContent(type="text", text=f"✓ Vault regeneration complete. Rendered: {data['rendered']}, Errors: {data['errors']}")]
+
+
+async def ingest_knowledge_from_page(args: dict) -> list[TextContent]:
+    """Extract and ingest knowledge from a PDF page."""
+    resp = requests.post(f"{API_BASE}/kb/ingest-page", json=args, timeout=300)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text=f"✓ High-fidelity entry added (ID: {data['id']}) from page {args['page']}.")]
+    return [TextContent(type="text", text=f"✗ Extraction failed: {data.get('error')}")]
 
 
 async def get_pending_tasks(args: dict) -> list[TextContent]:

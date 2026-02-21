@@ -650,7 +650,7 @@ def kb_add_entry():
     result = knowledge_service.add_entry(**{
         k: data[k] for k in data
         if k in ('concept_id','statement','book_id','page_start','page_end',
-                 'proof','notes','scope','language','style','confidence')
+                 'proof','notes','scope','language','style','confidence', 'is_canonical')
     })
     return jsonify(result), 200 if result.get('success') else 400
 
@@ -710,6 +710,22 @@ def kb_set_book_offset(book_id):
 @api_v1.route('/kb/schema', methods=['GET'])
 def kb_get_schema():
     return jsonify(knowledge_service.get_kb_schema_info())
+
+@api_v1.route('/kb/ingest-page', methods=['POST'])
+def kb_ingest_page():
+    data = request.json
+    required = ('concept_id', 'book_id', 'page')
+    if not all(data.get(k) for k in required):
+        return jsonify({'error': f'{required} are required'}), 400
+    
+    result = knowledge_service.ingest_from_page(
+        concept_id=data['concept_id'],
+        book_id=data['book_id'],
+        page=data['page'],
+        scope=data.get('scope'),
+        style=data.get('style')
+    )
+    return jsonify(result), 200 if result.get('success') else 400
 
 @api_v1.route('/kb/concepts/<int:concept_id>/related', methods=['GET'])
 def kb_get_related(concept_id):
