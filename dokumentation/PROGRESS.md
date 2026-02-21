@@ -28,5 +28,5 @@
 
 ## Status: Phase D (MCP Tools)
 
-- [ ] **D1: Add Tools** (`mcp_server/server.py`)
-- [ ] **D2: End-to-End Verification**
+- [x] **D1: Add Tools** (`mcp_server/server.py`)
+- [x] **D2: End-to-End Verification**

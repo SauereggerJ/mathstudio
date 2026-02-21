@@ -347,6 +347,174 @@ async def list_tools() -> list[Tool]:
                 "required": ["action"]
             }
         ),
+        Tool(
+            name="search_knowledge",
+            description=(
+                "Search the mathematical knowledge base for concepts, definitions, "
+                "theorems, and their specific formulations across all sources."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (e.g., 'compactness', 'Banach-Steinhaus')"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": ["definition", "theorem", "lemma", "proposition",
+                                 "corollary", "example", "axiom", "notation"],
+                        "description": "Filter by concept type"
+                    },
+                    "limit": {"type": "integer", "default": 20, "description": "Max results"}
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="get_concept_details",
+            description="Retrieve a concept with all its entries (formulations) and graph relations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer", "description": "Concept ID"}
+                },
+                "required": ["concept_id"]
+            }
+        ),
+        Tool(
+            name="add_concept",
+            description="Add a new mathematical concept to the knowledge base.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Concept name (e.g. 'Banach Space')"},
+                    "kind": {
+                        "type": "string",
+                        "enum": ["definition", "theorem", "lemma", "proposition",
+                                 "corollary", "example", "axiom", "notation"]
+                    },
+                    "domain": {"type": "string", "description": "MSC code or domain name"},
+                    "aliases": {"type": "array", "items": {"type": "string"}, "description": "Alternative names"}
+                },
+                "required": ["name", "kind"]
+            }
+        ),
+        Tool(
+            name="add_knowledge_entry",
+            description="Add a specific formulation (entry) from a book to a concept.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer"},
+                    "statement": {"type": "string", "description": "The LaTeX/text of the definition or theorem"},
+                    "book_id": {"type": "integer"},
+                    "page_start": {"type": "integer"},
+                    "page_end": {"type": "integer"},
+                    "proof": {"type": "string"},
+                    "notes": {"type": "string"},
+                    "scope": {"type": "string", "enum": ["undergraduate", "graduate", "research"]},
+                    "style": {"type": "string", "description": "e.g. 'epsilon-delta', 'topological'"},
+                    "confidence": {"type": "number", "default": 1.0}
+                },
+                "required": ["concept_id", "statement"]
+            }
+        ),
+        Tool(
+            name="add_concept_relation",
+            description="Define a relationship between two concepts (e.g. 'Compactness' implies 'Boundedness').",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "from_concept_id": {"type": "integer"},
+                    "to_concept_id": {"type": "integer"},
+                    "relation_type": {
+                        "type": "string",
+                        "enum": ["uses", "implies", "equivalent_to", "generalizes",
+                                 "special_case_of", "proved_by", "counterexample_to",
+                                 "see_also", "prerequisite"]
+                    },
+                    "context": {"type": "string", "description": "Context for the relation (e.g. 'In metric spaces')"},
+                    "confidence": {"type": "number", "default": 1.0}
+                },
+                "required": ["from_concept_id", "to_concept_id", "relation_type"]
+            }
+        ),
+        Tool(
+            name="get_related_concepts",
+            description="Traverse the knowledge graph to find prerequisites, implications, or generalizations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer"},
+                    "depth": {"type": "integer", "default": 1, "description": "Search depth (max 3)"}
+                },
+                "required": ["concept_id"]
+            }
+        ),
+        Tool(
+            name="render_vault_note",
+            description="Render a concept to a Markdown file in the Obsidian vault.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "integer"}
+                },
+                "required": ["concept_id"]
+            }
+        ),
+        Tool(
+            name="regenerate_vault",
+            description="Re-render all knowledge base concepts to the Obsidian vault.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="get_pending_tasks",
+            description="Retrieve pending LLM tasks from the queue.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "default": 10}
+                }
+            }
+        ),
+        Tool(
+            name="queue_task",
+            description="Queue a new LLM task (e.g. 'extract_from_book').",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_type": {"type": "string"},
+                    "payload": {"type": "object"},
+                    "priority": {"type": "integer", "default": 5}
+                },
+                "required": ["task_type"]
+            }
+        ),
+        Tool(
+            name="complete_task",
+            description="Mark a task as successfully completed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer"},
+                    "result": {"type": "object"}
+                },
+                "required": ["task_id"]
+            }
+        ),
+        Tool(
+            name="fail_task",
+            description="Mark a task as failed and log the error.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer"},
+                    "error": {"type": "string"}
+                },
+                "required": ["task_id", "error"]
+            }
+        ),
     ]
 
 
@@ -380,6 +548,30 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return await deep_index_book(arguments)
         elif name == "search_within_book":
             return await search_within_book(arguments)
+        elif name == "search_knowledge":
+            return await search_knowledge(arguments)
+        elif name == "get_concept_details":
+            return await get_concept_details(arguments)
+        elif name == "add_concept":
+            return await add_concept(arguments)
+        elif name == "add_knowledge_entry":
+            return await add_knowledge_entry(arguments)
+        elif name == "add_concept_relation":
+            return await add_concept_relation(arguments)
+        elif name == "get_related_concepts":
+            return await get_related_concepts(arguments)
+        elif name == "render_vault_note":
+            return await render_vault_note(arguments)
+        elif name == "regenerate_vault":
+            return await regenerate_vault(arguments)
+        elif name == "get_pending_tasks":
+            return await get_pending_tasks(arguments)
+        elif name == "queue_task":
+            return await queue_task(arguments)
+        elif name == "complete_task":
+            return await complete_task(arguments)
+        elif name == "fail_task":
+            return await fail_task(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
     except Exception as e:
@@ -767,6 +959,149 @@ async def manage_bookmarks(args: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"✓ Bookmark {bid} deleted.")]
         
     return [TextContent(type="text", text=f"Unknown action: {action}")]
+
+
+async def search_knowledge(args: dict) -> list[TextContent]:
+    """Search the mathematical knowledge base."""
+    params = {"q": args["query"], "limit": args.get("limit", 20)}
+    if args.get("kind"): params["kind"] = args["kind"]
+    resp = requests.get(f"{API_BASE}/kb/concepts/search", params=params, timeout=10)
+    data = resp.json()
+    if not data:
+        return [TextContent(type="text", text="No knowledge base entries found.")]
+    output = f"Found {len(data)} results:\n\n"
+    for item in data:
+        output += f"- **{item.get('concept_name', item.get('name'))}** ({item.get('kind')})"
+        if item.get('match_source') == 'entry':
+            output += f"\n  Statement: {item['statement'][:120]}..."
+        output += f"\n  Concept ID: {item.get('concept_id', item.get('id'))}\n\n"
+    return [TextContent(type="text", text=output)]
+
+
+async def get_concept_details(args: dict) -> list[TextContent]:
+    """Retrieve detailed information for a concept."""
+    concept_id = args["concept_id"]
+    resp = requests.get(f"{API_BASE}/kb/concepts/{concept_id}", timeout=10)
+    if not resp.ok:
+        return [TextContent(type="text", text=f"Concept {concept_id} not found.")]
+    data = resp.json()
+    
+    output = f"# {data['name']} ({data['kind']})\n"
+    if data.get('domain'): output += f"Domain: {data['domain']}\n"
+    if data.get('aliases'): output += f"Aliases: {', '.join(data['aliases'])}\n"
+    output += "\n## Formulations\n\n"
+    for e in data.get('entries', []):
+        output += f"### From {e.get('book_title', 'Unknown Book')}, p. {e.get('page_start', '?')}\n"
+        output += f"{e['statement']}\n\n"
+        if e.get('proof'): output += f"**Proof excerpt**: {e['proof'][:200]}...\n\n"
+        
+    if data.get('relations_out'):
+        output += "## Relations\n"
+        for r in data['relations_out']:
+            output += f"- {r['relation_type'].replace('_', ' ').capitalize()}: [[{r['target_name']}]] (ID: {r['to_concept_id']})\n"
+            
+    return [TextContent(type="text", text=output)]
+
+
+async def add_concept(args: dict) -> list[TextContent]:
+    """Add a new concept."""
+    resp = requests.post(f"{API_BASE}/kb/concepts", json=args, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text=f"✓ Concept '{args['name']}' added (ID: {data['id']})")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def add_knowledge_entry(args: dict) -> list[TextContent]:
+    """Add a formulation entry."""
+    resp = requests.post(f"{API_BASE}/kb/entries", json=args, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text=f"✓ Entry added (ID: {data['id']})")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def add_concept_relation(args: dict) -> list[TextContent]:
+    """Add a relation between concepts."""
+    payload = {
+        "from_concept_id": args["from_concept_id"],
+        "to_concept_id": args["to_concept_id"],
+        "relation_type": args["relation_type"],
+        "context": args.get("context"),
+        "confidence": args.get("confidence", 1.0)
+    }
+    resp = requests.post(f"{API_BASE}/kb/relations", json=payload, timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text="✓ Relation added successfully.")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def get_related_concepts(args: dict) -> list[TextContent]:
+    """Traverse the graph."""
+    params = {"depth": args.get("depth", 1)}
+    resp = requests.get(f"{API_BASE}/kb/concepts/{args['concept_id']}/related", params=params, timeout=10)
+    data = resp.json()
+    
+    output = f"Graph centered on Concept {data['root']} (depth {data['depth']}):\n\n"
+    output += "### Nodes\n"
+    for n in data.get('nodes', []):
+        output += f"- {n['name']} ({n['kind']}, ID: {n['id']})\n"
+    output += "\n### Edges\n"
+    for e in data.get('edges', []):
+        output += f"- {e['from_concept_id']} --({e['relation_type']})--> {e['to_concept_id']}\n"
+    return [TextContent(type="text", text=output)]
+
+
+async def render_vault_note(args: dict) -> list[TextContent]:
+    """Render Obsidian note."""
+    resp = requests.post(f"{API_BASE}/kb/vault/render/{args['concept_id']}", timeout=10)
+    data = resp.json()
+    if data.get('success'):
+        return [TextContent(type="text", text=f"✓ Note rendered to: {data['path']}")]
+    return [TextContent(type="text", text=f"✗ Failed: {data.get('error')}")]
+
+
+async def regenerate_vault(args: dict) -> list[TextContent]:
+    """Re-render all notes."""
+    resp = requests.post(f"{API_BASE}/kb/vault/regenerate", timeout=300)
+    data = resp.json()
+    return [TextContent(type="text", text=f"✓ Vault regeneration complete. Rendered: {data['rendered']}, Errors: {data['errors']}")]
+
+
+async def get_pending_tasks(args: dict) -> list[TextContent]:
+    """Get pending LLM tasks."""
+    params = {"limit": args.get("limit", 10)}
+    resp = requests.get(f"{API_BASE}/kb/tasks", params=params, timeout=10)
+    tasks = resp.json()
+    if not tasks:
+        return [TextContent(type="text", text="No pending tasks.")]
+    output = "Pending LLM Tasks:\n\n"
+    for t in tasks:
+        output += f"- [ID {t['id']}] {t['task_type']} (Priority {t['priority']})\n"
+        output += f"  Payload: {t['payload']}\n\n"
+    return [TextContent(type="text", text=output)]
+
+
+async def queue_task(args: dict) -> list[TextContent]:
+    """Queue a task."""
+    resp = requests.post(f"{API_BASE}/kb/tasks", json=args, timeout=10)
+    data = resp.json()
+    return [TextContent(type="text", text=f"✓ Task queued (ID: {data['id']})")]
+
+
+async def complete_task(args: dict) -> list[TextContent]:
+    """Complete a task."""
+    resp = requests.post(f"{API_BASE}/kb/tasks/{args['task_id']}/complete", json=args.get('result', {}), timeout=10)
+    return [TextContent(type="text", text="✓ Task marked as complete.")]
+
+
+async def fail_task(args: dict) -> list[TextContent]:
+    """Fail a task."""
+    payload = {"error": args["error"]}
+    resp = requests.post(f"{API_BASE}/kb/tasks/{args['task_id']}/fail", json=payload, timeout=10)
+    data = resp.json()
+    return [TextContent(type="text", text=f"✓ Task failed. Status: {data.get('new_status')}, Retries: {data.get('retry_count')}")]
 
 
 # --- Resource Definitions ---
