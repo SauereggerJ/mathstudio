@@ -147,14 +147,14 @@ class RemoteManager:
     def restart_python_process(self):
         """Restarts the background python worker without killing container."""
         log("Restarting background worker...", "INFO")
-        # We kill the old processes
-        kill_cmd = f"cd {self.cfg.REMOTE_PROJECT_DIR} && docker compose exec {self.cfg.CONTAINER_NAME} pkill -f .py || true"
+        # We kill the old process and start new one
+        kill_cmd = f"cd {self.cfg.REMOTE_PROJECT_DIR} && docker compose exec {self.cfg.CONTAINER_NAME} pkill -f process_notes.py || true"
         self.run_command(kill_cmd, print_output=False)
         
         start_services_cmd = (
             f"cd {self.cfg.REMOTE_PROJECT_DIR} && "
-            f"docker compose exec -d {self.cfg.CONTAINER_NAME} sh -c 'nohup python3 -u legacy_scripts/process_notes.py > process_notes.log 2>&1 &' && "
-            f"docker compose exec -d {self.cfg.CONTAINER_NAME} nohup python3 -u legacy_scripts/vectorize.py --limit 5000 --reset > vectorize.log 2>&1 &"
+            f"docker compose exec -d {self.cfg.CONTAINER_NAME} sh -c 'nohup python3 -u process_notes.py > process_notes.log 2>&1 &' && "
+            f"docker compose exec -d {self.cfg.CONTAINER_NAME} nohup python3 -u vectorize.py --limit 5000 --reset > vectorize.log 2>&1 &"
         )
         self.run_command(start_services_cmd)
         log("Background worker restarted.", "SUCCESS")

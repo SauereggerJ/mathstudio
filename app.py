@@ -92,6 +92,9 @@ def index(): return render_template('index.html')
 @app.route('/admin')
 def admin_dashboard(): return render_template('admin.html')
 
+@app.route('/msc')
+def msc_browser(): return render_template('msc_browser.html')
+
 @app.route('/book/<int:book_id>/edit')
 def edit_book(book_id):
     with db.get_connection() as conn:
@@ -110,7 +113,7 @@ def book_details(book_id):
         cursor.execute("""
             SELECT id, filename, path, directory, author, title, publisher, year, isbn, doi, zbl_id,
                    summary, level, has_exercises AS exercises, has_solutions AS solutions, 
-                   msc_class AS msc_code, tags, description, toc_json, audience, page_count 
+                   msc_class AS msc_code, tags, description, toc_json, audience, page_count, index_text 
             FROM books WHERE id = ?
         """, (book_id,))
         book = cursor.fetchone()

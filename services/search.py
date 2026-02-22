@@ -84,6 +84,81 @@ class SearchService:
                 cursor.execute(sql, (simple_query, limit))
                 return [dict(row) for row in cursor.fetchall()]
 
+    def search_books_metadata(self, query, limit=50, field='all'):
+        """SQL LIKE fallback when FTS/vector are disabled or return nothing."""
+        clauses = []
+        params = []
+        q = f"%{query}%"
+
+        if field == 'title':
+            clauses.append("b.title LIKE ?")
+            params.append(q)
+        elif field == 'author':
+            clauses.append("b.author LIKE ?")
+            params.append(q)
+        else:
+            clauses.append("(b.title LIKE ? OR b.author LIKE ? OR b.summary LIKE ? OR b.msc_class LIKE ?)")
+            params.extend([q, q, q, q])
+
+        sql = f"""
+            SELECT b.id, b.title, b.author, b.path, '' as snippet,
+                   b.year, b.publisher, b.summary, b.index_text,
+                   b.msc_class
+            FROM books b
+            WHERE {' AND '.join(clauses)}
+            ORDER BY b.title
+            LIMIT ?
+        """
+        params.append(limit)
+
+        with self.db.get_connection() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def browse_by_field(self, author=None, msc=None, year=None, keyword=None, limit=100):
+        """Exact-match metadata browse. Returns books matching the filter."""
+        clauses = []
+        params = []
+
+        if author:
+            clauses.append("b.author LIKE ?")
+            params.append(f"%{author}%")
+        if msc:
+            clauses.append("(b.msc_class LIKE ? OR b.msc_class LIKE ? OR b.msc_class LIKE ?)")
+            params.extend([f"{msc}%", f"%, {msc}%", f"%,{msc}%"])
+        if year:
+            clauses.append("b.year = ?")
+            params.append(str(year))
+
+        if keyword:
+            sql = f"""
+                SELECT DISTINCT b.id, b.title, b.author, b.path, '' as snippet,
+                       b.year, b.publisher, b.summary, b.index_text,
+                       b.msc_class
+                FROM books b
+                LEFT JOIN zbmath_cache z ON b.zbl_id = z.zbl_id
+                WHERE z.keywords LIKE ?
+                {('AND ' + ' AND '.join(clauses)) if clauses else ''}
+                ORDER BY b.title
+                LIMIT ?
+            """
+            params = [f"%{keyword}%"] + params + [limit]
+        else:
+            if not clauses:
+                return []
+            sql = f"""
+                SELECT b.id, b.title, b.author, b.path, '' as snippet,
+                       b.year, b.publisher, b.summary, b.index_text,
+                       b.msc_class
+                FROM books b
+                WHERE {' AND '.join(clauses)}
+                ORDER BY b.title
+                LIMIT ?
+            """
+            params.append(limit)
+
+        with self.db.get_connection() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
     def search_books_semantic(self, query_vec, top_k=50):
         """Performs semantic search using vector embeddings."""
         if not query_vec:
@@ -410,7 +485,20 @@ class SearchService:
                     c['index_matches'] = idx_match
                     c['score'] += 0.5
 
-        # 5. Finalize results
+        # 5. Metadata fallback (when FTS+vector returned nothing)
+        if not candidates:
+            meta_results = self.search_books_metadata(search_query, limit=100, field=field)
+            for row in meta_results:
+                bid = row['id']
+                key = f"B_{bid}"
+                candidates[key] = {
+                    **row,
+                    'type': 'book',
+                    'score': 0.5,
+                    'found_by': 'metadata'
+                }
+
+        # 6. Finalize results
         final_list = sorted(candidates.values(), key=lambda x: x['score'], reverse=True)
         total_count = len(final_list)
         paged_results = final_list[offset : offset + limit]

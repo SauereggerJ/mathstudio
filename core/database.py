@@ -264,6 +264,7 @@ class DatabaseManager:
                     domain TEXT,
                     kind TEXT NOT NULL,
                     canonical_entry_id INTEGER,
+                    synthesis TEXT,
                     obsidian_path TEXT,
                     created_at INTEGER DEFAULT (unixepoch()),
                     updated_at INTEGER DEFAULT (unixepoch()),
@@ -338,6 +339,13 @@ class DatabaseManager:
                     completed_at INTEGER
                 ) STRICT
             ''')
+
+            # --- Safe Migrations for V2 Knowledge Base ---
+            # Add synthesis column to concepts if it doesn't exist
+            cursor.execute("PRAGMA table_info(concepts)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if 'synthesis' not in columns:
+                cursor.execute("ALTER TABLE concepts ADD COLUMN synthesis TEXT")
 
 # Global instance
 db = DatabaseManager()

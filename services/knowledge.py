@@ -8,7 +8,8 @@ from jinja2 import Environment, FileSystemLoader
 from core.database import db
 from core.config import (
     KNOWLEDGE_VAULT_ROOT, KNOWLEDGE_GENERATED_DIR,
-    KNOWLEDGE_DRAFTS_DIR, KNOWLEDGE_TEMPLATES_DIR
+    KNOWLEDGE_DRAFTS_DIR, KNOWLEDGE_TEMPLATES_DIR,
+    LIBRARY_ROOT
 )
 
 logger = logging.getLogger(__name__)
@@ -84,8 +85,8 @@ class KnowledgeService:
         return {"success": True, "id": new_id}
 
     def update_concept(self, concept_id: int, **kwargs) -> Dict[str, Any]:
-        """Updates concept fields (name, kind, domain, aliases)."""
-        allowed = {'name', 'kind', 'domain', 'aliases'}
+        """Updates concept fields (name, kind, domain, aliases, synthesis)."""
+        allowed = {'name', 'kind', 'domain', 'aliases', 'synthesis'}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return {"success": False, "error": "No valid fields to update"}
@@ -542,14 +543,17 @@ class KnowledgeService:
             book = conn.execute("SELECT path FROM books WHERE id = ?", (canonical.get('book_id'),)).fetchone()
             book_path = book['path'] if book else None
 
+        # Remove canonical entry from variants list so it isn't repeated
+        variant_entries = [e for e in concept['entries'] if e['id'] != canonical['id']] if canonical else concept['entries']
+
         from datetime import datetime
         rendered = template.render(
             concept=concept,
             canonical=canonical,
-            entries=concept['entries'],
+            entries=variant_entries,
             relations=concept['relations_out'],
             relations_in=concept['relations_in'],
-            book_path=book_path,
+            library_root=str(LIBRARY_ROOT),
             now=datetime.now().strftime('%Y-%m-%d')
         )
 

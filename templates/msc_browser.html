@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}MSC Subject Browser - MathStudio{% endblock %}
+
+{% block content %}
+<section class="mb-8">
+    <div class="flex items-center gap-4">
+        <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">
+            <i class="fas fa-sitemap text-emerald-600 mr-3"></i>Subject Classification Browser
+        </h1>
+    </div>
+    <p class="text-lg text-slate-500 mt-2">
+        Browse your library by <strong>Mathematics Subject Classification (MSC 2020)</strong>.
+    </p>
+</section>
+
+<!-- Breadcrumb Navigation -->
+<nav id="breadcrumbs" class="mb-6 flex items-center gap-2 text-sm font-medium text-slate-500">
+    <button onclick="showLevel('top')" class="hover:text-emerald-600 transition-colors">
+        <i class="fas fa-home mr-1"></i> All Subjects
+    </button>
+</nav>
+
+<div id="loading" class="text-center py-20">
+    <div class="inline-block px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full animate-pulse font-medium">
+        <i class="fas fa-spinner fa-spin mr-2"></i> Loading subject tree...
+    </div>
+</div>
+
+<!-- Grid for categories -->
+<div id="mscGrid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+<!-- Book results when drilling to leaf -->
+<div id="bookResults" class="hidden">
+    <div class="flex items-center gap-3 mb-4">
+        <span id="bookResultsCount"
+            class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-sm font-bold"></span>
+    </div>
+    <div id="bookResultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let mscTree = [];       // Full hierarchy from dokumentation/msc2020.json
+    let mscStats = {};      // Book counts per code
+    let currentPath = [];   // Navigation stack
+
+    async function init() {
+        const [treeRes, statsRes] = await Promise.all([
+            fetch('/api/v1/msc-tree'),
+            fetch('/api/v1/msc-stats')
+        ]);
+        mscTree = await treeRes.json();
+        mscStats = await statsRes.json();
+        document.getElementById('loading').classList.add('hidden');
+        showLevel('top');
+    }
+
+    function showLevel(level) {
+        const grid = document.getElementById('mscGrid');
+        const books = document.getElementById('bookResults');
+        grid.classList.remove('hidden');
+        books.classList.add('hidden');
+
+        let items = [];
+        if (level === 'top') {
+            currentPath = [];
+            items = mscTree.map(cat => ({
+                code: cat.code.replace('-XX', ''),
+                label: cat.description,
+                hasChildren: (cat.subcategories && cat.subcategories.length > 0) || (cat.codes && cat.codes.length > 0),
+                data: cat
+            }));
+        } else {
+            items = level;
+        }
+
+        updateBreadcrumbs();
+
+        grid.innerHTML = items.map(item => {
+            const count = mscStats[item.code] || 0;
+            const hasBooks = count > 0;
+            const clickAction = item.hasChildren
+                ? `drillInto(${JSON.stringify(item.code).replace(/"/g, '&quot;')}, ${JSON.stringify(item.label).replace(/"/g, '&quot;')})`
+                : (hasBooks ? `showBooks(${JSON.stringify(item.code).replace(/"/g, '&quot;')}, ${JSON.stringify(item.label).replace(/"/g, '&quot;')})` : '');
+
+            return `
+                <div class="group bg-white border ${hasBooks ? 'border-emerald-100 hover:shadow-lg hover:border-emerald-200' : 'border-slate-100 opacity-50'} rounded-xl p-4 transition-all duration-200 ${clickAction ? 'cursor-pointer' : ''}"
+                     ${clickAction ? `onclick="${clickAction}"` : ''}>
+                    <div class="flex items-start gap-3">
+                        <span class="text-xl font-black ${hasBooks ? 'text-emerald-600' : 'text-slate-300'} font-mono whitespace-nowrap">${item.code}</span>
+                        <div class="flex-grow min-w-0">
+                            <h3 class="text-sm font-bold ${hasBooks ? 'text-slate-900 group-hover:text-emerald-700' : 'text-slate-400'} leading-tight">${item.label}</h3>
+                            <div class="flex items-center gap-2 mt-1">
+                                ${hasBooks ? `<span class="text-xs font-bold text-emerald-600">${count} book${count !== 1 ? 's' : ''}</span>` : '<span class="text-xs text-slate-400">No books</span>'}
+                                ${item.hasChildren ? '<span class="text-xs text-slate-400">•</span><span class="text-xs text-slate-400">has subcategories</span>' : ''}
+                            </div>
+                        </div>
+                        ${clickAction ? '<i class="fas fa-chevron-right text-emerald-300 group-hover:text-emerald-500 mt-1 flex-shrink-0"></i>' : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function drillInto(code, label) {
+        // Find the node in the tree
+        let node = null;
+        for (const top of mscTree) {
+            const topCode = top.code.replace('-XX', '');
+            if (topCode === code) {
+                node = top;
+                break;
+            }
+            // Check subcategories
+            if (top.subcategories) {
+                for (const sub of top.subcategories) {
+                    const subCode = sub.code.replace('xx', '');
+                    if (subCode === code) {
+                        node = sub;
+                        break;
+                    }
+                }
+            }
+            if (node) break;
+        }
+
+        if (!node) return;
+
+        currentPath.push({ code, label });
+
+        // Build child items: subcategories + direct codes
+        let children = [];
+
+        if (node.subcategories) {
+            for (const sub of node.subcategories) {
+                const subCode = sub.code.replace('xx', '');
+                children.push({
+                    code: subCode,
+                    label: sub.description,
+                    hasChildren: sub.codes && sub.codes.length > 0,
+                    data: sub
+                });
+            }
+        }
+
+        if (node.codes) {
+            for (const c of node.codes) {
+                children.push({
+                    code: c.code,
+                    label: c.description,
+                    hasChildren: false,
+                    data: c
+                });
+            }
+        }
+
+        showLevel(children);
+    }
+
+    async function showBooks(code, label) {
+        currentPath.push({ code, label });
+        updateBreadcrumbs();
+
+        const grid = document.getElementById('mscGrid');
+        const booksDiv = document.getElementById('bookResults');
+        const resultsGrid = document.getElementById('bookResultsGrid');
+
+        grid.classList.add('hidden');
+        booksDiv.classList.remove('hidden');
+        resultsGrid.innerHTML = '<div class="col-span-full text-center py-8 text-slate-400 animate-pulse">Loading books...</div>';
+
+        try {
+            const res = await fetch(`/api/v1/browse?msc=${encodeURIComponent(code)}&limit=500`);
+            const data = await res.json();
+            document.getElementById('bookResultsCount').textContent = `${data.total_count} documents`;
+
+            if (!data.results || data.results.length === 0) {
+                resultsGrid.innerHTML = '<div class="col-span-full text-center py-8 text-slate-400">No books found.</div>';
+                return;
+            }
+
+            resultsGrid.innerHTML = data.results.map(book => `
+                <div class="group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                    <div class="flex gap-3">
+                        <div class="w-16 h-24 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 shadow-inner border border-slate-100">
+                            <img src="${book.cover_url}" alt="Cover" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                 onerror="this.src='https://via.placeholder.com/150x200?text=No+Cover'">
+                        </div>
+                        <div class="flex flex-col flex-grow min-w-0">
+                            <h3 class="text-sm font-bold text-slate-900 leading-tight mb-1 line-clamp-2">
+                                <a href="/book/${book.id}" class="hover:text-blue-600">${book.title}</a>
+                            </h3>
+                            <p class="text-xs text-slate-500 italic line-clamp-1">
+                                <a href="/?author=${encodeURIComponent(book.author || '')}" class="hover:text-blue-600 hover:underline">${book.author || 'Unknown'}</a>
+                            </p>
+                            ${book.year ? `<span class="text-xs text-slate-400 mt-auto">${book.year}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            resultsGrid.innerHTML = '<div class="col-span-full text-center py-8 text-red-400">Error loading results.</div>';
+        }
+    }
+
+    function updateBreadcrumbs() {
+        const nav = document.getElementById('breadcrumbs');
+        let html = `<button onclick="showLevel('top')" class="hover:text-emerald-600 transition-colors font-bold">
+            <i class="fas fa-home mr-1"></i> All Subjects
+        </button>`;
+
+        for (let i = 0; i < currentPath.length; i++) {
+            const crumb = currentPath[i];
+            html += `<i class="fas fa-chevron-right text-slate-300 text-xs"></i>`;
+            if (i < currentPath.length - 1) {
+                html += `<button onclick="navigateTo(${i})" class="hover:text-emerald-600 transition-colors">${crumb.code} ${crumb.label}</button>`;
+            } else {
+                html += `<span class="text-emerald-700 font-bold">${crumb.code} ${crumb.label}</span>`;
+            }
+        }
+        nav.innerHTML = html;
+    }
+
+    function navigateTo(index) {
+        // Replay navigation up to index
+        const target = currentPath[index];
+        currentPath = currentPath.slice(0, index);
+        drillInto(target.code, target.label);
+    }
+
+    init();
+</script>
+{% endblock %}

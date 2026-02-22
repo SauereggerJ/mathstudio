@@ -1,0 +1,306 @@
+# MathStudio — Knowledge Base Architecture v2
+*Revised with Gemini 3 feedback. February 2026.*
+
+---
+
+## Core Principles
+
+1. **One database.** Everything stays in `library.db`. The KB is a new table set with FKs into `books`. Like `zbmath_cache` — same DB, separate logical layer.
+2. **Unidirectional vault flow.** SQLite is truth → CLI generates Markdown → Obsidian displays. The `Generated/` folder is always overwritable. Manual notes live elsewhere.
+3. **Per-entry embeddings.** Every specific formulation gets its own vector. The LLM searches for *"epsilon-delta proof of continuity"*, not just *"continuity"*.
+4. **Hard safety limits.** Graph traversal capped at 3 levels. Task queue has retry counters and error logs.
+
+---
+
+## Schema — 5 New Tables in `library.db`
+
+### `concepts`
+```sql
+CREATE TABLE IF NOT EXISTS concepts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,              -- "Compactness"
+    aliases TEXT,                    -- JSON: ["kompakt", "folgenkompakt"]
+    domain TEXT,                     -- MSC code: "54D30"
+    kind TEXT NOT NULL,              -- definition|theorem|lemma|proposition|
+                                     -- corollary|example|axiom|notation
+    canonical_entry_id INTEGER,      -- FK → entries: best formulation
+    obsidian_path TEXT,              -- "Generated/Compactness.md"
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY(canonical_entry_id) REFERENCES entries(id) ON DELETE SET NULL
+) STRICT;
+```
+
+### `entries`
+```sql
+CREATE TABLE IF NOT EXISTS entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    concept_id INTEGER NOT NULL,
+    book_id INTEGER,                 -- FK → books
+    page_start INTEGER,
+    page_end INTEGER,
+    statement TEXT NOT NULL,          -- LaTeX/text of the statement
+    proof TEXT,                       -- Full proof (if applicable)
+    notes TEXT,                       -- LLM commentary
+    scope TEXT,                       -- undergraduate|graduate|research
+    language TEXT DEFAULT 'en',
+    style TEXT,                       -- epsilon-delta|topological|categorical|
+                                      -- constructive|abstract
+    is_canonical INTEGER DEFAULT 0,
+    confidence REAL DEFAULT 1.0,
+    extracted_by TEXT DEFAULT 'llm',  -- llm|manual|import
+    embedding BLOB,                  -- ★ Per-entry vector for RAG
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY(concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE SET NULL
+) STRICT;
+```
+
+### `relations`
+```sql
+CREATE TABLE IF NOT EXISTS relations (
+    from_concept_id INTEGER NOT NULL,
+    to_concept_id INTEGER NOT NULL,
+    relation_type TEXT NOT NULL,
+    -- uses | implies | equivalent_to | generalizes | special_case_of
+    -- proved_by | counterexample_to | see_also | prerequisite
+    context TEXT,                     -- "In metric spaces..."
+    source_entry_id INTEGER,
+    confidence REAL DEFAULT 1.0,
+    created_at INTEGER DEFAULT (unixepoch()),
+    PRIMARY KEY(from_concept_id, to_concept_id, relation_type),
+    FOREIGN KEY(from_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    FOREIGN KEY(to_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    FOREIGN KEY(source_entry_id) REFERENCES entries(id) ON DELETE SET NULL
+) STRICT;
+```
+
+### `concept_fts`
+```sql
+CREATE VIRTUAL TABLE IF NOT EXISTS concept_fts USING fts5(
+    name, aliases, statement, notes,
+    tokenize='porter unicode61 remove_diacritics 1'
+);
+```
+
+### `llm_tasks` — hardened
+```sql
+CREATE TABLE IF NOT EXISTS llm_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_type TEXT NOT NULL,
+    -- extract_from_book | verify_definition | write_obsidian
+    -- check_links | find_variants | resolve_conflict
+    payload TEXT,                     -- JSON params
+    status TEXT DEFAULT 'pending',    -- pending|in_progress|done|failed|blocked
+    priority INTEGER DEFAULT 5,      -- 1=urgent, 10=low
+    retry_count INTEGER DEFAULT 0,   -- ★ Incremented on each failure
+    max_retries INTEGER DEFAULT 3,   -- ★ Task blocked after this
+    error_log TEXT,                   -- ★ JSON array of error messages
+    result TEXT,                      -- JSON result
+    created_at INTEGER DEFAULT (unixepoch()),
+    completed_at INTEGER
+) STRICT;
+```
+
+> [!IMPORTANT]
+> When `retry_count >= max_retries`, the task's status MUST be set to `'blocked'`. Blocked tasks require manual intervention (via admin UI or MCP tool).
+
+---
+
+## Vault Structure
+
+New vault rooted at a configurable path (e.g., `KNOWLEDGE_VAULT_ROOT`).
+
+```
+mathstudio/
+├── knowledge_vault/               ← KNOWLEDGE_VAULT_ROOT
+│   ├── Generated/                 ← Machine-written, always overwritable
+│   │   ├── Definitions/
+│   │   │   ├── Compactness.md
+│   │   │   ├── Banach_Space.md
+│   │   │   └── ...
+│   │   ├── Theorems/
+│   │   │   ├── Heine_Borel_Theorem.md
+│   │   │   └── ...
+│   │   ├── Examples/
+│   │   ├── Notations/
+│   │   └── _Index.md              ← Auto-generated MOC (Map of Content)
+│   ├── Manual/                    ← Your hand-written notes, NEVER touched
+│   │   └── ...
+│   ├── Drafts/                    ← LLM proposals awaiting review
+│   │   └── ...
+│   └── .obsidian/                 ← Vault settings
+│       └── ...
+└── templates/                     ← Jinja2 templates for note generation
+    ├── definition.md.j2
+    ├── theorem.md.j2
+    ├── example.md.j2
+    └── index.md.j2
+```
+
+**Rule:** `Generated/` is a pure projection of the DB. Every file is regenerable from `concepts` + `entries` + `relations`. The LLM writes to DB first, then renders to filesystem. Manual changes in `Generated/` will be overwritten.
+
+**`Drafts/`** is for uncertain items (`confidence < 0.8`) — you review and either promote (→ DB → `Generated/`) or delete.
+
+---
+
+## Templates (in `mathstudio/templates/knowledge/`)
+
+### `definition.md.j2`
+```jinja2
+---
+concept_id: {{ concept.id }}
+kind: {{ concept.kind }}
+domain: "{{ concept.domain }}"
+canonical_source: "{{ canonical.book_title }}, p. {{ canonical.page_start }}"
+sources: {{ entries | length }}
+trust: {{ canonical.confidence }}
+generated_at: {{ now }}
+---
+
+# {{ concept.name }}
+{% if concept.aliases %}
+**Also known as:** {{ concept.aliases | join(', ') }}
+{% endif %}
+
+## Definition
+
+{{ canonical.statement }}
+
+{% if entries | length > 1 %}
+## Variants
+
+| Source | Formulation | Scope | Style |
+|---|---|---|---|
+{% for e in entries %}
+| {{ e.book_author }}, p. {{ e.page_start }} | {{ e.statement | truncate(80) }} | {{ e.scope }} | {{ e.style }} |
+{% endfor %}
+{% endif %}
+
+{% if relations %}
+## Relations
+
+{% for r in relations %}
+- {% if r.relation_type == 'prerequisite' %}**Requires:** {% elif r.relation_type == 'generalizes' %}**Generalizes:** {% elif r.relation_type == 'special_case_of' %}**Special case of:** {% elif r.relation_type == 'equivalent_to' %}**Equivalent to:** {% elif r.relation_type == 'see_also' %}**See also:** {% else %}**{{ r.relation_type }}:** {% endif %}[[{{ r.target_name }}]]{% if r.context %} *({{ r.context }})*{% endif %}
+
+{% endfor %}
+{% endif %}
+
+{% if canonical.proof %}
+## Proof
+
+{{ canonical.proof }}
+{% endif %}
+
+{% if canonical.notes %}
+## Notes
+
+{{ canonical.notes }}
+{% endif %}
+
+---
+*Auto-generated from MathStudio KB. Do not edit — changes will be overwritten.*
+```
+
+### `theorem.md.j2`
+Same structure as definition, but with a `## Statement` section instead of `## Definition`, and `## Proof` is always shown (even if empty, as a placeholder `*Proof not yet extracted.*`).
+
+### `index.md.j2`
+```jinja2
+---
+generated_at: {{ now }}
+total_concepts: {{ concepts | length }}
+---
+
+# Knowledge Base Index
+
+{% for domain, group in concepts | groupby('domain') %}
+## {{ domain }}
+
+{% for c in group %}
+- [[{{ c.name }}]] ({{ c.kind }}){% if c.entry_count > 1 %} — {{ c.entry_count }} variants{% endif %}
+
+{% endfor %}
+{% endfor %}
+```
+
+---
+
+## MCP Tools — Safety-Hardened
+
+| Tool | Params | Safety |
+|---|---|---|
+| `search_concepts` | `query`, `kind?`, `domain?`, `limit=20` | Max 50 results |
+| `search_entries` | `query`, `scope?`, `style?`, `limit=20` | ★ Uses per-entry embeddings |
+| `get_concept` | `concept_id` | Returns concept + all entries + relations |
+| `add_concept` | `name`, `kind`, `domain?`, `aliases?` | Dedup check before insert |
+| `add_entry` | `concept_id`, `book_id`, `page_start`, `statement`, ... | FK validation |
+| `add_relation` | `from_id`, `to_id`, `type`, `context?` | ★ No self-references |
+| `get_related_concepts` | `concept_id`, `depth=1`, `max_depth=3` | ★ **Hard cap: depth ≤ 3** |
+| `find_duplicates` | `concept_id` or `name` | Fuzzy + embedding similarity |
+| `queue_task` | `type`, `payload`, `priority?` | — |
+| `get_pending_tasks` | `limit=10` | Only `pending`, never `blocked` |
+| `complete_task` | `task_id`, `result` | Sets `completed_at` |
+| `fail_task` | `task_id`, `error` | ★ Increments `retry_count`, blocks if exceeded |
+| `write_obsidian_note` | `concept_id` | Renders template → writes to `Generated/` |
+| `regenerate_vault` | — | Full re-render of all `Generated/` files from DB |
+| `check_vault_links` | `path?` | Scans for broken `[[wikilinks]]` |
+
+> [!CAUTION]
+> `get_related_concepts` MUST enforce `max_depth ≤ 3` server-side, regardless of what the LLM requests. The MCP tool must reject `depth > 3`.
+
+---
+
+## Config Additions (`core/config.py`)
+
+```python
+# Knowledge Vault
+KNOWLEDGE_VAULT_ROOT = PROJECT_ROOT / "knowledge_vault"
+KNOWLEDGE_GENERATED_DIR = KNOWLEDGE_VAULT_ROOT / "Generated"
+KNOWLEDGE_DRAFTS_DIR = KNOWLEDGE_VAULT_ROOT / "Drafts"
+KNOWLEDGE_TEMPLATES_DIR = PROJECT_ROOT / "templates" / "knowledge"
+```
+
+---
+
+## Why One DB, Not Separate
+
+| Argument | Same DB ✅ | Separate DB ❌ |
+|---|---|---|
+| FK from entry → book | Works natively | Impossible across DBs |
+| Single WAL lock | One connection pool | Two connection managers |
+| MCP server | One DB path | Two DB configurations |
+| Backup | One file to copy | Two files to keep in sync |
+| Cross-queries | `JOIN entries ON books.id` | Application-level joins |
+
+The `zbmath_cache` is already in `library.db` and it works. The KB tables follow the same pattern — logically separate, physically co-located.
+
+---
+
+## Implementation Phases
+
+### Phase A — Foundation
+- [ ] Add 5 tables to `database.py` with migration loop
+- [ ] Create `knowledge_vault/` directory structure
+- [ ] Create Jinja2 templates in `templates/knowledge/`
+- [ ] Add config constants to `core/config.py`
+- [ ] Write basic smoke tests (insert concept → render note → verify file)
+
+### Phase B — MCP Tools
+- [ ] Implement CRUD tools: `add_concept`, `add_entry`, `add_relation`
+- [ ] Implement search tools: `search_concepts`, `search_entries`
+- [ ] Implement graph tool: `get_related_concepts` (with hard depth cap)
+- [ ] Implement vault tools: `write_obsidian_note`, `regenerate_vault`
+- [ ] Implement task queue: `queue_task`, `get_pending_tasks`, `fail_task`
+
+### Phase C — Seed & Validate
+- [ ] Manually seed 5 core concepts via MCP
+- [ ] Have LLM process one book end-to-end
+- [ ] Verify generated vault notes render correctly in Obsidian
+- [ ] Check graph traversal stays within bounds
+
+### Phase D — Scale
+- [ ] Batch extraction from library (task queue driven)
+- [ ] Duplicate detection across concepts
+- [ ] Admin review UI for drafts
+- [ ] Nightly `regenerate_vault` cron job

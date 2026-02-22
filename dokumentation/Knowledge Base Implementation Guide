@@ -1,0 +1,823 @@
+# Knowledge Base — Implementation Guide
+*For the LLM programmer. Companion to `knowledge_base_architecture.md`.*
+
+---
+
+> [!IMPORTANT]
+> Read `knowledge_base_architecture.md` first for the full schema SQL definitions,
+> vault structure rationale, and design principles.
+> This document tells you **what files to change, in what order, following what patterns.**
+
+---
+
+## File Map — What Gets Modified & Created
+
+| Action | File | What |
+|---|---|---|
+| MODIFY | `core/database.py` | Add 5 tables + migrations to `initialize_schema()` |
+| MODIFY | `core/config.py` | Add 3 knowledge vault path constants |
+| NEW | `services/knowledge.py` | New service: CRUD, search, graph, vault rendering |
+| MODIFY | `api_v1.py` | Add ~8 new API endpoints under `/api/v1/kb/` |
+| MODIFY | `mcp_server/server.py` | Add ~12 new MCP tools |
+| NEW | `templates/knowledge/definition.md.j2` | Jinja2 template for definition notes |
+| NEW | `templates/knowledge/theorem.md.j2` | Jinja2 template for theorem notes |
+| NEW | `templates/knowledge/index.md.j2` | Jinja2 template for vault index |
+
+---
+
+## Phase A — Schema & Config
+
+### Step A1: Add config constants
+
+**File:** `core/config.py`
+**Where:** After the existing `BIB_EXTRACTS_DIR` line (around line 22).
+**Pattern:** Follow the existing `CONVERTED_NOTES_DIR = PROJECT_ROOT / "converted_notes"` style.
+
+```python
+# Knowledge Vault
+KNOWLEDGE_VAULT_ROOT = PROJECT_ROOT / "knowledge_vault"
+KNOWLEDGE_GENERATED_DIR = KNOWLEDGE_VAULT_ROOT / "Generated"
+KNOWLEDGE_DRAFTS_DIR = KNOWLEDGE_VAULT_ROOT / "Drafts"
+KNOWLEDGE_TEMPLATES_DIR = PROJECT_ROOT / "templates" / "knowledge"
+```
+
+Also add these directories to the `mkdir` loop at line 32:
+```python
+for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_DIR,
+          KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR,
+          KNOWLEDGE_GENERATED_DIR / "Definitions",
+          KNOWLEDGE_GENERATED_DIR / "Theorems",
+          KNOWLEDGE_GENERATED_DIR / "Examples",
+          KNOWLEDGE_GENERATED_DIR / "Notations",
+          KNOWLEDGE_TEMPLATES_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
+```
+
+**Acceptance:** Importing `core.config` creates the vault directories automatically.
+
+---
+
+### Step A2: Add 5 tables to database.py
+
+**File:** `core/database.py`
+**Where:** After the `# 11. Wishlist` block (after line 256), before `# Global instance`.
+**Pattern:** Follow the exact same style as the existing tables. Use `CREATE TABLE IF NOT EXISTS`, `STRICT`, `unixepoch()` for timestamps, `FOREIGN KEY ... ON DELETE CASCADE`.
+
+Add these blocks in order:
+
+```python
+            # 12. Knowledge Base: Concepts
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS concepts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    aliases TEXT,
+                    domain TEXT,
+                    kind TEXT NOT NULL,
+                    canonical_entry_id INTEGER,
+                    obsidian_path TEXT,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    updated_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(canonical_entry_id) REFERENCES entries(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 13. Knowledge Base: Entries (specific formulations)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    concept_id INTEGER NOT NULL,
+                    book_id INTEGER,
+                    page_start INTEGER,
+                    page_end INTEGER,
+                    statement TEXT NOT NULL,
+                    proof TEXT,
+                    notes TEXT,
+                    scope TEXT,
+                    language TEXT DEFAULT 'en',
+                    style TEXT,
+                    is_canonical INTEGER DEFAULT 0,
+                    confidence REAL DEFAULT 1.0,
+                    extracted_by TEXT DEFAULT 'llm',
+                    embedding BLOB,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 14. Knowledge Base: Relations (graph edges)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS relations (
+                    from_concept_id INTEGER NOT NULL,
+                    to_concept_id INTEGER NOT NULL,
+                    relation_type TEXT NOT NULL,
+                    context TEXT,
+                    source_entry_id INTEGER,
+                    confidence REAL DEFAULT 1.0,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    PRIMARY KEY(from_concept_id, to_concept_id, relation_type),
+                    FOREIGN KEY(from_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(to_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+                    FOREIGN KEY(source_entry_id) REFERENCES entries(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 15. Knowledge Base: FTS over concepts + entries
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='concept_fts'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE VIRTUAL TABLE concept_fts USING fts5(
+                        name, aliases, statement, notes,
+                        tokenize='porter unicode61 remove_diacritics 1'
+                    );
+                ''')
+
+            # 16. LLM Task Queue
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS llm_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_type TEXT NOT NULL,
+                    payload TEXT,
+                    status TEXT DEFAULT 'pending',
+                    priority INTEGER DEFAULT 5,
+                    retry_count INTEGER DEFAULT 0,
+                    max_retries INTEGER DEFAULT 3,
+                    error_log TEXT,
+                    result TEXT,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    completed_at INTEGER
+                ) STRICT
+            ''')
+```
+
+> [!IMPORTANT]
+> The `concepts` table references `entries(id)` via `canonical_entry_id`.
+> The `entries` table references `concepts(id)` via `concept_id`.
+> This is a **circular FK**. SQLite handles this with `CREATE TABLE IF NOT EXISTS`
+> because the FK is only checked at INSERT/UPDATE time, not at CREATE time.
+> But you MUST create `concepts` first, then `entries`.
+
+**Acceptance:** Run `python -c "from core.database import db; db.initialize_schema(); print('OK')"`
+— must print OK without errors.
+
+---
+
+### Step A3: Create Jinja2 templates
+
+**Directory:** `templates/knowledge/`
+
+Create 3 files. The full template content is in `knowledge_base_architecture.md` under "Templates". Copy them verbatim:
+- `definition.md.j2` — used for concepts of kind `definition`, `axiom`, `notation`
+- `theorem.md.j2` — used for `theorem`, `lemma`, `proposition`, `corollary`
+- `index.md.j2` — the vault index / Map of Content
+
+**Acceptance:** The files exist and contain valid Jinja2 syntax.
+
+---
+
+## Phase B — Knowledge Service
+
+### Step B1: Create `services/knowledge.py`
+
+**New file.** Follow the existing service pattern:
+- Class with `__init__(self)` storing `self.db = db`
+- Methods for each operation
+- Global singleton at the bottom: `knowledge_service = KnowledgeService()`
+
+The service is the **business logic layer**. The API endpoints (Phase C) and MCP tools (Phase D) both call this service. Never put DB queries directly in `api_v1.py` or `server.py`.
+
+```python
+import json
+import logging
+import time
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+from jinja2 import Environment, FileSystemLoader
+
+from core.database import db
+from core.config import (
+    KNOWLEDGE_VAULT_ROOT, KNOWLEDGE_GENERATED_DIR,
+    KNOWLEDGE_DRAFTS_DIR, KNOWLEDGE_TEMPLATES_DIR
+)
+
+logger = logging.getLogger(__name__)
+
+class KnowledgeService:
+    def __init__(self):
+        self.db = db
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(KNOWLEDGE_TEMPLATES_DIR)),
+            trim_blocks=True, lstrip_blocks=True
+        )
+
+    # --- CRUD: Concepts ---
+
+    def add_concept(self, name: str, kind: str, domain: str = None,
+                    aliases: list = None) -> Dict[str, Any]:
+        """Creates a new concept. Returns the new concept dict."""
+        # Dedup check: exact name match
+        with self.db.get_connection() as conn:
+            existing = conn.execute(
+                "SELECT id, name FROM concepts WHERE name = ?", (name,)
+            ).fetchone()
+            if existing:
+                return {"success": False, "error": f"Concept '{name}' already exists (ID {existing['id']})"}
+
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO concepts (name, kind, domain, aliases)
+                VALUES (?, ?, ?, ?)
+            """, (name, kind, domain, json.dumps(aliases or [])))
+            new_id = cursor.lastrowid
+
+        return {"success": True, "id": new_id}
+
+    def get_concept(self, concept_id: int) -> Optional[Dict[str, Any]]:
+        """Returns concept with all entries and relations."""
+        with self.db.get_connection() as conn:
+            concept = conn.execute(
+                "SELECT * FROM concepts WHERE id = ?", (concept_id,)
+            ).fetchone()
+            if not concept:
+                return None
+
+            entries = conn.execute("""
+                SELECT e.*, b.title as book_title, b.author as book_author
+                FROM entries e
+                LEFT JOIN books b ON e.book_id = b.id
+                WHERE e.concept_id = ?
+                ORDER BY e.is_canonical DESC, e.created_at ASC
+            """, (concept_id,)).fetchall()
+
+            relations_out = conn.execute("""
+                SELECT r.*, c.name as target_name
+                FROM relations r
+                JOIN concepts c ON r.to_concept_id = c.id
+                WHERE r.from_concept_id = ?
+            """, (concept_id,)).fetchall()
+
+            relations_in = conn.execute("""
+                SELECT r.*, c.name as source_name
+                FROM relations r
+                JOIN concepts c ON r.from_concept_id = c.id
+                WHERE r.to_concept_id = ?
+            """, (concept_id,)).fetchall()
+
+        result = dict(concept)
+        result['aliases'] = json.loads(result['aliases'] or '[]')
+        result['entries'] = [dict(e) for e in entries]
+        result['relations_out'] = [dict(r) for r in relations_out]
+        result['relations_in'] = [dict(r) for r in relations_in]
+        # Strip embedding blobs from entries for JSON serialization
+        for e in result['entries']:
+            if e.get('embedding'):
+                e['has_embedding'] = True
+                del e['embedding']
+            else:
+                e['has_embedding'] = False
+        return result
+
+    # --- CRUD: Entries ---
+
+    def add_entry(self, concept_id: int, statement: str,
+                  book_id: int = None, page_start: int = None,
+                  page_end: int = None, proof: str = None,
+                  notes: str = None, scope: str = None,
+                  language: str = 'en', style: str = None,
+                  confidence: float = 1.0) -> Dict[str, Any]:
+        """Adds a formulation to a concept."""
+        with self.db.get_connection() as conn:
+            # Validate concept exists
+            if not conn.execute("SELECT 1 FROM concepts WHERE id = ?", (concept_id,)).fetchone():
+                return {"success": False, "error": f"Concept {concept_id} not found"}
+            # Validate book exists if provided
+            if book_id and not conn.execute("SELECT 1 FROM books WHERE id = ?", (book_id,)).fetchone():
+                return {"success": False, "error": f"Book {book_id} not found"}
+
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO entries (concept_id, book_id, page_start, page_end,
+                    statement, proof, notes, scope, language, style, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (concept_id, book_id, page_start, page_end,
+                  statement, proof, notes, scope, language, style, confidence))
+            new_id = cursor.lastrowid
+
+            # Auto-set as canonical if it's the first entry
+            count = conn.execute(
+                "SELECT COUNT(*) FROM entries WHERE concept_id = ?", (concept_id,)
+            ).fetchone()[0]
+            if count == 1:
+                conn.execute("UPDATE entries SET is_canonical = 1 WHERE id = ?", (new_id,))
+                conn.execute("UPDATE concepts SET canonical_entry_id = ? WHERE id = ?",
+                             (new_id, concept_id))
+
+            # Sync FTS
+            self._sync_concept_fts(conn, concept_id)
+
+        return {"success": True, "id": new_id}
+
+    # --- CRUD: Relations ---
+
+    def add_relation(self, from_id: int, to_id: int, relation_type: str,
+                     context: str = None, source_entry_id: int = None,
+                     confidence: float = 1.0) -> Dict[str, Any]:
+        """Adds a directed edge between two concepts."""
+        VALID_TYPES = {'uses', 'implies', 'equivalent_to', 'generalizes',
+                       'special_case_of', 'proved_by', 'counterexample_to',
+                       'see_also', 'prerequisite'}
+        if relation_type not in VALID_TYPES:
+            return {"success": False, "error": f"Invalid relation type. Must be one of: {VALID_TYPES}"}
+        if from_id == to_id:
+            return {"success": False, "error": "Self-referencing relations are not allowed"}
+
+        with self.db.get_connection() as conn:
+            try:
+                conn.execute("""
+                    INSERT INTO relations (from_concept_id, to_concept_id,
+                        relation_type, context, source_entry_id, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (from_id, to_id, relation_type, context,
+                      source_entry_id, confidence))
+            except Exception as e:
+                if "UNIQUE" in str(e) or "PRIMARY KEY" in str(e):
+                    return {"success": False, "error": "Relation already exists"}
+                raise
+
+        return {"success": True}
+
+    # --- Search ---
+
+    def search_concepts(self, query: str, kind: str = None,
+                        domain: str = None, limit: int = 20) -> List[Dict]:
+        """FTS search over concepts + entries."""
+        with self.db.get_connection() as conn:
+            # FTS query
+            fts_results = conn.execute("""
+                SELECT rowid, rank FROM concept_fts
+                WHERE concept_fts MATCH ?
+                ORDER BY rank LIMIT ?
+            """, (query, limit)).fetchall()
+
+            if not fts_results:
+                return []
+
+            # We need to figure out which table each rowid came from.
+            # Since concept_fts combines concepts and entries, we use a
+            # simpler approach: search concepts by name + entries by statement.
+            results = []
+            concepts = conn.execute("""
+                SELECT id, name, kind, domain, aliases FROM concepts
+                WHERE name LIKE ? OR aliases LIKE ?
+                LIMIT ?
+            """, (f"%{query}%", f"%{query}%", limit)).fetchall()
+
+            for c in concepts:
+                d = dict(c)
+                d['aliases'] = json.loads(d['aliases'] or '[]')
+                d['match_source'] = 'concept'
+                results.append(d)
+
+            entries = conn.execute("""
+                SELECT e.id as entry_id, e.concept_id, e.statement, e.scope,
+                       c.name as concept_name, c.kind
+                FROM entries e
+                JOIN concepts c ON e.concept_id = c.id
+                WHERE e.statement LIKE ? OR e.notes LIKE ?
+                LIMIT ?
+            """, (f"%{query}%", f"%{query}%", limit)).fetchall()
+
+            for e in entries:
+                results.append({**dict(e), 'match_source': 'entry'})
+
+        return results[:limit]
+
+    # --- Graph Traversal ---
+
+    def get_related_concepts(self, concept_id: int, depth: int = 1,
+                             max_depth: int = 3) -> Dict[str, Any]:
+        """BFS graph traversal with HARD depth cap."""
+        # SAFETY: Hard cap at 3, regardless of input
+        effective_depth = min(depth, max_depth, 3)
+
+        visited = set()
+        result = {"root": concept_id, "depth": effective_depth, "nodes": [], "edges": []}
+
+        queue = [(concept_id, 0)]
+        while queue:
+            current_id, current_depth = queue.pop(0)
+            if current_id in visited or current_depth > effective_depth:
+                continue
+            visited.add(current_id)
+
+            with self.db.get_connection() as conn:
+                concept = conn.execute(
+                    "SELECT id, name, kind, domain FROM concepts WHERE id = ?",
+                    (current_id,)
+                ).fetchone()
+                if concept:
+                    result["nodes"].append(dict(concept))
+
+                rels = conn.execute("""
+                    SELECT r.*, c.name as target_name
+                    FROM relations r
+                    JOIN concepts c ON r.to_concept_id = c.id
+                    WHERE r.from_concept_id = ?
+                """, (current_id,)).fetchall()
+
+                for r in rels:
+                    edge = dict(r)
+                    result["edges"].append(edge)
+                    if current_depth < effective_depth:
+                        queue.append((r['to_concept_id'], current_depth + 1))
+
+        return result
+
+    # --- Task Queue ---
+
+    def queue_task(self, task_type: str, payload: dict = None,
+                   priority: int = 5) -> Dict[str, Any]:
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO llm_tasks (task_type, payload, priority)
+                VALUES (?, ?, ?)
+            """, (task_type, json.dumps(payload or {}), priority))
+        return {"success": True, "id": cursor.lastrowid}
+
+    def get_pending_tasks(self, limit: int = 10) -> List[Dict]:
+        """Returns pending tasks. Never returns blocked tasks."""
+        with self.db.get_connection() as conn:
+            rows = conn.execute("""
+                SELECT * FROM llm_tasks
+                WHERE status = 'pending'
+                ORDER BY priority ASC, created_at ASC
+                LIMIT ?
+            """, (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def fail_task(self, task_id: int, error: str) -> Dict[str, Any]:
+        """Increments retry. Blocks if exceeded."""
+        with self.db.get_connection() as conn:
+            task = conn.execute(
+                "SELECT retry_count, max_retries, error_log FROM llm_tasks WHERE id = ?",
+                (task_id,)
+            ).fetchone()
+            if not task:
+                return {"success": False, "error": "Task not found"}
+
+            errors = json.loads(task['error_log'] or '[]')
+            errors.append({"error": error, "at": int(time.time())})
+            new_count = task['retry_count'] + 1
+            new_status = 'blocked' if new_count >= task['max_retries'] else 'pending'
+
+            conn.execute("""
+                UPDATE llm_tasks SET retry_count = ?, error_log = ?, status = ?
+                WHERE id = ?
+            """, (new_count, json.dumps(errors), new_status, task_id))
+
+        return {"success": True, "new_status": new_status, "retry_count": new_count}
+
+    def complete_task(self, task_id: int, result: dict = None) -> Dict[str, Any]:
+        with self.db.get_connection() as conn:
+            conn.execute("""
+                UPDATE llm_tasks SET status = 'done', result = ?,
+                    completed_at = unixepoch() WHERE id = ?
+            """, (json.dumps(result or {}), task_id))
+        return {"success": True}
+
+    # --- Vault Rendering ---
+
+    def write_obsidian_note(self, concept_id: int) -> Dict[str, Any]:
+        """Renders a concept to a Markdown file in the vault."""
+        concept = self.get_concept(concept_id)
+        if not concept:
+            return {"success": False, "error": "Concept not found"}
+
+        # Pick template by kind
+        kind = concept['kind']
+        if kind in ('definition', 'axiom', 'notation'):
+            template_name = 'definition.md.j2'
+        elif kind in ('theorem', 'lemma', 'proposition', 'corollary'):
+            template_name = 'theorem.md.j2'
+        else:
+            template_name = 'definition.md.j2'  # Fallback
+
+        template = self.jinja_env.get_template(template_name)
+
+        # Find canonical entry
+        canonical = None
+        for e in concept['entries']:
+            if e.get('is_canonical'):
+                canonical = e
+                break
+        if not canonical and concept['entries']:
+            canonical = concept['entries'][0]
+
+        from datetime import datetime
+        rendered = template.render(
+            concept=concept,
+            canonical=canonical,
+            entries=concept['entries'],
+            relations=concept['relations_out'],
+            now=datetime.now().strftime('%Y-%m-%d')
+        )
+
+        # Determine target folder by kind
+        subfolder = "Definitions"
+        if kind in ('theorem', 'lemma', 'proposition', 'corollary'):
+            subfolder = "Theorems"
+        elif kind == 'example':
+            subfolder = "Examples"
+        elif kind == 'notation':
+            subfolder = "Notations"
+
+        # Safe filename
+        safe_name = concept['name'].replace(' ', '_').replace('/', '_')
+        filename = f"{safe_name}.md"
+
+        # Write to Generated/ (overwrite is intentional)
+        target_dir = KNOWLEDGE_GENERATED_DIR / subfolder
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / filename
+        target_path.write_text(rendered, encoding='utf-8')
+
+        # Update obsidian_path in DB
+        rel_path = f"Generated/{subfolder}/{filename}"
+        with self.db.get_connection() as conn:
+            conn.execute(
+                "UPDATE concepts SET obsidian_path = ?, updated_at = unixepoch() WHERE id = ?",
+                (rel_path, concept_id)
+            )
+
+        return {"success": True, "path": rel_path}
+
+    def regenerate_vault(self) -> Dict[str, Any]:
+        """Re-renders ALL concepts to the vault."""
+        with self.db.get_connection() as conn:
+            concept_ids = [r['id'] for r in conn.execute("SELECT id FROM concepts").fetchall()]
+
+        count = 0
+        errors = 0
+        for cid in concept_ids:
+            res = self.write_obsidian_note(cid)
+            if res.get('success'):
+                count += 1
+            else:
+                errors += 1
+
+        return {"success": True, "rendered": count, "errors": errors}
+
+    # --- FTS Sync Helper ---
+
+    def _sync_concept_fts(self, conn, concept_id: int):
+        """Syncs concept + its entries into concept_fts."""
+        concept = conn.execute(
+            "SELECT name, aliases FROM concepts WHERE id = ?",
+            (concept_id,)
+        ).fetchone()
+        if not concept:
+            return
+
+        # Aggregate all entry statements and notes
+        entries = conn.execute(
+            "SELECT statement, notes FROM entries WHERE concept_id = ?",
+            (concept_id,)
+        ).fetchall()
+        all_statements = " ".join(e['statement'] or '' for e in entries)
+        all_notes = " ".join(e['notes'] or '' for e in entries)
+
+        # Upsert into FTS (delete + re-insert)
+        conn.execute("DELETE FROM concept_fts WHERE rowid = ?", (concept_id,))
+        conn.execute("""
+            INSERT INTO concept_fts (rowid, name, aliases, statement, notes)
+            VALUES (?, ?, ?, ?, ?)
+        """, (concept_id, concept['name'], concept['aliases'] or '',
+              all_statements, all_notes))
+
+
+knowledge_service = KnowledgeService()
+```
+
+**Acceptance:** `from services.knowledge import knowledge_service` works without error.
+
+---
+
+## Phase C — API Endpoints
+
+### Step C1: Add KB endpoints to `api_v1.py`
+
+**File:** `api_v1.py`
+**Where:** At the end, before the last endpoint. Add a new section header.
+**Pattern:** Follow the existing endpoint style. Import `knowledge_service` at the top.
+
+Add to imports:
+```python
+from services.knowledge import knowledge_service
+```
+
+Endpoints to add:
+
+```python
+# --- Knowledge Base ---
+
+@api_v1.route('/kb/concepts', methods=['POST'])
+def kb_add_concept():
+    data = request.json
+    if not data.get('name') or not data.get('kind'):
+        return jsonify({'error': 'name and kind are required'}), 400
+    result = knowledge_service.add_concept(
+        name=data['name'], kind=data['kind'],
+        domain=data.get('domain'), aliases=data.get('aliases'))
+    return jsonify(result), 200 if result.get('success') else 409
+
+@api_v1.route('/kb/concepts/<int:concept_id>', methods=['GET'])
+def kb_get_concept(concept_id):
+    result = knowledge_service.get_concept(concept_id)
+    if not result: return jsonify({'error': 'Not found'}), 404
+    return jsonify(result)
+
+@api_v1.route('/kb/concepts/search', methods=['GET'])
+def kb_search_concepts():
+    query = request.args.get('q', '')
+    if not query: return jsonify({'error': 'q is required'}), 400
+    results = knowledge_service.search_concepts(
+        query, kind=request.args.get('kind'),
+        domain=request.args.get('domain'),
+        limit=request.args.get('limit', 20, type=int))
+    return jsonify(results)
+
+@api_v1.route('/kb/entries', methods=['POST'])
+def kb_add_entry():
+    data = request.json
+    if not data.get('concept_id') or not data.get('statement'):
+        return jsonify({'error': 'concept_id and statement are required'}), 400
+    result = knowledge_service.add_entry(**{
+        k: data[k] for k in data
+        if k in ('concept_id','statement','book_id','page_start','page_end',
+                 'proof','notes','scope','language','style','confidence')
+    })
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/relations', methods=['POST'])
+def kb_add_relation():
+    data = request.json
+    required = ('from_concept_id', 'to_concept_id', 'relation_type')
+    if not all(data.get(k) for k in required):
+        return jsonify({'error': f'{required} are all required'}), 400
+    result = knowledge_service.add_relation(**{
+        k: data[k] for k in data
+        if k in ('from_concept_id','to_concept_id','relation_type',
+                 'context','source_entry_id','confidence')
+    })
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/concepts/<int:concept_id>/related', methods=['GET'])
+def kb_get_related(concept_id):
+    depth = min(request.args.get('depth', 1, type=int), 3)  # Hard cap
+    result = knowledge_service.get_related_concepts(concept_id, depth=depth)
+    return jsonify(result)
+
+@api_v1.route('/kb/vault/render/<int:concept_id>', methods=['POST'])
+def kb_render_note(concept_id):
+    result = knowledge_service.write_obsidian_note(concept_id)
+    return jsonify(result)
+
+@api_v1.route('/kb/vault/regenerate', methods=['POST'])
+def kb_regenerate_vault():
+    result = knowledge_service.regenerate_vault()
+    return jsonify(result)
+
+@api_v1.route('/kb/tasks', methods=['GET'])
+def kb_get_tasks():
+    tasks = knowledge_service.get_pending_tasks(
+        limit=request.args.get('limit', 10, type=int))
+    return jsonify(tasks)
+
+@api_v1.route('/kb/tasks', methods=['POST'])
+def kb_queue_task():
+    data = request.json
+    if not data.get('task_type'):
+        return jsonify({'error': 'task_type is required'}), 400
+    result = knowledge_service.queue_task(
+        data['task_type'], data.get('payload'), data.get('priority', 5))
+    return jsonify(result)
+
+@api_v1.route('/kb/tasks/<int:task_id>/complete', methods=['POST'])
+def kb_complete_task(task_id):
+    result = knowledge_service.complete_task(task_id, request.json)
+    return jsonify(result)
+
+@api_v1.route('/kb/tasks/<int:task_id>/fail', methods=['POST'])
+def kb_fail_task(task_id):
+    data = request.json
+    result = knowledge_service.fail_task(task_id, data.get('error', 'Unknown'))
+    return jsonify(result)
+```
+
+**Acceptance:** `curl -X POST localhost:5001/api/v1/kb/concepts -H 'Content-Type: application/json' -d '{"name":"Compactness","kind":"definition"}'` returns `{"success":true,"id":1}`.
+
+---
+
+## Phase D — MCP Tools
+
+### Step D1: Add tools to `mcp_server/server.py`
+
+**Pattern to follow exactly:** Look at how `search_books` is defined:
+1. A `Tool(name=..., description=..., inputSchema={...})` in the `list_tools()` function
+2. An `async def handler_name(args)` function that calls the API via `requests`
+3. A dispatch entry in the `call_tool()` function: `if name == "tool_name": return await handler_name(args)`
+
+Add these tools. Each tool calls the corresponding `/api/v1/kb/` endpoint via HTTP.
+
+Example — `search_knowledge`:
+
+**In `list_tools()` return array, add:**
+```python
+Tool(
+    name="search_knowledge",
+    description=(
+        "Search the mathematical knowledge base for concepts, definitions, "
+        "theorems, and their specific formulations across all sources."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query (e.g., 'compactness', 'Banach-Steinhaus')"
+            },
+            "kind": {
+                "type": "string",
+                "enum": ["definition", "theorem", "lemma", "proposition",
+                         "corollary", "example", "axiom", "notation"],
+                "description": "Filter by concept type"
+            },
+            "limit": {"type": "integer", "default": 20, "description": "Max results"}
+        },
+        "required": ["query"]
+    }
+),
+```
+
+**Handler function:**
+```python
+async def search_knowledge(args: dict) -> list[TextContent]:
+    params = {"q": args["query"], "limit": args.get("limit", 20)}
+    if args.get("kind"): params["kind"] = args["kind"]
+    resp = requests.get(f"{API_BASE}/kb/concepts/search", params=params, timeout=10)
+    data = resp.json()
+    if not data:
+        return [TextContent(type="text", text="No knowledge base entries found.")]
+    output = f"Found {len(data)} results:\n\n"
+    for item in data:
+        output += f"- **{item.get('concept_name', item.get('name'))}** ({item.get('kind')})"
+        if item.get('match_source') == 'entry':
+            output += f"\n  Statement: {item['statement'][:120]}..."
+        output += f"\n  Concept ID: {item.get('concept_id', item.get('id'))}\n\n"
+    return [TextContent(type="text", text=output)]
+```
+
+**In `call_tool()` dispatch, add:**
+```python
+elif name == "search_knowledge":
+    return await search_knowledge(args)
+```
+
+Repeat this 3-part pattern for every tool. The full tool list:
+
+| MCP Tool Name | HTTP Method | API Endpoint | Notes |
+|---|---|---|---|
+| `search_knowledge` | GET | `/kb/concepts/search` | |
+| `get_concept_details` | GET | `/kb/concepts/{id}` | |
+| `add_concept` | POST | `/kb/concepts` | |
+| `add_knowledge_entry` | POST | `/kb/entries` | |
+| `add_concept_relation` | POST | `/kb/relations` | No self-refs |
+| `get_related_concepts` | GET | `/kb/concepts/{id}/related` | depth ≤ 3 |
+| `render_vault_note` | POST | `/kb/vault/render/{id}` | |
+| `regenerate_vault` | POST | `/kb/vault/regenerate` | |
+| `get_pending_tasks` | GET | `/kb/tasks` | |
+| `queue_task` | POST | `/kb/tasks` | |
+| `complete_task` | POST | `/kb/tasks/{id}/complete` | |
+| `fail_task` | POST | `/kb/tasks/{id}/fail` | |
+
+**Acceptance:** Use Claude Desktop or another MCP client. The tool `search_knowledge` should appear in the tool list and return results after a concept has been added.
+
+---
+
+## Verification Checklist
+
+After all phases are complete, verify in this order:
+
+- [ ] `python -c "from core.database import db; db.initialize_schema()"` — no errors
+- [ ] `knowledge_vault/Generated/Definitions/` directory exists
+- [ ] `from services.knowledge import knowledge_service` — no import errors
+- [ ] POST a concept via curl → returns `{"success": true, "id": 1}`
+- [ ] POST an entry with `concept_id=1` → returns `{"success": true}`
+- [ ] POST a relation → returns `{"success": true}`
+- [ ] GET `/kb/concepts/1` → returns concept with entries and relations
+- [ ] GET `/kb/concepts/search?q=...` → returns search results
+- [ ] POST `/kb/vault/render/1` → creates `.md` file in `Generated/Definitions/`
+- [ ] Open the vault in Obsidian → note renders correctly with wikilinks
+- [ ] MCP tools appear in tool list when MCP server is started

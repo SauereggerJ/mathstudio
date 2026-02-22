@@ -80,6 +80,84 @@ def search_endpoint():
         'expanded_query': expanded_query
     })
 
+@api_v1.route('/browse', methods=['GET'])
+def browse_endpoint():
+    """Browse library by metadata filters: author, msc, year, keyword."""
+    author = request.args.get('author')
+    msc = request.args.get('msc')
+    year = request.args.get('year', type=int)
+    keyword = request.args.get('keyword')
+    limit = request.args.get('limit', 100, type=int)
+
+    if not any([author, msc, year, keyword]):
+        return jsonify({'results': [], 'total_count': 0, 'filter': None})
+
+    try:
+        results = search_service.browse_by_field(
+            author=author, msc=msc, year=year, keyword=keyword, limit=limit
+        )
+        json_results = []
+        for item in results:
+            item['cover_url'] = f'/static/thumbnails/{item["id"]}/page_1.png'
+            item['score'] = 1.0
+            json_results.append(item)
+
+        filter_desc = ', '.join(
+            f'{k}={v}' for k, v in
+            {'author': author, 'msc': msc, 'year': year, 'keyword': keyword}.items()
+            if v
+        )
+        return jsonify({
+            'results': json_results,
+            'total_count': len(json_results),
+            'filter': filter_desc
+        })
+    except Exception as e:
+        print(f"Browse API Error: {e}", file=sys.stderr)
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/msc-stats', methods=['GET'])
+def msc_stats_endpoint():
+    """Returns book counts per MSC code at all levels (2-digit, 3-char, 5-char)."""
+    try:
+        with db.get_connection() as conn:
+            rows = conn.execute("""
+                SELECT msc_class FROM books 
+                WHERE msc_class IS NOT NULL AND msc_class != ''
+            """).fetchall()
+
+        counts = {}
+        for row in rows:
+            for code in row['msc_class'].split(','):
+                code = code.strip()
+                if not code:
+                    continue
+                # Count at every level
+                if len(code) >= 2:
+                    p2 = code[:2]
+                    counts[p2] = counts.get(p2, 0) + 1
+                if len(code) >= 3:
+                    p3 = code[:3]
+                    counts[p3] = counts.get(p3, 0) + 1
+                if len(code) >= 5:
+                    counts[code] = counts.get(code, 0) + 1
+
+        return jsonify(counts)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/msc-tree', methods=['GET'])
+def msc_tree_endpoint():
+    """Serves the full MSC 2020 hierarchy from dokumentation/msc2020.json."""
+    import json
+    tree_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dokumentation', 'msc2020.json')
+    try:
+        with open(tree_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify(data)
+    except FileNotFoundError:
+        return jsonify({'error': 'MSC tree file not found'}), 404
+
 @api_v1.route('/books/<int:book_id>/deep-index', methods=['POST'])
 def trigger_deep_indexing(book_id):
     try:
@@ -376,6 +454,39 @@ def admin_ingest():
     for f in files:
         results.append(ingestor_service.process_file(f, execute=execute))
     return jsonify({'success': True, 'dry_run': not execute, 'results': results})
+
+@api_v1.route('/admin/indexer', methods=['POST'])
+def admin_rebuild_fts():
+    """Rebuild the books_fts search index from the books table."""
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            # Drop and recreate the FTS virtual table
+            cursor.execute("DROP TABLE IF EXISTS books_fts")
+            cursor.execute('''
+                CREATE VIRTUAL TABLE books_fts USING fts5(
+                    title, author, content, index_content,
+                    content_rowid='id',
+                    tokenize='porter unicode61 remove_diacritics 1'
+                )
+            ''')
+            # Re-populate from books table
+            cursor.execute('''
+                INSERT INTO books_fts(rowid, title, author, content, index_content)
+                SELECT id, 
+                       COALESCE(title, ''), 
+                       COALESCE(author, ''), 
+                       COALESCE(summary, ''), 
+                       COALESCE(index_text, '')
+                FROM books
+            ''')
+            count = cursor.rowcount
+            conn.commit()
+
+        return jsonify({'success': True, 'indexed': count, 'message': f'FTS index rebuilt with {count} books'})
+    except Exception as e:
+        print(f"FTS Rebuild Error: {e}", file=sys.stderr)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_v1.route('/admin/stats', methods=['GET'])
 def admin_stats():

@@ -3,8 +3,12 @@
 *.db-wal
 *.db-shm
 *.log
+*.bak
+*.arxiv
 credentials.json
+mcp_server/config.json
 .env
+current_state.json
 
 # Critical: Exclude all dynamic research data folders
 bib_extracts/
@@ -14,6 +18,10 @@ static/thumbnails/
 static/cache/
 temp_uploads/
 archive/
+knowledge_vault/
+
+# Documentation source blobs
+dokumentation/*.pdf
 
 # Standard Python/Docker ignores
 venv/

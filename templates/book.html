@@ -4,15 +4,42 @@
 
 {% block extra_head %}
 <style>
-    .book-detail-layout { display: flex; flex-direction: column; gap: 2rem; }
-    @media (min-width: 1024px) {
-        .book-detail-layout { flex-direction: row; align-items: flex-start; }
-        .sidebar { width: 300px; flex-shrink: 0; position: sticky; top: 6rem; }
-        .main-content { flex-grow: 1; }
+    .book-detail-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
     }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-    .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+
+    @media (min-width: 1024px) {
+        .book-detail-layout {
+            flex-direction: row;
+            align-items: flex-start;
+        }
+
+        .sidebar {
+            width: 300px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 6rem;
+        }
+
+        .main-content {
+            flex-grow: 1;
+        }
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    .tab-btn.active {
+        border-bottom: 2px solid #2563eb;
+        color: #2563eb;
+    }
 </style>
 {% endblock %}
 
@@ -22,23 +49,35 @@
     <aside class="sidebar">
         <div class="bg-white rounded-2xl p-4 shadow-xl border border-slate-100 mb-6">
             <div class="aspect-[3/4] rounded-xl overflow-hidden bg-slate-50">
-                <img src="{{ cover_url }}" alt="Cover" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
+                <img src="{{ cover_url }}" alt="Cover" class="w-full h-full object-cover"
+                    onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
             </div>
         </div>
 
         <div class="space-y-3">
-            <a href="/open/{{ path|e }}" target="_blank" class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg transition-all">
+            <a href="/open/{{ path|e }}" target="_blank"
+                class="flex items-center justify-center w-full py-4 px-6 text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-xl shadow-lg transition-all">
                 <i class="fas fa-book-open mr-3"></i> Read Document
             </a>
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="openExternal('{{ path|e }}')" class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"><i class="fas fa-desktop mr-2 text-slate-400"></i> Desktop</button>
-                <a href="/open/{{ path|e }}" download class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"><i class="fas fa-download mr-2 text-slate-400"></i> Save</a>
+                <button onclick="openExternal('{{ path|e }}')"
+                    class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"><i
+                        class="fas fa-desktop mr-2 text-slate-400"></i> Desktop</button>
+                <a href="/open/{{ path|e }}" download
+                    class="flex items-center justify-center py-3 px-4 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"><i
+                        class="fas fa-download mr-2 text-slate-400"></i> Save</a>
             </div>
 
             <div class="pt-4 mt-4 border-t border-slate-100 space-y-2">
-                <button id="reindexBtn" onclick="reindexBook()" class="w-full flex items-center justify-center py-2.5 px-4 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-semibold rounded-lg transition-colors"><i class="fas fa-magic mr-2"></i> AI Metadata Refresh</button>
-                <a href="/book/{{ id }}/edit" class="w-full flex items-center justify-center py-2.5 px-4 text-blue-600 bg-blue-50 hover:bg-blue-100 font-semibold rounded-lg transition-colors"><i class="fas fa-edit mr-2"></i> Edit Metadata</a>
-                <button onclick="deleteBook()" class="w-full flex items-center justify-center py-2.5 px-4 text-rose-600 bg-rose-50 hover:bg-rose-100 font-semibold rounded-lg transition-colors"><i class="fas fa-trash-alt mr-2"></i> Delete</button>
+                <button id="reindexBtn" onclick="reindexBook()"
+                    class="w-full flex items-center justify-center py-2.5 px-4 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-semibold rounded-lg transition-colors"><i
+                        class="fas fa-magic mr-2"></i> AI Metadata Refresh</button>
+                <a href="/book/{{ id }}/edit"
+                    class="w-full flex items-center justify-center py-2.5 px-4 text-blue-600 bg-blue-50 hover:bg-blue-100 font-semibold rounded-lg transition-colors"><i
+                        class="fas fa-edit mr-2"></i> Edit Metadata</a>
+                <button onclick="deleteBook()"
+                    class="w-full flex items-center justify-center py-2.5 px-4 text-rose-600 bg-rose-50 hover:bg-rose-100 font-semibold rounded-lg transition-colors"><i
+                        class="fas fa-trash-alt mr-2"></i> Delete</button>
             </div>
         </div>
     </aside>
@@ -46,21 +85,37 @@
     <!-- Main Content -->
     <main class="main-content">
         <header class="mb-8">
-            <h1 class="text-2xl md:text-4xl font-black text-slate-900 leading-tight mb-2">{{ title or 'Unknown Title' }}</h1>
-            <p class="text-lg md:text-xl text-slate-500 font-medium italic">{{ author or 'Unknown Author' }}</p>
+            <h1 class="text-2xl md:text-4xl font-black text-slate-900 leading-tight mb-2">{{ title or 'Unknown Title' }}
+            </h1>
+            <p class="text-lg md:text-xl text-slate-500 font-medium italic"><a href="/?author={{ author|urlencode }}"
+                    class="hover:text-blue-600 hover:underline transition-colors">{{ author or 'Unknown Author' }}</a>
+            </p>
             <div class="flex flex-wrap gap-2 mt-4">
-                {% if year %}<span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">{{ year }}</span>{% endif %}
-                {% if level %}<span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider">{{ level }}</span>{% endif %}
-                {% if msc_code %}<span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wider">MSC: {{ msc_code }}</span>{% endif %}
+                {% if year %}<a href="/?year={{ year }}"
+                    class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-slate-200 transition-colors">{{
+                    year }}</a>{% endif %}
+                {% if level %}<span
+                    class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider">{{
+                    level }}</span>{% endif %}
+                {% if msc_code %}
+                {% for msc in msc_code.split(',') %}
+                <a href="/?msc={{ msc.strip()|urlencode }}"
+                    class="msc-badge px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold tracking-wider hover:bg-emerald-100 transition-colors"
+                    data-msc="{{ msc.strip() }}">MSC: {{ msc.strip() }}</a>
+                {% endfor %}
+                {% endif %}
             </div>
         </header>
 
         <!-- Stabile Custom Tabs Navigation -->
         <div class="mb-4 border-b border-gray-200">
             <ul class="flex flex-wrap -mb-px text-sm font-bold text-center">
-                <li class="me-2"><button class="tab-btn active p-4" onclick="openTab(event, 'overview')">Overview</button></li>
-                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'contents')">Structure</button></li>
-                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'bibliography')">Bibliography</button></li>
+                <li class="me-2"><button class="tab-btn active p-4"
+                        onclick="openTab(event, 'overview')">Overview</button></li>
+                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'contents')">Structure</button>
+                </li>
+                <li class="me-2"><button class="tab-btn p-4"
+                        onclick="openTab(event, 'bibliography')">Bibliography</button></li>
                 <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'lab')">The Lab</button></li>
                 <li><button class="tab-btn p-4" onclick="openTab(event, 'related')">Similar</button></li>
             </ul>
@@ -76,8 +131,13 @@
 
                     {% if zb_extra and zb_extra.review_markdown %}
                     <div class="mt-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                        <h3 class="text-sm font-black text-emerald-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.994 7.994 0 002 12a7.992 7.992 0 007 7.196V4.804zM11 4.804v14.392A7.992 7.992 0 0018 12a7.994 7.994 0 00-7-7.196z"></path></svg>
+                        <h3
+                            class="text-sm font-black text-emerald-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path
+                                    d="M9 4.804A7.994 7.994 0 002 12a7.992 7.992 0 007 7.196V4.804zM11 4.804v14.392A7.992 7.992 0 0018 12a7.994 7.994 0 00-7-7.196z">
+                                </path>
+                            </svg>
                             Official zbMATH Review
                         </h3>
                         <div class="prose prose-emerald text-sm text-emerald-900 leading-relaxed italic">
@@ -88,24 +148,34 @@
                 </div>
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm">
-                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Technical Details</h4>
-                        <p><span class="text-slate-500">Publisher:</span> <span class="font-semibold">{{ publisher or 'Unknown' }}</span></p>
-                        <p><span class="text-slate-500">ISBN:</span> <span class="font-mono text-xs">{{ isbn or 'N/A' }}</span></p>
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Technical Details
+                        </h4>
+                        <p><span class="text-slate-500">Publisher:</span> <span class="font-semibold">{{ publisher or
+                                'Unknown' }}</span></p>
+                        <p><span class="text-slate-500">ISBN:</span> <span class="font-mono text-xs">{{ isbn or 'N/A'
+                                }}</span></p>
                         {% if doi %}
-                        <p><span class="text-slate-500">DOI:</span> <a href="https://doi.org/{{ doi }}" target="_blank" rel="noreferrer" class="text-blue-600 font-mono text-xs hover:underline">{{ doi }}</a></p>
+                        <p><span class="text-slate-500">DOI:</span> <a href="https://doi.org/{{ doi }}" target="_blank"
+                                rel="noreferrer" class="text-blue-600 font-mono text-xs hover:underline">{{ doi }}</a>
+                        </p>
                         {% endif %}
                         {% if zbl_id %}
-                        <p><span class="text-slate-500">zbMATH:</span> <a href="https://zbmath.org/?q=an:{{ zbl_id }}" target="_blank" rel="noreferrer" class="text-emerald-600 font-bold text-xs hover:underline">Zbl {{ zbl_id }}</a></p>
+                        <p><span class="text-slate-500">zbMATH:</span> <a href="https://zbmath.org/?q=an:{{ zbl_id }}"
+                                target="_blank" rel="noreferrer"
+                                class="text-emerald-600 font-bold text-xs hover:underline">Zbl {{ zbl_id }}</a></p>
                         {% endif %}
-                        <p><span class="text-slate-500">Pages:</span> <span class="font-semibold">{{ page_count or '?' }}</span></p>
-                        
+                        <p><span class="text-slate-500">Pages:</span> <span class="font-semibold">{{ page_count or '?'
+                                }}</span></p>
+
                         <div class="mt-4 pt-4 border-t border-slate-200">
                             {% if metadata_status == 'ignored' %}
-                            <div class="px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest text-center">
+                            <div
+                                class="px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest text-center">
                                 <i class="fas fa-eye-slash mr-1"></i> Marked as Special Case
                             </div>
                             {% else %}
-                            <button onclick="markIgnored({{ id }})" class="w-full py-2 bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:text-slate-600 transition-all">
+                            <button onclick="markIgnored({{ id }})"
+                                class="w-full py-2 bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:text-slate-600 transition-all">
                                 <i class="fas fa-tag mr-1"></i> Mark as Script / Ignore
                             </button>
                             {% endif %}
@@ -113,10 +183,13 @@
 
                         {% if zb_extra and zb_extra.keywords %}
                         <div class="mt-4 pt-4 border-t border-slate-200">
-                            <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Expert Keywords</h5>
+                            <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Expert
+                                Keywords</h5>
                             <div class="flex flex-wrap gap-1">
                                 {% for kw in zb_extra.keywords.split(',') %}
-                                <span class="px-2 py-0.5 bg-white border border-slate-200 text-slate-500 rounded text-[10px]">{{ kw.strip() }}</span>
+                                <a href="/?keyword={{ kw.strip()|urlencode }}"
+                                    class="px-2 py-0.5 bg-white border border-slate-200 text-slate-500 rounded text-[10px] hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer">{{
+                                    kw.strip() }}</a>
                                 {% endfor %}
                             </div>
                         </div>
@@ -126,13 +199,19 @@
                         {% set links_data = zb_extra.links|from_json %}
                         {% if links_data %}
                         <div class="mt-4 pt-4 border-t border-slate-200">
-                            <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">External Links</h5>
+                            <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">External
+                                Links</h5>
                             <ul class="space-y-1">
                                 {% for link in links_data %}
-                                <li><a href="{{ link.url }}" target="_blank" class="text-blue-500 hover:underline text-[10px] flex items-center gap-1">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                    {{ link.type|upper }}: {{ link.identifier }}
-                                </a></li>
+                                <li><a href="{{ link.url }}" target="_blank"
+                                        class="text-blue-500 hover:underline text-[10px] flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14">
+                                            </path>
+                                        </svg>
+                                        {{ link.type|upper }}: {{ link.identifier }}
+                                    </a></li>
                                 {% endfor %}
                             </ul>
                         </div>
@@ -141,34 +220,43 @@
                     </div>
                     <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-sm">
                         <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Resources</h4>
-                        <p><span class="text-slate-500">Exercises:</span> <span class="font-semibold">{{ exercises or '0' }}</span></p>
-                        <p><span class="text-slate-500">Solutions:</span> <span class="font-semibold">{{ solutions or '0' }}</span></p>
+                        <p><span class="text-slate-500">Exercises:</span> <span class="font-semibold">{{ exercises or
+                                '0' }}</span></p>
+                        <p><span class="text-slate-500">Solutions:</span> <span class="font-semibold">{{ solutions or
+                                '0' }}</span></p>
                     </div>
                 </div>
             </div>
 
             <!-- TAB: STRUCTURE -->
-            <div class="tab-content p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden" id="contents">
+            <div class="tab-content p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden"
+                id="contents">
                 <div class="toc-container max-h-[600px] overflow-y-auto p-4 space-y-1">
                     {% if chapters %}{% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
-                        <div class="flex items-baseline justify-between p-2 hover:bg-slate-50" style="margin-left: {{ c_level * 1.5 }}rem;">
-                            <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600' }}">
-                                <a href="/open/{{ path|e }}#page={{ c_page or 1 }}" target="_blank">{{ c_title }}</a>
-                            </span>
-                            {% if c_page %}<span class="text-xs font-bold text-slate-300">P. {{ c_page }}</span>{% endif %}
-                        </div>
-                    {% endfor %}{% else %}<p class="text-center py-20 text-slate-400 italic">No structure data.</p>{% endif %}
+                    <div class="flex items-baseline justify-between p-2 hover:bg-slate-50"
+                        style="margin-left: {{ c_level * 1.5 }}rem;">
+                        <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600' }}">
+                            <a href="/open/{{ path|e }}#page={{ c_page or 1 }}" target="_blank">{{ c_title }}</a>
+                        </span>
+                        {% if c_page %}<span class="text-xs font-bold text-slate-300">P. {{ c_page }}</span>{% endif %}
+                    </div>
+                    {% endfor %}{% else %}<p class="text-center py-20 text-slate-400 italic">No structure data.</p>{%
+                    endif %}
                 </div>
             </div>
 
             <!-- TAB: BIBLIOGRAPHY -->
-            <div class="tab-content p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden" id="bibliography">
+            <div class="tab-content p-0 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden"
+                id="bibliography">
                 <div class="max-h-[600px] overflow-y-auto p-4 space-y-4">
                     {% if bibliography %}{% for bib in bibliography %}
-                        <div class="p-4 rounded-xl border border-slate-100 bg-white text-sm">
-                            <p class="text-slate-700">{% if bib.title %}<strong class="block text-slate-900">{{ bib.title|e }}</strong><span class="block text-xs text-slate-500 italic mt-1">{{ bib.author|e }}</span>{% else %}{{ bib.raw_text|e }}{% endif %}</p>
-                        </div>
-                    {% endfor %}{% else %}<p class="text-center py-20 text-slate-400 italic">No bibliography extracted.</p>{% endif %}
+                    <div class="p-4 rounded-xl border border-slate-100 bg-white text-sm">
+                        <p class="text-slate-700">{% if bib.title %}<strong class="block text-slate-900">{{ bib.title|e
+                                }}</strong><span class="block text-xs text-slate-500 italic mt-1">{{ bib.author|e
+                                }}</span>{% else %}{{ bib.raw_text|e }}{% endif %}</p>
+                    </div>
+                    {% endfor %}{% else %}<p class="text-center py-20 text-slate-400 italic">No bibliography extracted.
+                    </p>{% endif %}
                 </div>
             </div>
 
@@ -177,14 +265,20 @@
                 <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
                     <h3 class="text-lg font-bold text-emerald-800 mb-4">AI Note Taker</h3>
                     <div class="flex gap-3">
-                        <input type="number" id="notePage" class="block w-full p-3 text-sm border-emerald-200 rounded-xl" placeholder="Page Number">
-                        <button onclick="createNote()" class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Synthesize</button>
+                        <input type="number" id="notePage"
+                            class="block w-full p-3 text-sm border-emerald-200 rounded-xl" placeholder="Page Number">
+                        <button onclick="createNote()"
+                            class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Synthesize</button>
                     </div>
                     <div id="noteStatus" class="mt-3 text-xs font-bold text-emerald-600"></div>
-                    <div id="noteResult" class="hidden mt-6 bg-slate-900 rounded-xl p-4 text-emerald-400 font-mono text-xs overflow-auto max-h-96"></div>
+                    <div id="noteResult"
+                        class="hidden mt-6 bg-slate-900 rounded-xl p-4 text-emerald-400 font-mono text-xs overflow-auto max-h-96">
+                    </div>
                 </div>
                 <div class="bg-amber-50 p-6 rounded-2xl border border-amber-100 text-center">
-                    <button onclick="scanBibliography()" class="w-full bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg">Scan Bibliography</button>
+                    <button onclick="scanBibliography()"
+                        class="w-full bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg">Scan
+                        Bibliography</button>
                     <div id="bibStatus" class="mt-3 text-xs font-bold text-amber-600"></div>
                 </div>
             </div>
@@ -193,8 +287,10 @@
             <div class="tab-content p-4" id="related">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% for s_id, s_title, s_author, s_path in similar_books %}
-                    <a href="/book/{{ s_id }}" class="group bg-white p-4 rounded-xl border border-slate-100 hover:shadow-lg transition-all">
-                        <h4 class="text-sm font-bold text-slate-900 group-hover:text-blue-600 line-clamp-2">{{ s_title }}</h4>
+                    <a href="/book/{{ s_id }}"
+                        class="group bg-white p-4 rounded-xl border border-slate-100 hover:shadow-lg transition-all">
+                        <h4 class="text-sm font-bold text-slate-900 group-hover:text-blue-600 line-clamp-2">{{ s_title
+                            }}</h4>
                         <p class="text-xs text-slate-500 italic">{{ s_author }}</p>
                     </a>
                     {% endfor %}
@@ -209,7 +305,9 @@
             <div class="space-y-4">
                 {% for match in matches %}
                 <div class="bg-white p-6 rounded-2xl border-l-4 border-l-blue-600 shadow-sm border border-slate-100">
-                    <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-black uppercase mb-3 inline-block">Page {{ match.page }}</span>
+                    <span
+                        class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-black uppercase mb-3 inline-block">Page
+                        {{ match.page }}</span>
                     <p class="text-slate-700 font-serif italic">"...{{ match.snippet|safe }}..."</p>
                 </div>
                 {% endfor %}
@@ -220,13 +318,17 @@
 </div>
 
 <!-- Modal -->
-<div id="reviewModal" class="hidden fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+<div id="reviewModal"
+    class="hidden fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
         <h3 class="text-xl font-black text-slate-800 mb-4">AI Re-Index</h3>
-        <div id="proposedMeta" class="text-sm text-slate-600 mb-6 bg-slate-50 p-4 rounded-lg overflow-y-auto max-h-60"></div>
+        <div id="proposedMeta" class="text-sm text-slate-600 mb-6 bg-slate-50 p-4 rounded-lg overflow-y-auto max-h-60">
+        </div>
         <div class="flex gap-4">
-            <button onclick="applyProposal()" class="flex-grow bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg">Apply</button>
-            <button onclick="closeReview()" class="px-8 py-3 bg-white border border-slate-200 rounded-xl">Discard</button>
+            <button onclick="applyProposal()"
+                class="flex-grow bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg">Apply</button>
+            <button onclick="closeReview()"
+                class="px-8 py-3 bg-white border border-slate-200 rounded-xl">Discard</button>
         </div>
     </div>
 </div>
@@ -234,7 +336,6 @@
 
 {% block scripts %}
 <script>
-    // Bulletproof Vanilla JS Tab Logic
     function openTab(evt, tabName) {
         var i, tabcontent, tablinks;
         tabcontent = document.getElementsByClassName("tab-content");
@@ -250,19 +351,16 @@
         const btn = document.getElementById('reindexBtn');
         btn.disabled = true; btn.innerHTML = 'Analyzing...';
         try {
-            const res = await fetch('/api/v1/books/{{ id }}/metadata/refresh/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ai_care: true}) });
+            const res = await fetch('/api/v1/books/{{ id }}/metadata/refresh/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_care: true }) });
             const data = await res.json();
             if (data.success) {
-                // Save the ENTIRE result, not just metadata
                 currentProposal = {
                     ...data.data.metadata,
                     toc: data.data.toc,
                     bibliography: data.data.bibliography,
                     page_offset: data.data.page_offset
                 };
-                
                 const bibCount = data.data.bibliography ? data.data.bibliography.length : 0;
-                
                 document.getElementById('proposedMeta').innerHTML = `
                     <p><strong>Title:</strong> ${currentProposal.title}</p>
                     <p><strong>Author:</strong> ${currentProposal.author}</p>
@@ -273,13 +371,13 @@
             } else {
                 alert("AI Metadata Refresh failed: " + (data.error || "Unknown error"));
             }
-        } catch(e) { alert("Error"); }
+        } catch (e) { alert("Error"); }
         finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic mr-2"></i> AI Metadata Refresh'; }
     }
     async function applyProposal() {
-        if(!currentProposal) return;
-        const res = await fetch('/api/v1/books/{{ id }}/metadata', { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(currentProposal) });
-        if((await res.json()).success) location.reload();
+        if (!currentProposal) return;
+        const res = await fetch('/api/v1/books/{{ id }}/metadata', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentProposal) });
+        if ((await res.json()).success) location.reload();
     }
     function closeReview() { document.getElementById('reviewModal').classList.add('hidden'); }
     async function scanBibliography() {
@@ -292,13 +390,14 @@
         const page = document.getElementById('notePage').value; const status = document.getElementById('noteStatus'); const resDiv = document.getElementById('noteResult');
         if (!page) return; status.textContent = "AI AT WORK...";
         try {
-            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) }) });
-            const data = await res.json();
-            if (data.content) { status.textContent = "DONE."; resDiv.textContent = data.content; resDiv.classList.remove('hidden'); }
+            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) })
+    });
+    const data = await res.json();
+    if (data.content) { status.textContent = "DONE."; resDiv.textContent = data.content; resDiv.classList.remove('hidden'); }
         } catch (e) { status.textContent = "FAILED."; }
     }
-    async function openExternal(path) { try { await fetch(`/api/open-external?path=${encodeURIComponent(path)}`); } catch (e) {} }
-    async function deleteBook() { if (confirm("Delete?")) { const res = await fetch('/api/v1/books/{{ id }}', { method: 'DELETE' }); if((await res.json()).success) window.location.href = "/"; } }
+    async function openExternal(path) { try { await fetch(`/api/open-external?path=${encodeURIComponent(path)}`); } catch (e) { } }
+    async function deleteBook() { if (confirm("Delete?")) { const res = await fetch('/api/v1/books/{{ id }}', { method: 'DELETE' }); if ((await res.json()).success) window.location.href = "/"; } }
     async function markIgnored(bookId) {
         if (!confirm("Mark this book as a script or special case? It will be skipped by background metadata enrichment.")) return;
         try {
@@ -306,7 +405,19 @@
             const data = await res.json();
             if (data.success) window.location.reload();
             else alert("Error: " + data.error);
-        } catch(e) { console.error(e); }
+        } catch (e) { console.error(e); }
     }
+
+    // MSC label resolution
+    fetch('/static/msc_codes.json').then(r => r.json()).then(msc => {
+        document.querySelectorAll('.msc-badge').forEach(el => {
+            const code = el.dataset.msc;
+            const label = msc[code] || msc[code.substring(0, 3)] || msc[code.substring(0, 2)];
+            if (label) {
+                el.title = label;
+                el.textContent = `MSC: ${code} — ${label}`;
+            }
+        });
+    }).catch(() => { });
 </script>
 {% endblock %}

@@ -40,6 +40,57 @@ SERVER_VERSION = config["server_version"]
 app = Server(SERVER_NAME)
 
 
+# --- Prompts ---
+
+@app.list_prompts()
+async def list_prompts() -> list[Prompt]:
+    """List available educational/research prompts."""
+    return [
+        Prompt(
+            name="research_concept",
+            description="Command the scholarly agent to research and synthesize a mathematical concept across multiple library sources.",
+            arguments=[
+                {
+                    "name": "concept_name",
+                    "description": "The mathematical concept to research (e.g. 'compactness', 'Banach-Steinhaus theorem')",
+                    "required": True
+                }
+            ]
+        )
+    ]
+
+@app.get_prompt()
+async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
+    """Return the structured instructions for a given prompt."""
+    if name != "research_concept":
+        raise ValueError(f"Unknown prompt: {name}")
+
+    concept = (arguments or {}).get("concept_name", "a complex mathematical concept")
+    
+    prompt_text = f"""I want you to research the mathematical concept: {concept}
+
+Follow these exact steps:
+1. Search our MathStudio library for the best 3-4 sources covering this concept. Try to find sources with different scopes (e.g., topology vs real analysis).
+2. Create the concept in the Knowledge Base using `add_concept`.
+3. Extract the formal definitions or theorems from the books using `ingest_from_page` or by reading the pages and using `add_entry`. Include the exact source text and page numbers.
+4. Compare the formulations. Are they equivalent? Do some require a metric space while others only need a topological space?
+5. Write a comprehensive, scholarly synthesis of the concept. Explain the intuition, state the formal variants, and trace the conceptual hierarchy. Update the concept with this text via `update_concept` using the `synthesis` field.
+6. Find related concepts in my existing vault and link them using `add_relation`.
+7. Finally, render the note to the Obsidian vault via `render_vault_note` and confirm the file path.
+"""
+    return GetPromptResult(
+        description=f"Research protocol for {concept}",
+        messages=[
+            PromptMessage(
+                role="user",
+                content=TextContent(
+                    type="text",
+                    text=prompt_text
+                )
+            )
+        ]
+    )
+
 # --- Tool Definitions ---
 
 @app.list_tools()
