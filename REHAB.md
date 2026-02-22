@@ -47,11 +47,31 @@ MathStudio is a specialized research environment for mathematical and physical s
 
 ---
 
-## 4. The REHAB Protocol (Core Rules)
-1.  **Vision-First**: Avoid local OCR/Text-parsing for complex mathematical documents. Use the Vision-Chunking pipeline.
-2.  **Memory Guard**: Always close PDF handles immediately. Use disk-buffering for temporary slices.
-3.  **Deterministic First**: Verify LLM claims against Crossref/ISBN before persistence.
-4.  **Reflection Loop**: If local facts (filename) or registry facts (DOI) contradict AI output, trigger a Reflection-Pass.
+## 5. Git Maintenance & Bloat Prevention (Scrubbing)
+To maintain a lightweight GitHub backup, the repository history must be strictly source-only.
 
-> [!IMPORTANT]
-> **Privacy Shield**: All external links must include `rel="noreferrer"`. The library is a private research island.
+### A. The "Disaster Recovery" Protocol
+If large binaries (databases, PDFs) accidentally enter the Git history, follow these steps to scrub them from **all past commits**:
+
+1.  **Stop Tracking**: `git rm --cached <file>` (keeps it on disk, removes from Git index).
+2.  **Scrub History**: 
+    ```bash
+    git filter-branch --force --index-filter \
+      "git rm --cached --ignore-unmatch <file_pattern>" \
+      --prune-empty --tag-name-filter cat -- --all
+    ```
+3.  **Physical Cleanup**: 
+    ```bash
+    rm -rf .git/refs/original/ && git reflog expire --expire=now --all && git gc --prune=now --aggressive
+    ```
+4.  **Mirror Reset**: `git push --force origin main`
+
+### B. Prohibited File Patterns
+The following MUST NEVER be committed:
+*   `*.db`, `*.arxiv`, `*.bak` (Database and archives)
+*   `static/cache/`, `static/thumbnails/` (Generated assets)
+*   `bib_extracts/`, `converted_notes/` (Research I/O)
+*   `venv/`, `.venv/` (Local environments)
+
+---
+*Status: Verified History Clean | Last Scrub: 2026-02-22*
