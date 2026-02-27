@@ -58,7 +58,8 @@ class SearchService:
         elif field == 'index': 
             fts_query = f'index_content : ({clean_query})'
         else:
-            fts_query = clean_query
+            # Broad search: title OR author OR content
+            fts_query = f'title : ({clean_query}) OR author : ({clean_query}) OR content : ({clean_query})'
 
         snippet_col = 3 if field == 'index' else -1
 
@@ -146,7 +147,7 @@ class SearchService:
             if not clauses:
                 return []
             sql = f"""
-                SELECT b.id, b.title, b.author, b.path, '' as snippet,
+                SELECT DISTINCT b.id, b.title, b.author, b.path, '' as snippet,
                        b.year, b.publisher, b.summary, b.index_text,
                        b.msc_class
                 FROM books b

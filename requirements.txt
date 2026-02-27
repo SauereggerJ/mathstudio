@@ -24,3 +24,4 @@ pymupdf
 python-dateutil
 tenacity
 beautifulsoup4
+flask-cors

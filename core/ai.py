@@ -54,15 +54,44 @@ class AIService:
                     contents=contents,
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
-                return json.loads(response.text)
+                text = response.text
+                
+                # Clean up markdown code blocks if Gemini accidentally includes them
+                if text.startswith("```json"):
+                    text = re.sub(r'^```json\s*', '', text)
+                    text = re.sub(r'\s*```$', '', text)
+                elif text.startswith("```"):
+                    text = re.sub(r'^```\s*', '', text)
+                    text = re.sub(r'\s*```$', '', text)
+                
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"JSON Decode failed, attempting repair: {e}")
+                    
+                    # 1. Try to fix unescaped backslashes (most common in LaTeX)
+                    # We look for \ that isn't part of a standard JSON escape sequence
+                    import re
+                    repaired = re.sub(r'\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'\\\\', text)
+                    try:
+                        return json.loads(repaired)
+                    except:
+                        # 2. Try replacing ALL single backslashes with double, then fixing double-doubles
+                        repaired2 = text.replace('\\', '\\\\').replace('\\\\\\\\', '\\\\')
+                        # But ensure quotes remain correctly escaped
+                        repaired2 = repaired2.replace('\\\\"', '\\"')
+                        try:
+                            return json.loads(repaired2)
+                        except Exception as e2:
+                            logger.error(f"JSON repair failed completely: {e2}")
+                            logger.debug(f"Raw text: {text}")
+                            return None
             except Exception as e:
-                import traceback
-                traceback.print_exc()
                 if '429' in str(e) and attempt < retry_count - 1:
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                print(f"[AI Error] Attempt {attempt+1} failed: {e}", file=sys.stderr)
+                logger.error(f"[AI Error] Attempt {attempt+1} failed: {e}")
                 if attempt == retry_count - 1:
                     return None
         return None

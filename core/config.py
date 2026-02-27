@@ -12,6 +12,8 @@ DB_FILE = PROJECT_ROOT / "library.db"
 
 # External Paths
 OBSIDIAN_INBOX = Path("/srv/data/math/obsidian/mathematik_obsidian/00_Inbox")
+VAULT_DIR = Path("/srv/data/math/obsidian/mathematik_obsidian")
+WORKSPACE_DIR = Path("/srv/data/math/workspace")
 
 # Project Subdirectories
 CONVERTED_NOTES_DIR = PROJECT_ROOT / "converted_notes"
@@ -20,6 +22,7 @@ STATIC_DIR = PROJECT_ROOT / "static"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 TEMP_UPLOADS_DIR = PROJECT_ROOT / "temp_uploads"
 BIB_EXTRACTS_DIR = PROJECT_ROOT / "bib_extracts"
+COMPILED_NOTES_DIR = PROJECT_ROOT / "compiled_notes"
 DUPLICATES_DIR = LIBRARY_ROOT / "_Admin" / "Duplicates"
 UNSORTED_DIR = LIBRARY_ROOT / "99_General_and_Diverse" / "Unsorted"
 
@@ -31,11 +34,12 @@ KNOWLEDGE_TEMPLATES_DIR = PROJECT_ROOT / "templates" / "knowledge"
 
 IGNORED_FOLDERS = {
     'mathstudio', '_Admin', 'gemini', '.gemini', '.git', '.venv', 
-    'notes_output', 'archive', 'lost+found', '__pycache__'
+    'notes_output', 'archive', 'lost+found', '__pycache__', 'compiled_notes'
 }
 
 # Ensure directories exist
 for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_DIR,
+          COMPILED_NOTES_DIR,
           KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR,
           KNOWLEDGE_GENERATED_DIR / "Definitions",
           KNOWLEDGE_GENERATED_DIR / "Theorems",

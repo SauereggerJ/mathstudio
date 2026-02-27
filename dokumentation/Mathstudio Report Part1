@@ -1,0 +1,466 @@
+# MathStudio — Comprehensive Technical Report
+
+> **Version**: February 2026 | **Codebase**: ~10,000 LoC across 30+ Python files  
+> **Stack**: Python 3.11 · Flask · SQLite (WAL) · Gemini AI · MCP Protocol
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#1-executive-summary)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Project Structure](#3-project-structure)
+4. [Database Documentation](#4-database-documentation)
+5. [Core Module Documentation](#5-core-module-documentation)
+6. [Service Layer Documentation](#6-service-layer-documentation)
+7. [REST API Documentation](#7-rest-api-documentation)
+8. [MCP Server Documentation](#8-mcp-server-documentation)
+9. [Web Frontend Documentation](#9-web-frontend-documentation)
+10. [Code Flows & Data Flows](#10-code-flows--data-flows)
+11. [Use Cases](#11-use-cases)
+12. [Errors, Bugs & Technical Debt](#12-errors-bugs--technical-debt)
+13. [Future Development Plan](#13-future-development-plan)
+
+---
+
+## 1. Executive Summary
+
+MathStudio is a **personal mathematical research library management system** designed to catalog, search, enrich, and interact with a large collection of mathematical PDFs and DjVu files. It combines:
+
+- **AI-powered metadata extraction** (Gemini Vision) for automatic cataloging
+- **Multi-strategy hybrid search** (FTS5 + vector embeddings + AI reranking)
+- **Knowledge Base** with formal concept/entry/relation graph, Obsidian vault integration
+- **Note system** supporting handwritten scan transcription and PDF-to-LaTeX conversion
+- **External API enrichment** via zbMATH, Crossref, OpenAlex, arXiv, OpenLibrary
+- **MCP server** enabling LLM agents (Claude, Gemini) to interact with the library as an Agentic RAG system
+- **Bibliography extraction** using Vision LLM for citation graph construction
+- **Android E-Ink client** (separate Kotlin project) for mobile reading
+
+The system serves as a "digital mathematical librarian" — ingesting raw PDFs, extracting metadata, classifying by MSC codes, building searchable indexes, and enabling AI-powered research workflows.
+
+---
+
+## 2. Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "Clients"
+        WEB["Web UI<br/>(Flask Templates)"]
+        MCP["MCP Server<br/>(stdio, 40+ tools)"]
+        EINK["Android E-Ink App<br/>(Kotlin)"]
+    end
+
+    subgraph "API Layer"
+        API["api_v1.py<br/>60+ REST Endpoints"]
+        APP["app.py<br/>Flask Frontend Routes"]
+    end
+
+    subgraph "Service Layer"
+        SEARCH["SearchService<br/>FTS + Vector + Rerank"]
+        NOTE["NoteService<br/>Transcription + Cache"]
+        KB["KnowledgeService<br/>Concepts/Entries/Relations"]
+        ZB["ZBMathService<br/>Crossref/OpenAlex/OAI"]
+        IDX["IndexerService<br/>Full-text + Page-level"]
+        ING["IngestorService<br/>Pipeline Orchestrator"]
+        UP["UniversalProcessor<br/>AI Metadata Pipeline"]
+        BIB["BibliographyService<br/>Vision Citation Extraction"]
+        ANA["AnalyticsService<br/>Co-author/MSC Timeline"]
+        COMP["CompilationService<br/>LaTeX → PDF"]
+        META["MetadataService<br/>arXiv/OpenLibrary/Crossref"]
+        ENRICH["EnrichmentService<br/>Batch zbMATH"]
+        FUZZY["FuzzyBookMatcher<br/>4-Strategy Cascade"]
+        LIB["LibraryService<br/>File Management"]
+    end
+
+    subgraph "Core"
+        DB["DatabaseManager<br/>SQLite WAL, 18+ tables"]
+        AI["AIService<br/>Gemini 2.0 Flash"]
+        PDF["PDFHandler<br/>PyMuPDF + DjVu"]
+        CFG["Config<br/>Paths & API Keys"]
+    end
+
+    subgraph "External"
+        GEMINI["Google Gemini API"]
+        ZBAPI["zbMATH Open API"]
+        CROSS["Crossref API"]
+        OALEX["OpenAlex API"]
+        ARXIV["arXiv API"]
+    end
+
+    subgraph "Storage"
+        SQLITE[(library.db)]
+        FILES["PDF/DjVu Files<br/>(Organized by MSC)"]
+        OBSIDIAN["Obsidian Vault<br/>(mathematik_obsidian)"]
+        NOTES["notes_output/<br/>converted_notes/"]
+    end
+
+    WEB --> APP
+    MCP -->|HTTP Proxy| API
+    EINK -->|HTTP| API
+    APP --> API
+    API --> SEARCH & NOTE & KB & ZB & IDX & ING & COMP & ANA & BIB
+    SEARCH & NOTE & KB & ZB & IDX & ING & UP & BIB & META & ENRICH --> DB & AI
+    DB --> SQLITE
+    AI --> GEMINI
+    ZB --> ZBAPI & CROSS & OALEX
+    META --> ARXIV & CROSS
+    NOTE --> NOTES & OBSIDIAN
+    KB --> OBSIDIAN
+    IDX --> FILES
+```
+
+### Network Topology & Environment
+
+- **Dev Machine (LMDE)**: `192.168.178.30`
+  - Current active environment.
+  - Uses Samba to mount server storage (`/mnt/nasi_data` is mapped to `192.168.178.2:/srv/data`).
+  - User: `jure` (unified across all machines).
+- **MathStudio Server (Intel)**: `192.168.178.2`
+  - Hosts the MathStudio project in a Docker container at `192.168.178.2:5002`.
+  - Persistent data is physically stored here at `/srv/data/` (including all `math` subfolders).
+- **Mac AI Node**: `192.168.178.26`
+  - Standby node planned for future AI tasks.
+  - Accessible via SSH (`jure@192.168.178.26`).
+
+### Key Architectural Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| SQLite with WAL mode | Single-user system; no need for PostgreSQL overhead. WAL enables concurrent reads during writes |
+| MCP as HTTP proxy | MCP server calls Flask API via HTTP rather than importing services directly — enables independent deployment |
+| Gemini Vision for OCR | Mathematical notation is poorly handled by traditional OCR; Vision LLM preserves LaTeX structure |
+| Singleton service instances | Each service module creates a global instance at import time (e.g., `search_service = SearchService()`) |
+| Thread-local DB connections | `threading.local()` ensures each thread gets its own SQLite connection |
+| Relative paths in DB | Book paths stored relative to `LIBRARY_ROOT` for portability across mounts |
+
+---
+
+## 3. Project Structure
+
+```
+mathstudio/
+├── app.py                    # Flask app factory + frontend routes (267 lines)
+├── api_v1.py                 # REST API Blueprint (1323 lines, 60+ endpoints)
+├── config.py                 # Legacy path setup (20 lines)
+├── converter.py              # PDF page → LaTeX via Gemini Vision (119 lines)
+├── library.db                # SQLite database (18+ tables)
+├── credentials.json          # Gemini API key storage
+├── current_state.json        # UI state bridge for MCP
+│
+├── core/
+│   ├── __init__.py
+│   ├── config.py             # Central configuration (62 lines)
+│   ├── database.py           # DatabaseManager + schema init (440 lines)
+│   ├── ai.py                 # AIService — Gemini client wrapper (113 lines)
+│   ├── utils.py              # PDFHandler — PyMuPDF/DjVu utilities (131 lines)
+│   └── batch_worker.py       # Grand Sweep batch processor (86 lines)
+│
+├── services/
+│   ├── search.py             # Hybrid search engine (519 lines)
+│   ├── note.py               # Note CRUD + transcription + caching (857 lines)
+│   ├── knowledge.py          # KB concepts/entries/relations (733 lines)
+│   ├── zbmath.py             # zbMATH/Crossref/OpenAlex integration (447 lines)
+│   ├── indexer.py            # Full-text + page-level indexing (425 lines)
+│   ├── fuzzy_matcher.py      # 4-strategy book matching (456 lines)
+│   ├── ingestor.py           # File ingestion pipeline (155 lines)
+│   ├── universal_processor.py# AI metadata extraction pipeline (177 lines)
+│   ├── enrichment.py         # Batch zbMATH enrichment (102 lines)
+│   ├── metadata.py           # arXiv/OpenLibrary/Crossref lookups (125 lines)
+│   ├── bibliography.py       # Vision-based citation extraction (128 lines)
+│   ├── compilation.py        # LaTeX → PDF compilation (141 lines)
+│   ├── analytics.py          # Co-author network, MSC timeline (203 lines)
+│   ├── library.py            # File management, dedup, sanity (estimated ~200 lines)
+│   └── universal_processor.py# 7-phase metadata pipeline (177 lines)
+│
+├── mcp_server/
+│   ├── server.py             # MCP server — 40+ tools (1846 lines)
+│   ├── config.json           # API base URL config
+│   ├── client.py             # Test client (3295 bytes)
+│   └── README.md             # MCP setup docs
+│
+├── templates/                # 12 Jinja2 HTML templates
+│   ├── base.html, index.html, book.html, admin.html, analytics.html
+│   ├── notes.html, view_note.html, edit_book.html, msc_browser.html
+│   └── knowledge/ (3 templates for KB UI)
+│
+├── static/
+│   ├── style.css, notes.css
+│   ├── msc_codes.json
+│   └── cache/, thumbnails/
+│
+├── tests/
+│   ├── unit/ (13 test files)
+│   ├── integration/ (1 test file)
+│   └── api/ (3 test files)
+│
+├── Dockerfile                # Python 3.11-slim + texlive + djvulibre
+├── docker-compose.yml        # Container with 4GB memory limit
+└── requirements.txt          # 28 dependencies
+```
+
+---
+
+## 4. Database Documentation
+
+### 4.1 Schema Overview
+
+The database uses **SQLite 3 with WAL mode** and contains **18+ tables**. All schema initialization is in [database.py](file:///home/jure/nasi_data/math/New_Research_Library/mathstudio/core/database.py).
+
+### 4.2 Table Catalog
+
+#### Primary Tables
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `books` | Core book/paper registry | `id`, `title`, `author`, `path`, `directory`, `filename`, `year`, `publisher`, `isbn`, `doi`, `msc_class`, `zbl_id`, `summary`, `description`, `embedding` (BLOB), `toc_json`, `index_text`, `page_count`, `page_offset`, `trust_score`, `metadata_status`, `has_exercises`, `has_solutions`, `audience`, `zb_review`, `file_hash` |
+| `chapters` | Table of Contents entries | `id`, `book_id` (FK), `title`, `level`, `page`, `msc_code`, `topics` |
+| `bookmarks` | User page bookmarks | `id`, `book_id` (FK), `page_start`, `page_end`, `tags`, `notes`, `color` |
+| `notes` | Research notes registry | `id`, `title`, `source_type`, `source_book_id`, `source_page_number`, `latex_path`, `markdown_path`, `pdf_path`, `json_meta_path`, `tags`, `msc`, `content_preview`, `created_at`, `updated_at` |
+| `note_relations` | Note-to-note links | `from_note_id`, `to_note_id`, `relation_type` |
+| `note_book_relations` | Note-to-book associations | `note_id`, `book_id`, `page_number`, `relation_type` |
+
+#### Knowledge Base Tables
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `concepts` | Mathematical concepts | `id`, `name`, `kind` (definition/theorem/lemma/etc.), `domain`, `aliases` (JSON), `synthesis`, `canonical_entry_id`, `obsidian_path` |
+| `entries` | Formulations of concepts | `id`, `concept_id` (FK), `book_id` (FK), `page_start`, `page_end`, `statement`, `proof`, `notes`, `scope`, `language`, `style`, `confidence`, `is_canonical`, `embedding` (BLOB), `extracted_by` |
+| `relations` | Concept-to-concept edges | `from_concept_id`, `to_concept_id`, `relation_type` (uses/implies/generalizes/etc.), `context`, `confidence` |
+| `kb_proposals` | Staging area for auto-extracted KB entries | `id`, `concept_name`, `kind`, `snippet`, `book_id`, `page_number`, `status` (pending/approved/merged/rejected), `merge_target_id` |
+| `llm_tasks` | Task queue for async AI ops | `id`, `task_type`, `payload` (JSON), `status`, `priority`, `retry_count`, `max_retries`, `error_log` (JSON) |
+
+#### External Data & Enrichment Tables
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `zbmath_cache` | Cached zbMATH metadata | `zbl_id` (PK), `msc_code`, `authors`, `title`, `keywords`, `links`, `review_markdown`, `fetched_at` |
+| `bib_entries` | Extracted bibliography items | `id`, `book_id`, `raw_text`, `title`, `author`, `resolved_zbl_id`, `confidence` |
+| `book_citations` | Inter-book citation graph | `book_id`, `zbl_id` |
+| `wishlist` | Books to acquire | `id`, `title`, `author`, `doi`, `status` |
+| `extracted_pages` | Cached PDF-to-LaTeX results | `book_id`, `page_number`, `latex_path`, `markdown_path`, `quality_score`, `quality_comments` |
+
+#### FTS Virtual Tables (SQLite FTS5)
+
+| Table | Indexed Columns | Source |
+|-------|----------------|--------|
+| `books_fts` | `title`, `author`, `content`, `index_content` | `books` |
+| `pages_fts` | `book_id`, `page_number`, `content` | Deep-indexed page text |
+| `notes_fts` | `title`, `tags`, `content` | `notes` |
+| `concept_fts` | `name`, `aliases`, `statement`, `notes` | `concepts` + `entries` |
+
+#### Auxiliary Tables
+
+| Table | Purpose |
+|-------|---------|
+| `deep_indexed_books` | Tracks which books have page-level FTS |
+
+### 4.3 Entity-Relationship Diagram
+
+```mermaid
+erDiagram
+    books ||--o{ chapters : "has TOC"
+    books ||--o{ bookmarks : "has bookmarks"
+    books ||--o{ bib_entries : "has bibliography"
+    books ||--o{ book_citations : "cites"
+    books ||--o{ entries : "source of"
+    books ||--o{ extracted_pages : "cached pages"
+
+    notes ||--o{ note_relations : "linked to"
+    notes ||--o{ note_book_relations : "references"
+    books ||--o{ note_book_relations : "referenced by"
+
+    concepts ||--o{ entries : "has formulations"
+    concepts ||--o{ relations : "from"
+    concepts ||--o{ relations : "to"
+
+    kb_proposals }o--|| books : "extracted from"
+
+    zbmath_cache ||--o{ books : "enriches"
+```
+
+---
+
+## 5. Core Module Documentation
+
+### 5.1 `core/config.py` — Configuration
+
+Central configuration hub. Key paths:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `PROJECT_ROOT` | `mathstudio/` | Application root |
+| `LIBRARY_ROOT` | `mathstudio/../` (parent) | Root of all PDF/DjVu files |
+| `DB_FILE` | `mathstudio/library.db` | SQLite database |
+| `OBSIDIAN_INBOX` | `/srv/data/math/obsidian/.../00_Inbox` | Obsidian sync target |
+| `VAULT_DIR` | `/srv/data/math/obsidian/mathematik_obsidian` | Full vault path |
+| `CONVERTED_NOTES_DIR` | `mathstudio/converted_notes/` | PDF extraction output |
+| `NOTES_OUTPUT_DIR` | `mathstudio/notes_output/` | Handwritten note output |
+| `KNOWLEDGE_VAULT_ROOT` | `vault/10_Knowledge/` | Obsidian KB root |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Default AI model |
+| `EMBEDDING_MODEL` | `models/text-embedding-004` | Vector embedding model |
+| `IGNORED_FOLDERS` | `{'mathstudio', '.git', ...}` | Folders excluded from scanning |
+
+### 5.2 `core/database.py` — DatabaseManager
+
+Thread-safe SQLite manager with WAL mode:
+
+- **Connection management**: Uses `threading.local()` for per-thread connections
+- **Context manager**: `get_connection()` provides auto-commit/rollback
+- **Row factory**: `sqlite3.Row` for dict-like access
+- **Schema initialization**: `init_db()` creates all 18+ tables with `IF NOT EXISTS`
+- **WAL mode**: Enabled on every connection for concurrent read access
+
+### 5.3 `core/ai.py` — AIService
+
+Wrapper around Google Gemini API:
+
+| Method | Purpose |
+|--------|---------|
+| `generate_text(prompt)` | Plain text generation |
+| `generate_json(prompt_or_contents)` | JSON-mode generation with markdown fence stripping |
+| `upload_file(path)` | Upload to Gemini File API with retry logic |
+| `delete_file(name)` | Cleanup uploaded files |
+
+- Uses `gemini-2.0-flash` model
+- JSON parsing with fallback regex for markdown code fences
+- API key loaded from `credentials.json`
+
+### 5.4 `core/utils.py` — PDFHandler
+
+Memory-guarded PDF handler:
+
+| Method | Purpose |
+|--------|---------|
+| `estimate_slicing_ranges()` | Identifies metadata pages (first 20) and bibliography pages (last 50) |
+| `create_slice(pages, output)` | Extracts specific pages into a new PDF |
+| `_open_source(page_indices)` | Opens PDF/DjVu with automatic DjVu→PDF conversion |
+
+- Supports both PDF (via PyMuPDF/fitz) and DjVu (via `ddjvu` CLI tool)
+- TOC/Bibliography detection via keyword markers (multilingual: EN/DE/FR)
+
+---
+
+## 6. Service Layer Documentation
+
+### 6.1 `SearchService` — Hybrid Search Engine
+
+The most sophisticated service. Implements a **6-stage search pipeline**:
+
+```mermaid
+flowchart LR
+    Q["User Query"] --> E["1. Expansion<br/>(LLM translate)"]
+    Q --> V["1. Embedding<br/>(768-dim vector)"]
+    V --> VS["2. Vector Search<br/>(cosine similarity)"]
+    E --> FTS["3. FTS5 Search<br/>(BM25 ranking)"]
+    VS & FTS --> MERGE["4. Score Fusion<br/>(0.6 vec + 0.4 fts)"]
+    MERGE --> IDX["5. Index Boost<br/>(+0.5 for index match)"]
+    IDX --> META["5b. Metadata Fallback"]
+    IDX --> RANK["6. AI Reranking<br/>(Gemini)"]
+    RANK --> R["Results"]
+```
+
+**Key features**:
+- **Query expansion**: LLM translates DE→EN and adds mathematical synonyms
+- **Dual-mode search**: FTS5 (BM25) + vector similarity run in parallel via `ThreadPoolExecutor`
+- **Score fusion**: Books found by both methods get blended scores
+- **Index match boost**: Back-of-book index hits add +0.5 to score with page references
+- **AI reranking**: Optional Gemini-powered reranking with explanations
+- **Field targeting**: Can search `title`, `author`, `index`, or `all`
+- **Embedding cache**: `@lru_cache(maxsize=100)` on both embeddings and query expansion
+- **Within-book search**: Page-level FTS via `pages_fts` or snippet extraction
+
+### 6.2 `NoteService` — Notes & PDF-to-LaTeX Pipeline
+
+The largest service (857 lines). Handles two major workflows:
+
+**A. Handwritten Note Transcription**:
+1. Image uploaded → optimized (JPEG, max 2048px)
+2. Uploaded to Gemini File API
+3. Vision prompt extracts: `latex_source`, `markdown_source`, `title`, `tags`, `msc`
+4. Files saved to `notes_output/` (`.tex`, `.md`, `.json`, `.jpg`)
+5. DB record created, FTS synced
+6. Optionally copied to Obsidian Inbox
+
+**B. PDF Page → LaTeX Conversion (with Quality Cache)**:
+1. Check `extracted_pages` cache for existing high-quality conversion
+2. If cached and quality ≥ `min_quality` (default 0.7) → return from cache
+3. Otherwise: render page to 2x PNG → Gemini Vision → LaTeX + Markdown
+4. Quality evaluation: separate Gemini call rates accuracy 0.0–1.0
+5. If quality ≥ threshold → save to `converted_notes/{book_id}/page_{N}.{tex,md}`
+6. Register in `extracted_pages` table
+
+**Key methods**: `transcribe_note()`, `get_or_convert_pages()`, `create_note_from_pdf()`, `save_page_to_cache()`, `evaluate_latex_quality()`, `sync_filesystem_to_db()`
+
+### 6.3 `KnowledgeService` — Mathematical Knowledge Base
+
+Implements a **formal concept graph** with these entities:
+
+- **Concepts**: Named mathematical objects (definition, theorem, lemma, etc.)
+- **Entries**: Multiple formulations of a concept from different sources
+- **Relations**: Directed typed edges (uses, implies, generalizes, special_case_of, etc.)
+- **Proposals**: Queue for theorems/definitions auto-discovered by the PDF-to-LaTeX converter (`get_or_convert_pages`).
+
+**Key workflows**:
+- **Auto-Discovery**: `get_or_convert_pages()` → converts PDF page → adds discovered Math blocks into `kb_proposals`.
+- **Proposal lifecycle**: `pending` → `approved` (creates new concept) or `merged` (adds location to existing concept) or `rejected`.
+- **Dedup on commit**: Fuzzy name matching (rapidfuzz, threshold 90) prevents duplicate concepts
+- **Obsidian rendering**: Jinja2 templates render concepts to Markdown files with auto-wikilinking
+- **Graph traversal**: BFS with hard depth cap of 3 for `get_related_concepts()`
+- **Task queue**: `llm_tasks` table for async AI operations with retry logic
+
+### 6.4 `ZBMathService` — External Metadata Enrichment
+
+Multi-source metadata verification and enrichment:
+
+```mermaid
+flowchart TD
+    B["Book"] --> ISBN{"ISBN?"}
+    ISBN -->|Yes| CR1["Crossref by ISBN"]
+    ISBN -->|No| DOI{"DOI?"}
+    DOI -->|Yes| ZB1["zbMATH by DOI"]
+    DOI -->|No| META["Search by Title+Author"]
+
+    ZB1 --> |Found| FULL["Fetch Full Metadata"]
+    ZB1 --> |Not Found| OA["OpenAlex Fallback"]
+    META --> ZB2["zbMATH Multi-Strategy Search"]
+    ZB2 --> FULL
+
+    FULL --> CACHE["Cache in zbmath_cache"]
+    FULL --> UPDATE["Update books table"]
+    UPDATE --> TRUST["Calculate Trust Score"]
+```
+
+**zbMATH search strategies** (cascading):
+1. `ti:"title" AND au:"author"` (strict field search)
+2. Author initial variant (e.g., "A. Schwarz" vs "Albert Schwarz")
+3. Flexible field search without quotes
+4. Broad keyword search (author + first 3 title words)
+5. Title-only search (last resort)
+
+Each result is scored via `rapidfuzz.partial_ratio` with author bonus.
+
+### 6.5 `UniversalProcessor` — AI Metadata Pipeline
+
+7-phase pipeline for extracting metadata from new books:
+
+1. **Native TOC extraction**: PyMuPDF bookmarks as baseline
+2. **Page slicing**: Extract front matter + last 10 pages
+3. **Holistic AI pass**: Gemini Vision analyzes the slice → returns metadata, TOC, index terms, routing suggestion
+4. **Verification**: Cross-check against Crossref/zbMATH
+5. **Conflict detection**: Compare AI title vs filename
+6. **Reflection pass**: If conflicts exist, re-analyze with verification data
+7. **DB persistence**: Save metadata, rebuild chapters table
+
+### 6.6 Other Services
+
+| Service | Key Responsibility |
+|---------|-------------------|
+| `IndexerService` | Library scanning, full-text extraction (PDF+DjVu), page-level FTS, AI-driven TOC/index reconstruction, TOC/index quality auditing |
+| `BibliographyService` | Vision-first bibliography extraction in 8-page chunks, citation resolution via zbMATH |
+| `CompilationService` | `pdflatex` compilation, category/master PDF merging via `pypdf` |
+| `EnrichmentService` | Batch zbMATH enrichment for un-verified books, page count healing |
+| `MetadataService` | arXiv/OpenLibrary/Crossref API lookups, ISBN extraction from PDFs, BibTeX generation |
+| `AnalyticsService` | Co-author network graph, MSC timeline by decade, cross-pollination analysis |
+| `FuzzyBookMatcher` | 4-strategy cascade: exact → normalized → fuzzy (Levenshtein) → token-based |
+| `LibraryService` | File hash dedup, sanity checks, path management |
+| `IngestorService` | Orchestrates Universal Pipeline + zbMATH enrichment + file routing for new books |

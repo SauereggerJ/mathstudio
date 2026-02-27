@@ -20,6 +20,8 @@ from services.ingestor import ingestor_service
 from services.zbmath import zbmath_service
 from services.enrichment import enrichment_service
 from services.knowledge import knowledge_service
+from services.compilation import compilation_service
+from services.analytics import analytics_service
 from core.utils import parse_page_range
 
 api_v1 = Blueprint('api_v1', __name__)
@@ -80,40 +82,103 @@ def search_endpoint():
         'expanded_query': expanded_query
     })
 
+@api_v1.route('/search/vector', methods=['GET'])
+def vector_search_endpoint():
+    """Semantic discovery using vector embeddings."""
+    query = request.args.get('q', '')
+    limit = request.args.get('limit', 20, type=int)
+    
+    if not query:
+        return jsonify({'results': []})
+        
+    try:
+        # Get embedding for query
+        query_vec = search_service.get_embedding(query)
+        if not query_vec:
+            return jsonify({'error': 'Failed to generate embedding'}), 500
+            
+        # Search semantically
+        results = search_service.search_books_semantic(query_vec, top_k=limit)
+        
+        # Populate results with metadata
+        json_results = []
+        with db.get_connection() as conn:
+            for r in results:
+                book = conn.execute("SELECT * FROM books WHERE id = ?", (r['id'],)).fetchone()
+                if book:
+                    item = dict(book)
+                    # Strip binary embedding
+                    if item.get('embedding'):
+                        item['has_embedding'] = True
+                        del item['embedding']
+                    item['score'] = r['score']
+                    item['cover_url'] = f'/static/thumbnails/{item["id"]}/page_1.png'
+                    json_results.append(item)
+                    
+        return jsonify({'results': json_results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/browse', methods=['GET'])
 def browse_endpoint():
     """Browse library by metadata filters: author, msc, year, keyword."""
     author = request.args.get('author')
     msc = request.args.get('msc')
-    year = request.args.get('year', type=int)
+    year = request.args.get('year') # Changed from type=int to support prefixes
     keyword = request.args.get('keyword')
     limit = request.args.get('limit', 100, type=int)
-
-    if not any([author, msc, year, keyword]):
-        return jsonify({'results': [], 'total_count': 0, 'filter': None})
-
+    
+    query = "SELECT * FROM books WHERE 1=1"
+    params = []
+    
+    if author:
+        # Use % between name parts to handle middle initials/dots
+        parts = [p.strip() for p in author.split(' ') if p.strip()]
+        flexible_author = "%" + "%".join(parts) + "%"
+        query += " AND author LIKE ?"
+        params.append(flexible_author)
+    if msc:
+        msc_list = msc.split(',')
+        msc_clauses = []
+        for m in msc_list:
+            # Match MSC at start of string or after a space/comma
+            msc_clauses.append("(msc_class LIKE ? OR msc_class LIKE ?)")
+            params.append(f"{m.strip()}%")
+            params.append(f"%, {m.strip()}%")
+        query += f" AND ({' OR '.join(msc_clauses)})"
+    if year:
+        # If year is 4 digits, exact match. If 3 digits, decade match.
+        if len(year) == 3:
+            query += " AND CAST(year AS TEXT) LIKE ?"
+            params.append(f"{year}%")
+        else:
+            query += " AND year = ?"
+            params.append(year)
+    if keyword:
+        query += " AND (title LIKE ? OR summary LIKE ? OR tags LIKE ?)"
+        params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+        
+    query += " ORDER BY year DESC LIMIT ?"
+    params.append(limit)
+    
     try:
-        results = search_service.browse_by_field(
-            author=author, msc=msc, year=year, keyword=keyword, limit=limit
-        )
-        json_results = []
-        for item in results:
+        with db.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        
+        results = []
+        for r in rows:
+            item = dict(r)
+            if 'embedding' in item: del item['embedding']
             item['cover_url'] = f'/static/thumbnails/{item["id"]}/page_1.png'
-            item['score'] = 1.0
-            json_results.append(item)
-
-        filter_desc = ', '.join(
-            f'{k}={v}' for k, v in
-            {'author': author, 'msc': msc, 'year': year, 'keyword': keyword}.items()
-            if v
-        )
+            results.append(item)
+            
+        filter_str = ", ".join([f"{k}={v}" for k, v in request.args.items() if v])
         return jsonify({
-            'results': json_results,
-            'total_count': len(json_results),
-            'filter': filter_desc
+            'results': results,
+            'total_count': len(results),
+            'filter': filter_str
         })
     except Exception as e:
-        print(f"Browse API Error: {e}", file=sys.stderr)
         return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/msc-stats', methods=['GET'])
@@ -243,8 +308,141 @@ def trigger_reindex(book_id, mode='auto'):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- 2. Universal Pipeline Tools ---
+@api_v1.route('/msc/hierarchy', methods=['GET'])
+def get_msc_hierarchy():
+    """Serves the MSC 2020 hierarchy as a clean JSON response."""
+    try:
+        msc_path = Path(current_app.root_path) / "dokumentation/msc2020.json"
+        if not msc_path.exists():
+            # Fallback to static if it was moved
+            msc_path = Path(current_app.root_path) / "static/msc_codes.json"
+            
+        if not msc_path.exists():
+            return jsonify({'error': 'MSC hierarchy file not found'}), 404
+            
+        with open(msc_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500        
 
+@api_v1.route('/books/<int:book_id>/pages/latex', methods=['GET'])
+def get_book_pages_latex(book_id):
+    """Returns high-quality LaTeX for a range of pages, utilizing cache and quality checks."""
+    pages_str = request.args.get('pages', '')
+    force_refresh = request.args.get('refresh') == 'true'
+    min_quality = request.args.get('min_quality', 0.7, type=float)
+    
+    if not pages_str:
+        return jsonify({'error': 'pages parameter is required'}), 400
+        
+    try:
+        with db.get_connection() as conn:
+            row = conn.execute("SELECT page_count FROM books WHERE id = ?", (book_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Book not found'}), 404
+            
+        target_pages = parse_page_range(pages_str, row['page_count'])
+        if not target_pages:
+            return jsonify({'error': 'Invalid page range'}), 400
+            
+        results, error = note_service.get_or_convert_pages(
+            book_id, target_pages, force_refresh=force_refresh, min_quality=min_quality
+        )
+        
+        if error:
+            return jsonify({'error': error}), 500
+            
+        return jsonify({
+            'book_id': book_id,
+            'pages': results
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes', methods=['POST'])
+def create_note_endpoint():
+    """Creates a new note from Markdown/LaTeX content."""
+    try:
+        data = request.json
+        if not data.get('title') or not data.get('markdown'):
+            return jsonify({'error': 'title and markdown are required'}), 400
+            
+        note_id = note_service.create_note(
+            title=data['title'],
+            markdown_content=data['markdown'],
+            latex_content=data.get('latex'),
+            tags=data.get('tags'),
+            msc=data.get('msc'),
+            source_book_id=data.get('book_id')
+        )
+
+        # Optional immediate compilation (default: True)
+        if data.get('compile', True):
+            try:
+                compilation_service.compile_note(note_id)
+            except Exception as e:
+                print(f"Auto-compilation failed: {e}")
+
+        return jsonify({'success': True, 'id': note_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/compile', methods=['POST'])
+def compile_note_endpoint(note_id):
+    """Compiles a specific note's LaTeX to PDF."""
+    try:
+        result = compilation_service.compile_note(note_id)
+        if result.get('success'):
+            return jsonify(result)
+        return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/metadata', methods=['GET'])
+def get_notes_metadata():
+    notes = note_service.list_notes()
+    # note_service.list_notes() gives base_name, title, created, modified, directory
+    # Let's enrich it with has_pdf and tags.
+    from core.config import NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR
+    result = []
+    for n in notes:
+        base_name = n['base_name']
+        d = NOTES_OUTPUT_DIR if n['directory'] == NOTES_OUTPUT_DIR.name else CONVERTED_NOTES_DIR
+        has_pdf = (d / f"{base_name}.pdf").exists()
+        meta = note_service.get_note_metadata(base_name, d)
+        tags = meta.get('tags', [])
+        
+        result.append({
+            'filename': n['filename'],
+            'base_name': base_name,
+            'title': n['title'],
+            'modified': n['modified'],
+            'has_pdf': has_pdf,
+            'tags': tags
+        })
+    return jsonify(result)
+
+@api_v1.route('/notes/<filename>', methods=['GET'])
+def download_note_file(filename):
+    from flask import send_from_directory
+    from core.config import NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR
+    for d in [NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR]:
+        if (d / filename).exists():
+            return send_from_directory(d, filename)
+    return "Note file not found", 404
+
+@api_v1.route('/notes/compile', methods=['POST'])
+def compile_notes_endpoint():
+    """Triggers the compilation of LaTeX notes into category and master PDFs."""
+    try:
+        result = compilation_service.compile_all()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+        
+# --- 2. Universal Pipeline Tools ---
 @api_v1.route('/books/<int:book_id>/metadata/refresh', methods=['POST'])
 def refresh_book_metadata(book_id):
     """Triggers the new Universal Vision-Reflection Pipeline."""
@@ -412,6 +610,206 @@ def delete_bookmark(bookmark_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# --- 4. Structured Notes & Transcriptions ---
+
+@api_v1.route('/notes', methods=['GET'])
+def list_notes_endpoint():
+    """Returns a list of structured notes from the DB."""
+    source_type = request.args.get('type')
+    book_id = request.args.get('book_id', type=int)
+    limit = request.args.get('limit', 50, type=int)
+    try:
+        notes = note_service.list_notes(source_type=source_type, book_id=book_id, limit=limit)
+        return jsonify(notes)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/search', methods=['GET'])
+def search_notes_endpoint():
+    """Performs FTS search over notes."""
+    query = request.args.get('q', '')
+    limit = request.args.get('limit', 50, type=int)
+    if not query: return list_notes_endpoint()
+    try:
+        results = note_service.search_notes(query, limit=limit)
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>', methods=['GET'])
+def get_note_by_id_endpoint(note_id):
+    """Returns detailed metadata and paths for a specific note."""
+    try:
+        note = note_service.get_note(note_id)
+        if not note: return jsonify({'error': 'Note not found'}), 404
+        return jsonify(note)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/content', methods=['GET'])
+def get_note_content_endpoint(note_id):
+    """Returns the markdown and latex content of a note."""
+    try:
+        note = note_service.get_note(note_id)
+        if not note: return jsonify({'error': 'Note not found'}), 404
+        
+        result = {}
+        if note.get('markdown_path') and os.path.exists(note['markdown_path']):
+            with open(note['markdown_path'], 'r', encoding='utf-8') as f:
+                result['markdown'] = f.read()
+        
+        if note.get('latex_path') and os.path.exists(note['latex_path']):
+            with open(note['latex_path'], 'r', encoding='utf-8') as f:
+                result['latex'] = f.read()
+                
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/content', methods=['PATCH'])
+def update_note_content_endpoint(note_id):
+    """Updates the markdown and/or latex content of a note."""
+    try:
+        data = request.json
+        if note_service.update_note_content(note_id, 
+                                          markdown_content=data.get('markdown'),
+                                          latex_content=data.get('latex')):
+            return jsonify({'success': True})
+        return jsonify({'error': 'Update failed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/metadata', methods=['PATCH'])
+def update_note_metadata_endpoint(note_id):
+    """Updates note metadata (title, tags, msc)."""
+    try:
+        data = request.json
+        if note_service.update_note_metadata(note_id, data):
+            return jsonify({'success': True})
+        return jsonify({'error': 'Update failed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/tags/suggestions', methods=['GET'])
+def get_tag_suggestions_endpoint():
+    """Returns tag/keyword suggestions based on prefix."""
+    q = request.args.get('q', '')
+    if not q: return jsonify([])
+    try:
+        suggestions = note_service.get_tag_suggestions(q)
+        return jsonify(suggestions)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/relations', methods=['POST'])
+def add_note_relation_endpoint(note_id):
+    """Connects this note to another note."""
+    try:
+        target_id = request.json.get('target_id')
+        rel_type = request.json.get('type', 'related')
+        if not target_id: return jsonify({'error': 'target_id required'}), 400
+        if note_service.add_relation(note_id, target_id, rel_type):
+            return jsonify({'success': True})
+        return jsonify({'error': 'Failed to add relation'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/relations/<int:target_id>', methods=['DELETE'])
+def delete_note_relation_endpoint(note_id, target_id):
+    """Removes connection between two notes."""
+    try:
+        note_service.delete_relation(note_id, target_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/books', methods=['POST'])
+def add_note_book_relation_endpoint(note_id):
+    """Associates a note with a book and optional page."""
+    try:
+        data = request.json
+        book_id = data.get('book_id')
+        page = data.get('page')
+        if not book_id: return jsonify({'error': 'book_id required'}), 400
+        
+        if note_service.add_book_relation(note_id, book_id, page):
+            return jsonify({'success': True})
+        return jsonify({'error': 'Failed to add book relation'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/books/<int:book_id>', methods=['DELETE'])
+@api_v1.route('/notes/<int:note_id>/books/<int:book_id>/<int:page>', methods=['DELETE'])
+def delete_note_book_relation_endpoint(note_id, book_id, page=None):
+    """Removes association with a book/page."""
+    try:
+        note_service.delete_book_relation(note_id, book_id, page)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>', methods=['DELETE'])
+def delete_note_by_id_endpoint(note_id):
+    """Deletes a note from the DB and FTS index."""
+    try:
+        success = note_service.delete_note(note_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/upload', methods=['POST'])
+def upload_note_scan():
+    """Handles image upload, transcribes via Vision LLM, and records in DB."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    try:
+        image_data = file.read()
+        # 1. Transcribe via Gemini Vision
+        transcription = note_service.transcribe_note(image_data)
+        if not transcription:
+            return jsonify({'error': 'Transcription failed'}), 500
+            
+        # 2. Process, Save files and DB record
+        note_id = note_service.process_uploaded_note(transcription, image_data)
+        
+        return jsonify({
+            'success': True, 
+            'id': note_id, 
+            'transcription': transcription
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/sync', methods=['POST'])
+def sync_notes_endpoint():
+    """Manually triggers a filesystem-to-DB synchronization for legacy notes."""
+    try:
+        count = note_service.sync_filesystem_to_db()
+        return jsonify({'success': True, 'synced_count': count})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/<int:note_id>/pdf', methods=['GET'])
+def get_note_pdf_endpoint(note_id):
+    """Serves the compiled PDF for a note."""
+    try:
+        note = note_service.get_note(note_id)
+        if not note or not note['pdf_path']: return jsonify({'error': 'PDF not found'}), 404
+        path = Path(note['pdf_path'])
+        if not path.exists(): return jsonify({'error': 'File not found on disk'}), 404
+        return send_from_directory(path.parent, path.name)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/notes/metadata', methods=['GET'])
+def get_all_notes_metadata():
+    """Returns metadata for all notes in a flat list (legacy compatibility)."""
+    return list_notes_endpoint()
+
 @api_v1.route('/books/<int:book_id>/download', methods=['GET'])
 def download_book(book_id):
     try:
@@ -577,7 +975,7 @@ def pdf_to_text_tool():
 
 @api_v1.route('/tools/pdf-to-note', methods=['POST'])
 def pdf_to_note_tool():
-    """Converts PDF pages to structured Markdown/LaTeX notes using AI."""
+    """Converts PDF pages to LaTeX/Markdown (cached) and triggers KB proposals. Does NOT create a Note."""
     try:
         data = request.json
         book_id = data.get('book_id')
@@ -594,15 +992,31 @@ def pdf_to_note_tool():
         target_pages = parse_page_range(pages_str, row['page_count'])
         if not target_pages: return jsonify({'error': 'Invalid page range'}), 400
         
-        result, error = note_service.create_note_from_pdf(book_id, target_pages)
+        force_refresh = data.get('refresh', False)
         
-        if error:
-            return jsonify({'success': False, 'error': error}), 500
-            
+        # Convert + cache + trigger proposals (no Note record created)
+        results, convert_error = note_service.get_or_convert_pages(
+            book_id, target_pages, force_refresh=force_refresh
+        )
+        
+        if convert_error:
+            return jsonify({'success': False, 'error': convert_error}), 500
+        
+        # Combine for display
+        combined = ""
+        for pr in results:
+            page_num = pr.get('page')
+            if pr.get('error'):
+                combined += f"\n\n> [Error on page {page_num}: {pr['error']}]\n\n"
+            elif pr.get('markdown'):
+                combined += f"\n## Page {page_num}\n\n{pr['markdown']}"
+            elif pr.get('raw_text'):
+                combined += f"\n## Page {page_num} (raw text)\n\n{pr['raw_text']}"
+        
         return jsonify({
-            'success': True, 
-            'filename': result['filename'],
-            'content': result['content']
+            'success': True,
+            'content': combined.strip(),
+            'pages_converted': len([r for r in results if not r.get('error')])
         })
     except Exception as e:
         traceback.print_exc()
@@ -727,6 +1141,18 @@ def open_external_tool():
 
 # --- 4. Knowledge Base ---
 
+@api_v1.route('/kb/concepts', methods=['GET'])
+def kb_browse_concepts():
+    """Browse concepts with letter filter and sorting."""
+    letter = request.args.get('letter')
+    sort = request.args.get('sort', 'alpha')
+    kind = request.args.get('kind')
+    limit = request.args.get('limit', 100, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    result = knowledge_service.browse_concepts(letter=letter, sort=sort, kind=kind,
+                                                limit=limit, offset=offset)
+    return jsonify(result)
+
 @api_v1.route('/kb/concepts', methods=['POST'])
 def kb_add_concept():
     data = request.json
@@ -743,45 +1169,6 @@ def kb_get_concept(concept_id):
     if not result: return jsonify({'error': 'Not found'}), 404
     return jsonify(result)
 
-@api_v1.route('/kb/concepts/search', methods=['GET'])
-def kb_search_concepts():
-    query = request.args.get('q', '')
-    if not query: return jsonify({'error': 'q is required'}), 400
-    results = knowledge_service.search_concepts(
-        query, kind=request.args.get('kind'),
-        domain=request.args.get('domain'),
-        limit=request.args.get('limit', 20, type=int))
-    return jsonify(results)
-
-@api_v1.route('/kb/entries', methods=['POST'])
-def kb_add_entry():
-    data = request.json
-    if not data.get('concept_id') or not data.get('statement'):
-        return jsonify({'error': 'concept_id and statement are required'}), 400
-    result = knowledge_service.add_entry(**{
-        k: data[k] for k in data
-        if k in ('concept_id','statement','book_id','page_start','page_end',
-                 'proof','notes','scope','language','style','confidence', 'is_canonical')
-    })
-    return jsonify(result), 200 if result.get('success') else 400
-
-@api_v1.route('/kb/relations', methods=['POST'])
-def kb_add_relation():
-    data = request.json
-    required = ('from_concept_id', 'to_concept_id', 'relation_type')
-    if not all(data.get(k) for k in required):
-        return jsonify({'error': f'{required} are all required'}), 400
-    
-    result = knowledge_service.add_relation(
-        from_id=data['from_concept_id'],
-        to_id=data['to_concept_id'],
-        relation_type=data['relation_type'],
-        context=data.get('context'),
-        source_entry_id=data.get('source_entry_id'),
-        confidence=data.get('confidence', 1.0)
-    )
-    return jsonify(result), 200 if result.get('success') else 400
-
 @api_v1.route('/kb/concepts/<int:concept_id>', methods=['PATCH'])
 def kb_update_concept(concept_id):
     result = knowledge_service.update_concept(concept_id, **request.json)
@@ -792,9 +1179,41 @@ def kb_delete_concept(concept_id):
     result = knowledge_service.delete_concept(concept_id)
     return jsonify(result), 200 if result.get('success') else 400
 
-@api_v1.route('/kb/entries/<int:entry_id>', methods=['PATCH'])
-def kb_update_entry(entry_id):
-    result = knowledge_service.update_entry(entry_id, **request.json)
+@api_v1.route('/kb/concepts/search', methods=['GET'])
+def kb_search_concepts():
+    query = request.args.get('q', '')
+    if not query: return jsonify({'error': 'q is required'}), 400
+    results = knowledge_service.search_concepts(
+        query, kind=request.args.get('kind'),
+        limit=request.args.get('limit', 20, type=int))
+    return jsonify(results)
+
+@api_v1.route('/kb/add-location', methods=['POST'])
+def kb_add_location():
+    """Register where a theorem/definition appears in a book."""
+    data = request.json
+    if not data.get('concept_name') or not data.get('book_id') or not data.get('page'):
+        return jsonify({'error': 'concept_name, book_id, and page are required'}), 400
+    result = knowledge_service.add_location(
+        concept_name=data['concept_name'],
+        kind=data.get('kind', 'theorem'),
+        book_id=data['book_id'],
+        page=data['page'],
+        statement_preview=data.get('statement_preview'))
+    return jsonify(result), 200 if result.get('success') else 400
+
+@api_v1.route('/kb/entries', methods=['POST'])
+def kb_add_entry():
+    data = request.json
+    if not data.get('concept_id'):
+        return jsonify({'error': 'concept_id is required'}), 400
+    result = knowledge_service.add_entry(
+        concept_id=data['concept_id'],
+        book_id=data.get('book_id'),
+        page_start=data.get('page_start'),
+        page_end=data.get('page_end'),
+        statement=data.get('statement'),
+        is_canonical=data.get('is_canonical'))
     return jsonify(result), 200 if result.get('success') else 400
 
 @api_v1.route('/kb/entries/<int:entry_id>', methods=['DELETE'])
@@ -802,80 +1221,61 @@ def kb_delete_entry(entry_id):
     result = knowledge_service.delete_entry(entry_id)
     return jsonify(result), 200 if result.get('success') else 400
 
-@api_v1.route('/kb/relations/delete', methods=['POST'])
-def kb_delete_relation():
-    data = request.json
-    result = knowledge_service.delete_relation(
-        from_id=data['from_concept_id'],
-        to_id=data['to_concept_id'],
-        relation_type=data['relation_type']
-    )
-    return jsonify(result), 200 if result.get('success') else 400
-
-@api_v1.route('/kb/books/<int:book_id>/offset', methods=['POST'])
-def kb_set_book_offset(book_id):
-    data = request.json
-    result = knowledge_service.set_book_offset(book_id, data.get('offset', 0))
-    return jsonify(result), 200 if result.get('success') else 400
-
 @api_v1.route('/kb/schema', methods=['GET'])
 def kb_get_schema():
     return jsonify(knowledge_service.get_kb_schema_info())
 
-@api_v1.route('/kb/ingest-page', methods=['POST'])
-def kb_ingest_page():
-    data = request.json
-    required = ('concept_id', 'book_id', 'page')
-    if not all(data.get(k) for k in required):
-        return jsonify({'error': f'{required} are required'}), 400
-    
-    result = knowledge_service.ingest_from_page(
-        concept_id=data['concept_id'],
-        book_id=data['book_id'],
-        page=data['page'],
-        scope=data.get('scope'),
-        style=data.get('style')
-    )
+# --- KB Proposals (auto-discovery approval) ---
+
+@api_v1.route('/kb/proposals', methods=['GET'])
+def kb_list_proposals():
+    status = request.args.get('status', 'pending')
+    limit = request.args.get('limit', 50, type=int)
+    return jsonify(knowledge_service.list_proposals(status, limit))
+
+@api_v1.route('/kb/proposals/count', methods=['GET'])
+def kb_proposal_count():
+    return jsonify({'count': knowledge_service.get_proposal_count()})
+
+@api_v1.route('/kb/proposals/<int:proposal_id>', methods=['GET'])
+def kb_get_proposal(proposal_id):
+    result = knowledge_service.get_proposal(proposal_id)
+    if not result: return jsonify({'error': 'Not found'}), 404
+    return jsonify(result)
+
+@api_v1.route('/kb/proposals/<int:proposal_id>/approve', methods=['POST'])
+def kb_approve_proposal(proposal_id):
+    result = knowledge_service.approve_proposal(proposal_id)
     return jsonify(result), 200 if result.get('success') else 400
 
-@api_v1.route('/kb/concepts/<int:concept_id>/related', methods=['GET'])
-def kb_get_related(concept_id):
-    depth = min(request.args.get('depth', 1, type=int), 3)  # Hard cap
-    result = knowledge_service.get_related_concepts(concept_id, depth=depth)
-    return jsonify(result)
+@api_v1.route('/kb/proposals/<int:proposal_id>/merge', methods=['POST'])
+def kb_merge_proposal(proposal_id):
+    data = request.json or {}
+    target_id = data.get('target_concept_id')
+    if not target_id:
+        return jsonify({'error': 'target_concept_id is required'}), 400
+    result = knowledge_service.merge_proposal(proposal_id, target_id)
+    return jsonify(result), 200 if result.get('success') else 400
 
-@api_v1.route('/kb/vault/render/<int:concept_id>', methods=['POST'])
-def kb_render_note(concept_id):
-    result = knowledge_service.write_obsidian_note(concept_id)
-    return jsonify(result)
+@api_v1.route('/kb/proposals/<int:proposal_id>/reject', methods=['POST'])
+def kb_reject_proposal(proposal_id):
+    result = knowledge_service.reject_proposal(proposal_id)
+    return jsonify(result), 200 if result.get('success') else 400
 
-@api_v1.route('/kb/vault/regenerate', methods=['POST'])
-def kb_regenerate_vault():
-    result = knowledge_service.regenerate_vault()
-    return jsonify(result)
+# --- 5. Analytics ---
 
-@api_v1.route('/kb/tasks', methods=['GET'])
-def kb_get_tasks():
-    tasks = knowledge_service.get_pending_tasks(
-        limit=request.args.get('limit', 10, type=int))
-    return jsonify(tasks)
+@api_v1.route('/analytics/coauthors', methods=['GET'])
+def get_coauthor_network():
+    return jsonify(analytics_service.get_coauthor_network())
 
-@api_v1.route('/kb/tasks', methods=['POST'])
-def kb_queue_task():
-    data = request.json
-    if not data.get('task_type'):
-        return jsonify({'error': 'task_type is required'}), 400
-    result = knowledge_service.queue_task(
-        data['task_type'], data.get('payload'), data.get('priority', 5))
-    return jsonify(result)
+@api_v1.route('/analytics/timeline', methods=['GET'])
+def get_msc_timeline():
+    return jsonify(analytics_service.get_msc_timeline())
 
-@api_v1.route('/kb/tasks/<int:task_id>/complete', methods=['POST'])
-def kb_complete_task(task_id):
-    result = knowledge_service.complete_task(task_id, request.json)
-    return jsonify(result)
+@api_v1.route('/analytics/cross-pollination', methods=['GET'])
+def get_cross_pollination():
+    return jsonify(analytics_service.get_cross_pollination())
 
-@api_v1.route('/kb/tasks/<int:task_id>/fail', methods=['POST'])
-def kb_fail_task(task_id):
-    data = request.json
-    result = knowledge_service.fail_task(task_id, data.get('error', 'Unknown'))
-    return jsonify(result)
+@api_v1.route('/analytics/export/canvas', methods=['POST'])
+def export_analytics_canvas():
+    return jsonify(analytics_service.export_coauthor_canvas())

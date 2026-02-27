@@ -1,0 +1,400 @@
+# MathStudio Technical Report — Part 2
+
+## 7. REST API Documentation
+
+Base URL: `http://localhost:5001/api/v1`
+
+### 7.1 Search & Discovery
+
+| Method | Endpoint | Parameters | Description |
+|--------|----------|-----------|-------------|
+| GET | `/search` | `q`, `limit`, `offset`, `fts`, `vec`, `rank`, `trans`, `field` | Hybrid search with optional AI expansion/reranking |
+| GET | `/browse` | `author`, `msc`, `year`, `keyword`, `limit` | Metadata-filtered browsing |
+| GET | `/msc-stats` | — | Book counts per MSC code |
+| GET | `/msc-tree` | — | Full MSC 2020 hierarchy |
+
+### 7.2 Book Management
+
+| Method | Endpoint | Parameters | Description |
+|--------|----------|-----------|-------------|
+| GET | `/books/<id>` | — | Full book details + similar books + bibliography |
+| GET | `/books/<id>/toc` | — | Structured Table of Contents |
+| GET | `/books/<id>/search` | `q` | Search within a specific book |
+| GET | `/books/<id>/pages/latex` | `pages`, `refresh`, `min_quality` | Cached high-quality LaTeX |
+| PATCH | `/books/<id>/metadata` | JSON body | Update book metadata fields |
+| POST | `/books/<id>/deep-index` | — | Trigger page-level FTS indexing |
+| POST | `/books/<id>/reindex/<mode>` | mode: toc/index/auto | AI-driven structure reconstruction |
+| POST | `/books/<id>/metadata/refresh` | — | Universal Pipeline metadata refresh |
+| POST | `/books/<id>/metadata/refresh/preview` | — | Preview metadata changes |
+| POST | `/books/<id>/enrich` | — | zbMATH enrichment |
+| POST | `/books/<id>/citations/resolve` | — | Resolve bibliography entries |
+
+### 7.3 Notes
+
+| Method | Endpoint | Parameters | Description |
+|--------|----------|-----------|-------------|
+| GET | `/notes` | `type`, `book_id`, `limit` | List notes |
+| POST | `/notes` | JSON: `title`, `markdown`, `latex`, `tags`, `msc`, `book_id` | Create new note |
+| GET | `/notes/search` | `q`, `limit` | FTS search over notes |
+| GET | `/notes/<id>` | — | Note details with relations |
+| GET | `/notes/<id>/content` | — | Full markdown + latex content |
+| PATCH | `/notes/<id>/content` | JSON: `markdown`, `latex` | Update note content |
+| PATCH | `/notes/<id>/metadata` | JSON: `title`, `tags`, `msc` | Update note metadata |
+| POST | `/notes/<id>/compile` | — | Compile LaTeX → PDF |
+| POST | `/notes/<id>/books` | JSON: `book_id`, `page`, `type` | Add book relation |
+| DELETE | `/notes/<id>/books` | JSON: `book_id`, `page` | Remove book relation |
+| POST | `/notes/upload` | Multipart file | Upload handwritten scan |
+| POST | `/notes/compile` | — | Compile all notes to category/master PDFs |
+
+### 7.4 Knowledge Base
+
+| Method | Endpoint | Parameters | Description |
+|--------|----------|-----------|-------------|
+| GET | `/kb/concepts/search` | `q`, `kind`, `limit` | Search concepts + entries |
+| GET | `/kb/concepts/<id>` | — | Full concept with entries + relations |
+| POST | `/kb/concepts` | JSON: `name`, `kind`, `domain`, `aliases` | Create concept |
+| PATCH | `/kb/concepts/<id>` | JSON fields | Update concept |
+| DELETE | `/kb/concepts/<id>` | — | Delete concept (CASCADE) |
+| POST | `/kb/concepts/<id>/entries` | JSON: `statement`, `proof`, `book_id`, etc. | Add formulation |
+| POST | `/kb/concepts/<id>/relations` | JSON: `to_id`, `type`, `context` | Add relation |
+| POST | `/kb/ingest-page` | JSON: `book_id`, `page`, `concept_name` | Ingest page → draft |
+| GET | `/kb/drafts` | `status`, `limit` | List drafts |
+| GET | `/kb/drafts/<id>` | — | Read draft details |
+| PATCH | `/kb/drafts/<id>` | JSON fields | Update draft |
+| POST | `/kb/drafts/<id>/commit` | — | Promote draft → KB |
+| DELETE | `/kb/drafts/<id>` | — | Discard draft |
+| GET | `/kb/schema` | — | Valid kinds + relation types |
+| POST | `/kb/vault/regenerate` | — | Re-render all concepts to Obsidian |
+
+### 7.5 Tools & Administration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/tools/pdf-to-text` | Raw text extraction from pages |
+| POST | `/tools/pdf-to-note` | AI conversion of pages to note |
+| POST | `/tools/bib-scan` | Vision-based bibliography extraction |
+| GET | `/tools/open-external` | Open file in system handler |
+| POST | `/admin/ingest` | Process Unsorted folder |
+| POST | `/admin/indexer` | Rebuild FTS index |
+| POST | `/admin/enrich/batch` | Batch zbMATH enrichment |
+| GET | `/admin/stats` | Library statistics |
+| POST | `/admin/sanity/fix` | Run sanity checks |
+| POST | `/bookmarks` | Create bookmark |
+| GET | `/bookmarks` | List bookmarks |
+| DELETE | `/bookmarks/<id>` | Delete bookmark |
+| POST | `/wishlist` | Add to wishlist |
+
+---
+
+## 8. MCP Server Documentation
+
+### 8.1 Overview
+
+The MCP server ([server.py](file:///home/jure/nasi_data/math/New_Research_Library/mathstudio/mcp_server/server.py)) exposes MathStudio as an **Agentic RAG system** for LLM integration via the Model Context Protocol. It acts as an **HTTP proxy** — each tool call translates to a REST API request to the Flask backend.
+
+- **Transport**: stdio (run via `python server.py`)
+- **Server name**: `mathstudio-mcp`
+- **Config**: `config.json` → `{"api_base_url": "http://localhost:5001/api/v1"}`
+
+### 8.2 Tool Inventory (40 tools)
+
+| Category | Tools |
+|----------|-------|
+| **Search** (6) | `search_books`, `browse_library`, `get_msc_stats`, `get_msc_tree`, `search_within_book`, `deep_index_book` |
+| **Books** (7) | `get_book_details`, `get_book_toc`, `read_pdf_pages`, `update_metadata`, `reindex_book`, `refresh_book_metadata`, `preview_metadata_refresh` |
+| **Notes** (13) | `list_notes`, `search_notes`, `get_note_details`, `get_note_content`, `update_note_content`, `update_note_metadata`, `get_note_pdf`, `create_note`, `compile_note`, `compile_notes`, `upload_note_scan`, `convert_pdf_to_note`, `add_note_book_relation` |
+| **LaTeX** (1) | `get_book_pages_latex` (with quality cache) |
+| **KB** (7) | `search_knowledge`, `get_concept_details`, `ingest_kb_draft`, `read_kb_draft`, `update_kb_draft`, `commit_kb_draft`, `list_kb_drafts` |
+| **Bibliography** (2) | `scan_bibliography`, `resolve_citations` |
+| **Admin** (6) | `trigger_ingestion`, `get_library_stats`, `rebuild_fts_index`, `run_sanity_fix`, `manage_wishlist`, `manage_bookmarks` |
+| **Enrichment** (2) | `enrich_book_metadata`, `batch_enrich_books` |
+| **Utility** (2) | `get_system_state`, `open_external_file` |
+
+### 8.3 Prompts (3 agentic workflows)
+
+1. **`usage_manifesto`**: The "Leitidee" — every query should expand the KB. Defines the 5-step workflow: KB first → Library fallback → Extraction → Structuring → Answer & Cite.
+2. **`researcher_workflow`**: 8-step discovery-synthesis pipeline from KB query through extraction, review, structuring, to delivery.
+3. **`note_creation_workflow`**: 2-phase protocol — Phase 1 (Research & Proposal with user approval gate) → Phase 2 (Autonomous execution: file generation, metadata linking, compilation, delivery).
+
+**Strict Constraints (Critical Rules):** Built into the agent prompts are explicit guardrails added to save resources and maintain KB quality:
+- **No TOC LaTeXing**: The LLM is strictly banned from using expensive conversion tools on Table of Contents or Index pages. It must use the FTS index (`search_within_book`) instead.
+- **PDF Page Offset Awareness**: The LLM is explicitly taught to calculate offsets between printed page numbers and absolute PDF indices using the cheap `read_pdf_pages` tool before requesting full LaTeX conversion.
+
+### 8.4 Resources (2)
+
+| URI | Type | Description |
+|-----|------|-------------|
+| `mathstudio://api/docs` | text/markdown | Inline API documentation |
+| `mathstudio://library/stats` | application/json | Live library statistics |
+
+---
+
+## 9. Web Frontend
+
+12 Jinja2 templates with vanilla CSS serving a responsive web UI:
+
+| Template | Purpose |
+|----------|---------|
+| `index.html` | Main library browser with search, grid/list views |
+| `book.html` | Book detail page with TOC, PDF viewer, metadata |
+| `edit_book.html` | Metadata editing form |
+| `notes.html` | Notes listing with tabs (handwritten/extracted) |
+| `view_note.html` | Full note display with markdown/LaTeX/PDF |
+| `admin.html` | Admin panel (indexing, enrichment, ingestion) |
+| `analytics.html` | Co-author network graph, MSC timeline charts |
+| `msc_browser.html` | Hierarchical MSC code browser |
+| `knowledge/` | KB concept browser, concept detail, drafts review |
+
+**UI↔MCP State Bridge**: `current_state.json` written by Flask routes, read by MCP `get_system_state` tool — enables LLM agents to see what the user is viewing.
+
+---
+
+## 10. Code Flows & Data Flows
+
+### 10.1 Search Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User/LLM
+    participant API as api_v1.py
+    participant SS as SearchService
+    participant AI as Gemini API
+    participant DB as SQLite
+
+    U->>API: GET /search?q=topology
+    API->>SS: search(query, ...)
+    par Parallel Execution
+        SS->>AI: expand_query() [if translate=true]
+        SS->>AI: get_embedding(query) [if vector=true]
+    end
+    SS->>DB: FTS5 MATCH query
+    SS->>DB: Cosine similarity on embeddings
+    SS->>SS: Score fusion (0.6 vec + 0.4 fts)
+    SS->>SS: Index match boost (+0.5)
+    opt AI Reranking
+        SS->>AI: rerank_results(candidates)
+    end
+    SS-->>API: {results, total_count}
+    API-->>U: JSON response
+```
+
+### 10.2 Book Ingestion Flow
+
+```mermaid
+sequenceDiagram
+    participant U as Admin
+    participant ING as IngestorService
+    participant UP as UniversalProcessor
+    participant ZB as ZBMathService
+    participant AI as Gemini
+    participant DB as SQLite
+    participant FS as Filesystem
+
+    U->>ING: process_file(path)
+    ING->>ING: calculate_hash() + check_duplicate()
+    ING->>DB: INSERT shell book entry
+    ING->>UP: process_book(book_id)
+    UP->>FS: Extract front+back pages (PDFHandler)
+    UP->>AI: Upload slice → holistic analysis
+    AI-->>UP: {metadata, toc, index_terms}
+    UP->>ZB: verify_metadata(extracted_data)
+    ZB->>ZB: Crossref/ISBN check
+    alt Conflicts detected
+        UP->>AI: Reflection pass with verification data
+    end
+    UP->>DB: UPDATE books + INSERT chapters
+    ING->>ZB: enrich_book(book_id)
+    ZB->>DB: UPDATE books (zbl_id, msc, review)
+    ING->>FS: Move file to target folder
+    ING->>DB: UPDATE path + directory
+```
+
+### 10.3 PDF-to-LaTeX Conversion Flow (with Cache)
+
+```mermaid
+sequenceDiagram
+    participant U as User/LLM
+    participant NS as NoteService
+    participant DB as SQLite
+    participant CV as converter.py
+    participant AI as Gemini Vision
+    participant FS as Filesystem
+
+    U->>NS: get_or_convert_pages(book_id, [42])
+    NS->>DB: SELECT from extracted_pages WHERE book_id=? AND page=42
+    alt Cache Hit (quality ≥ 0.7)
+        DB-->>NS: {latex_path, markdown_path, quality_score}
+        NS->>FS: Read cached .tex and .md files
+        NS-->>U: {page: 42, source: "cache", quality: 0.85}
+    else Cache Miss or Low Quality
+        NS->>CV: convert_page(path, 42)
+        CV->>CV: Render page to 2x PNG
+        CV->>AI: Upload image + extraction prompt
+        AI-->>CV: {latex, markdown}
+        CV-->>NS: result_data
+        NS->>AI: evaluate_latex_quality(latex, raw_text)
+        AI-->>NS: {score: 0.82, comments: "..."}
+        NS->>FS: Save to converted_notes/{book_id}/page_42.{tex,md}
+        NS->>DB: INSERT OR REPLACE INTO extracted_pages
+        NS-->>U: {page: 42, source: "ai_conversion", quality: 0.82}
+    end
+```
+
+### 10.4 Knowledge Base Ingestion Flow
+
+```mermaid
+sequenceDiagram
+    participant LLM as LLM Agent
+    participant MCP as MCP Server
+    participant API as api_v1.py
+    participant KS as KnowledgeService
+    participant NS as NoteService
+
+    LLM->>MCP: get_book_pages_latex(book_id=5, pages="42")
+    MCP->>API: GET /books/5/pages/latex?pages=42
+    API->>NS: get_or_convert_pages(5, [42])
+    Note over NS: AI conversion happens, extracts math
+    NS->>KS: ingest_from_page(5, 42) creates proposals
+    NS-->>API: {latex: "extracted LaTeX...", proposals_created: 1}
+    API-->>MCP: JSON
+    MCP-->>LLM: "LaTeX Content... (also proposals created)"
+
+    LLM->>MCP: list_kb_proposals()
+    MCP->>API: GET /kb/proposals
+    API-->>MCP: [ {id: 7, concept_name: "Banach Fixed Point", ...} ]
+    LLM->>LLM: Present to user for review
+    Note over LLM: User approves via UI Dashboard
+    Note over KS: UI calls POST /kb/proposals/7/merge
+    MCP->>API: POST /kb/drafts/7/commit
+    API->>KS: commit_draft(7)
+    KS->>KS: Fuzzy dedup check on concept name
+    KS->>KS: Create or link to existing concept
+    KS->>KS: Insert entry + sync FTS
+```
+
+---
+
+## 11. Use Cases
+
+### UC1: Research Discovery
+A researcher searches for "spectral theory of operators". The system: expands the query → finds 15 books via FTS+vector → boosts results with back-of-book index matches → shows page references for "spectral theorem" in Amann-Escher.
+
+### UC2: Agentic KB Expansion (via MCP)
+Claude is asked "What is the Arzelà-Ascoli Theorem?". It: queries KB → not found → searches library → finds Brezis' Functional Analysis → uses `get_book_toc` to find Chapter 4 → uses `ingest_kb_draft` on the relevant page → cleans up the extracted LaTeX → presents to user with a draft ID.
+
+### UC3: Handwritten Note Processing
+User photographs a handwritten proof → uploads via web UI → Gemini Vision transcribes to LaTeX+Markdown → system classifies with MSC codes → creates DB record → syncs to Obsidian Inbox → compilable to PDF.
+
+### UC4: New Book Ingestion
+A new PDF is placed in `Unsorted/`. User triggers ingestion → Universal Pipeline extracts metadata from title page → Crossref verifies ISBN → zbMATH adds MSC classification and expert review → file is renamed and moved to `04_Algebra/Representation_Theory/`.
+
+### UC5: Bibliography Graph Construction
+For a specific book, user triggers `scan_bibliography` → Vision LLM processes bibliography pages in 8-page chunks → entries stored in `bib_entries` → `resolve_citations` matches each entry against zbMATH → `book_citations` table builds the citation graph.
+
+### UC6: E-Ink Mobile Reading
+Android E-Ink app searches library via REST API → displays search results with total count → user selects a book → downloads PDF for offline reading → can create bookmarks synced to the server.
+
+---
+
+## 12. Errors, Bugs & Technical Debt
+
+### 12.1 Critical Bugs
+
+| # | Location | Issue | Impact |
+|---|----------|-------|--------|
+| 1 | `converter.py:73` | `page.get_text()` called after `doc.close()` on line 34 | **RuntimeError** — `page` object invalid after document is closed |
+| 2 | `mcp_server/server.py:1546` | `args.pop("book_id")` mutates the arguments dict | May cause issues if args are reused; should use `args.get()` |
+| 3 | `mcp_server/server.py:1133` | `args.pop("note_id")` same mutation issue | Same as above |
+| 4 | `services/note.py:287` | `os.path.exists(note['markdown_path'])` — path may be relative after `update_note_metadata` but absolute in `get_note` | **Path resolution inconsistency** — FTS re-sync may fail to read markdown for content |
+| 5 | `api_v1.py` bib_scan_tool | Returns `render_template('bib_results.html')` for POST | MCP server receives HTML instead of JSON — breaks LLM tooling |
+
+### 12.2 Recently Resolved Issues (Feb 2026 Fixes)
+
+| Area | Issue Fixed |
+|------|-------------|
+| **MCP** | `TypeError` in `get_book_pages_latex` when the `/pages/latex` endpoint returned `None` instead of a string. |
+| **MCP** | Removed `add_theorem_location` manually bypassing the KB Proposals queue. Now strictly routes via `get_book_pages_latex` auto-discovery. |
+| **UI** | Knowledge Browser was displaying the top 800 chars of the page instead of prioritizing the explicitly verified `statement` snippet for KB entries. |
+| **Viewer** | `/view-pdf` endpoint crashed when attempting to open EPUB books. Added UI guards to disable the button for non-PDF/DjVu files and purged EPUBs from the system. |
+
+### 12.3 Potential Errors
+
+| # | Location | Issue |
+|---|----------|-------|
+| 6 | `services/search.py:82` | `sqlite3.OperationalError` imported but never explicitly: uses bare `except` clause with `sqlite3` not imported in file |
+| 7 | `services/knowledge.py:620` | `book_path` queried but never used for rendering; `canonical` can be `None` if no entries exist, causing `canonical.get('book_id')` to fail |
+| 8 | `services/note.py:500-502` | `evaluate_latex_quality` catches all exceptions and returns `{score: 0.5}` — silently masks real errors, quality becomes unreliable |
+| 9 | `services/universal_processor.py:62` | `ranges["bibliography"][-10:]` can fail if bibliography range is empty → index on empty list is fine, but `combined_pages` may have no back-matter pages |
+| 10 | `core/ai.py` | No retry/backoff on Gemini API rate limits — rapid sequential calls may fail |
+
+### 12.3 Technical Debt
+
+| # | Area | Issue |
+|---|------|-------|
+| 11 | **Dual config** | Both `config.py` (root) and `core/config.py` exist with overlapping constants |
+| 12 | **Singleton pattern** | Services instantiate at import time, making testing difficult and creating circular import risks |
+| 13 | **No connection pooling** | Each `get_connection()` opens a new SQLite connection; no reuse |
+| 14 | **Bare except clauses** | ~20+ instances of `except: pass` or `except: continue` across services — errors silently swallowed |
+| 15 | **FTS sync fragility** | FTS tables manually synchronized in ~6 different places; no centralized sync mechanism |
+| 16 | **Hardcoded paths** | Obsidian inbox paths hardcoded to `/srv/data/math/obsidian/...` |
+| 17 | **No auth** | API has zero authentication; any network client has full access |
+| 18 | **MCP as HTTP proxy** | MCP server makes HTTP calls to localhost; adds latency and requires Flask to be running |
+| 19 | **Vector search in Python** | Cosine similarity computed with NumPy in application code; doesn't scale beyond ~5K books |
+| 20 | **Duplicate PyMuPDF** | `requirements.txt` lists `pymupdf` twice |
+| 21 | **Missing import** | `search.py` references `sqlite3.OperationalError` but `sqlite3` is not imported |
+| 22 | **Inconsistent error returns** | Some API endpoints return `{'error': ...}`, others return `{'success': false, 'error': ...}` |
+
+---
+
+## 13. Future Development Plan
+
+### Phase 1: PDF-to-LaTeX Cache Storage (Priority)
+
+> [!IMPORTANT]
+> This is the user's key requested feature: storing PDF-to-LaTeX conversion results for persistent reuse.
+
+**Current state**: The `extracted_pages` table and `save_page_to_cache()` / `get_cached_page()` methods already exist but are only used within the `NoteService.get_or_convert_pages()` flow. The cache is functional but underutilized.
+
+**Proposed enhancements**:
+1. **Proactive batch conversion**: New `batch_convert_pages` endpoint that processes entire chapters (e.g., pages 50–80) in the background, saving all results to the cache
+2. **Cache dashboard**: Admin UI page showing cache coverage per book (e.g., "42/350 pages converted, avg quality 0.78")
+3. **Quality re-evaluation**: Periodic background job to re-evaluate cached pages with newer Gemini models and replace low-quality conversions
+4. **Export API**: Endpoint to export all cached LaTeX for a book as a single `.tex` document with chapter structure from TOC
+5. **MCP cache status tool**: `get_book_cache_status(book_id)` showing which pages are cached and their quality scores
+6. **Incremental conversion**: When a user reads a chapter, auto-trigger background conversion of surrounding pages
+
+### Phase 2: Robustness & Quality
+
+- **Fix critical bugs** (see §12.1): `converter.py` page reference after doc close, MCP `args.pop()` mutations, bib_scan HTML response
+- **Centralize FTS sync**: Single `FTSSyncService` with `sync_book()`, `sync_note()`, `sync_concept()` methods
+- **Add proper error handling**: Replace all bare `except: pass` with specific exception types and logging
+- **Add authentication**: API key or JWT authentication for the REST API
+- **Unify error response format**: Always return `{"success": bool, "error": str, "data": ...}`
+
+### Phase 3: Scale & Performance
+
+- **SQLite → PostgreSQL migration** (optional): For multi-user scenarios
+- **Vector database**: Replace in-memory NumPy cosine similarity with pgvector or Qdrant
+- **Background job queue**: Replace ad-hoc threading with Celery or RQ for batch operations
+- **Streaming API**: For long-running operations (batch enrichment, index rebuild)
+
+### Phase 4: Knowledge Base Maturity
+
+- **Concept embeddings**: Embed concept statements for semantic KB search
+- **Auto-relation discovery**: LLM analyzes entries to suggest relations between concepts
+- **Proof verification**: Cross-reference proofs across multiple sources for confidence scoring
+- **LaTeX compilation of KB**: Generate a "personal textbook" PDF from selected KB concepts
+- **Obsidian plugin**: Two-way sync between KB database and Obsidian vault (currently one-way: DB→vault)
+
+### Phase 5: Ecosystem Expansion
+
+- **E-Ink app enhancement**: Offline KB access, annotation upload, reading progress sync
+- **Citation network visualization**: D3.js graph of inter-book citations
+- **Multi-language support**: German/French note transcription with language-aware search
+- **Collaborative mode**: Multi-user support with shared KB and private notes
+- **arXiv auto-ingest**: Monitor arXiv RSS feeds for papers in user's MSC interests
+
+---
+
+> **Document generated by architectural analysis of the complete MathStudio codebase.**  
+> **Total files analyzed**: 30+ source files, ~10,000 lines of Python code.

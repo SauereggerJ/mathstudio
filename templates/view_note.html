@@ -1,374 +1,387 @@
 {% extends "base.html" %}
 
-{% block title %}View Note - {{ filename }}{% endblock %}
+{% block title %}{{ note.title }} - MathStudio{% endblock %}
 
 {% block extra_head %}
 <style>
-    /* E-Ink Optimized Design - High Contrast, No Colors, No Shadows */
-
-    .note-card {
-        background: #ffffff;
-        border: 1px solid #000000;
-        border-radius: 0;
-        margin-top: 1.5rem;
-        overflow: hidden;
+    .note-container {
+        max-width: 900px;
+        margin: 0 auto;
     }
-
-    .latex-content {
-        font-family: 'Inter', serif;
-        line-height: 2;
-        color: #000000;
-        font-size: 1.2rem;
-        white-space: pre-wrap;
-        padding: 3rem;
+    .markdown-body {
+        font-family: 'Inter', system-ui, sans-serif;
+        line-height: 1.7;
+        color: #1e293b;
     }
-
-    .pdf-actions {
-        padding: 3.5rem;
-        text-align: center;
-        background-color: #ffffff;
-        border-bottom: 1px solid #000000;
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+        font-weight: 800;
+        color: #0f172a;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
     }
-
-    .rec-item {
+    .markdown-body p { margin-bottom: 1.25rem; }
+    .markdown-body blockquote {
+        border-left: 4px solid #3b82f6;
+        padding-left: 1.5rem;
+        color: #475569;
+        font-style: italic;
+        margin: 2rem 0;
+    }
+    .latex-source {
+        font-family: 'Fira Code', monospace;
+        background: #f8fafc;
         padding: 1.5rem;
-        border-bottom: 1px solid #000000;
-        text-decoration: none;
-        display: block;
-        color: #000000;
-    }
-
-    .rec-item:last-child {
-        border-bottom: none;
-    }
-
-    .rec-item:hover {
-        background-color: #f5f5f5;
-    }
-
-    .rec-title {
-        font-weight: 700;
-        color: #000000;
-        margin-bottom: 0.5rem;
-        font-size: 1.1rem;
-    }
-
-    .rec-author {
-        font-size: 1rem;
-        color: #333333;
-    }
-
-    .rec-score {
-        font-size: 0.9rem;
-        background: #ffffff;
-        color: #000000;
-        padding: 0.375rem 0.75rem;
-        border: 1px solid #000000;
-        border-radius: 0;
-        font-weight: 600;
-        margin-left: 0.75rem;
-    }
-
-    .btn-action {
-        width: 100%;
-        margin-bottom: 0.75rem;
-        text-align: left;
-        font-size: 1.1rem;
-        padding: 1rem;
-        min-height: 50px;
-    }
-
-    /* Remove all transitions and animations for E-Ink */
-    * {
-        transition: none !important;
-        animation: none !important;
-    }
-
-    /* High contrast buttons */
-    .btn {
-        border: 1px solid #000000;
-        border-radius: 0;
-        background: #ffffff;
-        color: #000000;
-        font-weight: 600;
-        padding: 1rem 1.5rem;
-        min-height: 50px;
-    }
-
-    .btn:hover {
-        background: #000000;
-        color: #ffffff;
-    }
-
-    .btn-primary {
-        background: #ffffff;
-        border: 2px solid #000000;
-        color: #000000;
-    }
-
-    .btn-primary:hover {
-        background: #000000;
-        color: #ffffff;
-    }
-
-    .btn-outline-secondary,
-    .btn-outline-dark,
-    .btn-outline-primary,
-    .btn-outline-danger {
-        background: #ffffff;
-        border: 1px solid #000000;
-        color: #000000;
-    }
-
-    .btn-outline-secondary:hover,
-    .btn-outline-dark:hover,
-    .btn-outline-primary:hover,
-    .btn-outline-danger:hover {
-        background: #000000;
-        color: #ffffff;
-    }
-
-    /* Larger touch targets */
-    .btn-lg {
-        font-size: 1.25rem;
-        padding: 1.25rem 2rem;
-        min-height: 60px;
-    }
-
-    .btn-sm {
-        font-size: 1rem;
-        padding: 0.75rem 1.25rem;
-        min-height: 44px;
-    }
-
-    /* Card headers */
-    .bg-light {
-        background: #ffffff !important;
-        border-bottom: 1px solid #000000;
-    }
-
-    .border-bottom {
-        border-bottom: 1px solid #000000 !important;
-    }
-
-    .border-top {
-        border-top: 1px solid #000000 !important;
-    }
-
-    /* Text colors */
-    .text-success,
-    .text-info,
-    .text-primary,
-    .text-danger,
-    .text-secondary {
-        color: #000000 !important;
-    }
-
-    .text-muted {
-        color: #666666 !important;
-    }
-
-    /* Icons - ensure visibility */
-    .fa,
-    .fas,
-    .far,
-    .fab {
-        color: inherit;
-    }
-
-    /* Breadcrumb */
-    .breadcrumb {
-        background: #ffffff;
-        border: 1px solid #000000;
-        border-radius: 0;
-        padding: 1rem 1.5rem;
-    }
-
-    .breadcrumb-item a {
-        color: #000000;
-        text-decoration: underline;
-    }
-
-    .breadcrumb-item.active {
-        color: #666666;
-    }
-
-    /* Alert boxes */
-    .alert {
-        border: 2px solid #000000;
-        border-radius: 0;
-        background: #ffffff;
-        color: #000000;
-        padding: 1.25rem;
-    }
-
-    /* Modal */
-    #renameModal>div {
-        background: #ffffff;
-        border: 2px solid #000000;
-        border-radius: 0;
-        padding: 2.5rem;
+        border-radius: 1rem;
+        border: 1px solid #e2e8f0;
+        overflow-x: auto;
+        font-size: 0.875rem;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Breadcrumb Navigation -->
-<nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Home</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('list_notes') }}"><i class="fas fa-sticky-note"></i> Notes</a>
-        </li>
-        <li class="breadcrumb-item active" aria-current="page">{{ filename }}</li>
-    </ol>
-</nav>
-
-<div class="d-flex justify-content-between align-items-start mb-4">
-    <div class="flex-grow-1">
-        <h2 class="mb-2">{{ filename.replace('.tex', '') }}</h2>
-        <div class="d-flex gap-3 text-muted small">
-            <span><i class="far fa-calendar"></i> Processed Note</span>
-            {% if has_pdf %}
-            <span class="text-success"><i class="fas fa-check-circle"></i> PDF Available</span>
-            {% endif %}
-            {% if has_markdown %}
-            <span class="text-info"><i class="fab fa-markdown"></i> Markdown Available</span>
-            {% endif %}
-        </div>
-    </div>
-    <div class="d-flex gap-2">
-        <a href="{{ url_for('list_notes') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Back to List
+<div class="note-container">
+    <div class="mb-8 flex items-center justify-between">
+        <a href="/notes" class="text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Repository
         </a>
-    </div>
-</div>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-<div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-{% endfor %}
-{% endif %}
-{% endwith %}
-
-<div class="row">
-    <!-- Main Content Column -->
-    <div class="col-md-8">
-        <div class="note-card mb-4">
+        <div class="flex gap-2">
+            <button onclick="toggleView()" id="viewToggle" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200">
+                Show LaTeX Source
+            </button>
             {% if has_pdf %}
-            <div class="pdf-actions">
-                <i class="fas fa-file-pdf fa-3x text-danger mb-3"></i>
-                <h4 class="mb-3">PDF Ready</h4>
-                <a href="{{ url_for('serve_note', filename=pdf_filename) }}" target="_blank"
-                    class="btn btn-primary btn-lg">
-                    <i class="fas fa-external-link-alt"></i> Open PDF in New Tab
-                </a>
-            </div>
-            {% else %}
-            <div style="padding: 2.5rem;" class="bg-light border-bottom text-center">
-                <i class="fas fa-cog fa-spin fa-2x text-muted mb-3"></i>
-                <p class="text-muted">PDF processing or unavailable.</p>
-            </div>
+            <a href="/api/v1/notes/{{ note.id }}/pdf" target="_blank" class="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-rose-500 text-white rounded-xl hover:bg-rose-600 shadow-lg shadow-rose-500/20">
+                View PDF
+            </a>
             {% endif %}
-
-            <div class="p-3 bg-light d-flex justify-content-center gap-3 border-top">
-                <a href="{{ url_for('serve_note', filename=filename) }}" class="btn btn-outline-secondary btn-sm"
-                    download>
-                    <i class="fas fa-download"></i> Download .tex
-                </a>
-                {% if has_markdown %}
-                <a href="{{ url_for('serve_note', filename=markdown_filename) }}" class="btn btn-outline-dark btn-sm"
-                    download>
-                    <i class="fab fa-markdown"></i> Download .md
-                </a>
-                {% endif %}
-                {% if has_pdf %}
-                <a href="{{ url_for('serve_note', filename=pdf_filename) }}" class="btn btn-outline-primary btn-sm"
-                    download>
-                    <i class="fas fa-download"></i> Download PDF
-                </a>
-                {% endif %}
-            </div>
         </div>
     </div>
 
-    <!-- Sidebar Column -->
-    <div class="col-md-4">
-        <!-- Actions Card -->
-        <div class="note-card mb-4">
-            <div class="p-3 border-bottom bg-light">
-                <h5 class="m-0"><i class="fas fa-tools me-2 text-secondary"></i>Actions</h5>
-            </div>
-            <div class="p-3">
-                <button type="button" class="btn btn-outline-primary btn-action" onclick="showRenameModal()">
-                    <i class="fas fa-edit me-2"></i> Rename Note
-                </button>
-                <button type="button" class="btn btn-outline-danger btn-action"
-                    onclick="if(confirm('Are you sure you want to delete this note? This cannot be undone.')) { document.getElementById('delete-form').submit(); }">
-                    <i class="fas fa-trash-alt me-2"></i> Delete Note
-                </button>
-
-                <form id="delete-form" action="{{ url_for('delete_note', filename=filename) }}" method="POST"
-                    style="display: none;"></form>
+    <header class="mb-12">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded uppercase tracking-tighter">
+                {{ note.source_type }}
+            </span>
+            <span class="text-slate-400 text-sm font-medium">
+                {{ note.created_at | from_unix_timestamp }}
+            </span>
+        </div>
+        
+        <!-- Editable Title -->
+        <div class="group relative mb-6">
+            <h1 id="noteTitle" contenteditable="true" onblur="updateMetadata()" class="text-4xl md:text-5xl font-black text-slate-900 tracking-tight outline-none focus:bg-slate-50 rounded-lg p-1 transition-all">
+                {{ note.title }}
+            </h1>
+            <div class="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-slate-300 pointer-events-none">
+                <i class="fas fa-pen"></i>
             </div>
         </div>
 
-        {% if recommendations %}
-        <div class="note-card">
-            <div class="p-3 border-bottom bg-light">
-                <h5 class="m-0"><i class="fas fa-book-reader me-2 text-primary"></i>Recommended Reading</h5>
-            </div>
-            <div class="list-group list-group-flush">
-                {% for rec in recommendations %}
-                <a href="/book/{{ rec.id }}" class="rec-item">
-                    <div class="d-flex justify-content-between">
-                        <div class="rec-title">{{ rec.title }}</div>
-                        <div><span class="rec-score">{{ (rec.score * 100)|round|int }}% Match</span></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- MSC & Tags -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MSC Classification</label>
+                    <input type="text" id="noteMSC" onblur="updateMetadata()" value="{{ note.msc or '' }}" placeholder="e.g. 46B20" 
+                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tags & Keywords</label>
+                    <div class="relative">
+                        <input type="text" id="tagInput" onkeyup="handleTagTyping(event)" placeholder="Type to add tags..." 
+                               class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div id="tagSuggestions" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl hidden overflow-hidden">
+                            <!-- Suggestions injected here -->
+                        </div>
                     </div>
-                    <div class="rec-author">{{ rec.author }}</div>
-                </a>
-                {% endfor %}
+                    <div id="tagCloud" class="flex flex-wrap gap-2 mt-3">
+                        {% for tag in (note.tags.split(',') if note.tags else []) %}
+                        {% if tag.strip() %}
+                        <span class="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-full uppercase tracking-widest">
+                            {{ tag.strip() }}
+                            <button onclick="removeTag('{{ tag.strip() }}')" class="hover:text-rose-400"><i class="fas fa-times"></i></button>
+                        </span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Related Notes -->
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Related Research</label>
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 min-h-[120px]">
+                    <div id="relationsList" class="space-y-2 mb-4">
+                        {% for rel in note.related_notes %}
+                        <div class="flex items-center justify-between group/rel">
+                            <a href="/note/{{ rel.id }}" class="text-sm font-bold text-slate-700 hover:text-blue-600 truncate mr-4">
+                                <i class="fas fa-link mr-2 text-slate-300"></i> {{ rel.title }}
+                            </a>
+                            <button onclick="deleteRelation({{ rel.id }})" class="opacity-0 group-hover/rel:opacity-100 text-rose-400 hover:text-rose-600 transition-all">
+                                <i class="fas fa-unlink"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="relSearch" onkeyup="searchRelated(event)" placeholder="Link another note..." 
+                               class="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div id="relResults" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl hidden max-h-48 overflow-y-auto">
+                            <!-- Search results -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Referenced Books -->
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Referenced Books</label>
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 min-h-[120px]">
+                    <div id="bookRelationsList" class="space-y-3 mb-4">
+                        {% for ref in note.referenced_books %}
+                        <div class="flex items-start justify-between group/ref">
+                            <div class="flex-grow">
+                                <a href="/book/{{ ref.id }}" class="block text-sm font-bold text-slate-900 hover:text-blue-600">
+                                    {{ ref.title }}
+                                </a>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="text-[10px] text-slate-400 uppercase font-black tracking-tighter">Page {{ ref.page_number or '?' }}</span>
+                                    {% if ref.page_number %}
+                                    <a href="/open/{{ ref.path|e }}#page={{ ref.page_number }}" target="_blank" class="text-[10px] font-bold text-blue-600 hover:underline">
+                                        <i class="fas fa-external-link-alt mr-1"></i> Open at Page
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <button onclick="deleteBookRelation({{ ref.id }}, {{ ref.page_number or 'null' }})" class="opacity-0 group-hover/ref:opacity-100 text-rose-400 hover:text-rose-600 transition-all pt-1">
+                                <i class="fas fa-times-circle"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="relative">
+                        <div class="flex gap-2">
+                            <input type="text" id="bookSearch" onkeyup="searchBooks(event)" placeholder="Search books..." 
+                                   class="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                            <input type="number" id="refPage" placeholder="Pg" class="w-12 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-xs outline-none">
+                        </div>
+                        <div id="bookResults" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl hidden max-h-48 overflow-y-auto">
+                            <!-- Search results -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        {% else %}
-        <div class="note-card p-4 text-center text-muted">
-            <small>Recommendations will appear here for new notes.</small>
+        
+        {% if note.source_book_id %}
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+            <div class="w-12 h-16 bg-slate-200 rounded-lg overflow-hidden flex-shrink-0">
+                <img src="/static/thumbnails/{{ note.source_book_id }}/page_1.png" class="w-full h-full object-cover" loading="lazy">
+            </div>
+            <div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Source Material</p>
+                <a href="/book/{{ note.source_book_id }}" class="font-bold text-slate-900 hover:text-blue-600">
+                    {{ note.book_title }}
+                </a>
+                <p class="text-sm text-slate-500">by {{ note.book_author }} (Page {{ note.source_page_number }})</p>
+            </div>
         </div>
         {% endif %}
-    </div>
-</div>
+    </header>
 
-<!-- Rename Modal -->
-<div id="renameModal"
-    style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-    <div style="background: white; padding: 2rem; border-radius: 8px; width: 400px;">
-        <h4>Rename Note</h4>
-        <form action="{{ url_for('rename_note', filename=filename) }}" method="POST">
-            <div class="mb-3">
-                <label for="new_name" class="form-label">New Filename (no extension)</label>
-                <input type="text" class="form-control" id="new_name" name="new_name"
-                    value="{{ filename|replace('.tex', '') }}" required>
-            </div>
-            <div class="d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-secondary" onclick="hideRenameModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Rename</button>
-            </div>
-        </form>
+    <div id="markdownView" class="markdown-body">
+        {{ content | safe }}
     </div>
-</div>
 
+    <div id="latexView" class="hidden">
+        <h3 class="text-xl font-bold mb-4">LaTeX Source</h3>
+        <pre class="latex-source">{{ note.latex_path | read_file_content if note.latex_path else 'No LaTeX source available.' }}</pre>
+    </div>
+
+    <footer class="mt-20 pt-8 border-t border-slate-100 flex justify-between items-center text-slate-400 text-sm">
+        <div>
+            ID: {{ note.id }} | System: MathStudio V3
+        </div>
+        <button onclick="deleteNote({{ note.id }})" class="text-rose-500 font-bold hover:underline">
+            <i class="fas fa-trash-alt mr-2"></i> Delete Note
+        </button>
+    </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-    function showRenameModal() {
-        document.getElementById('renameModal').style.display = 'flex';
+    const noteId = {{ note.id }};
+    let currentTags = [{% for tag in (note.tags.split(',') if note.tags else []) %}'{{ tag.strip() }}',{% endfor %}].filter(t => t !== '');
+
+    function toggleView() {
+        const md = document.getElementById('markdownView');
+        const lt = document.getElementById('latexView');
+        const btn = document.getElementById('viewToggle');
+        
+        if (md.classList.contains('hidden')) {
+            md.classList.remove('hidden');
+            lt.classList.add('hidden');
+            btn.textContent = "Show LaTeX Source";
+        } else {
+            md.classList.add('hidden');
+            lt.classList.remove('hidden');
+            btn.textContent = "Show Rendered Note";
+        }
     }
-    function hideRenameModal() {
-        document.getElementById('renameModal').style.display = 'none';
+
+    async function updateMetadata() {
+        const title = document.getElementById('noteTitle').innerText.trim();
+        const msc = document.getElementById('noteMSC').value.trim();
+        
+        const res = await fetch(`/api/v1/notes/${noteId}/metadata`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, msc, tags: currentTags.join(', ') })
+        });
+        const data = await res.json();
+        if (data.success) {
+            console.log("Metadata updated");
+        }
+    }
+
+    async function handleTagTyping(e) {
+        const q = e.target.value;
+        const list = document.getElementById('tagSuggestions');
+        
+        if (e.key === 'Enter' && q.trim()) {
+            addTag(q.trim());
+            e.target.value = '';
+            list.classList.add('hidden');
+            return;
+        }
+
+        if (q.length < 2) {
+            list.classList.add('hidden');
+            return;
+        }
+
+        const res = await fetch(`/api/v1/notes/tags/suggestions?q=${encodeURIComponent(q)}`);
+        const suggestions = await res.json();
+        
+        if (suggestions.length > 0) {
+            list.innerHTML = suggestions.map(s => `
+                <div onclick="addTag('${s.replace(/'/g, "\\'")}'); document.getElementById('tagInput').value=''; document.getElementById('tagSuggestions').classList.add('hidden')" 
+                     class="px-4 py-2 text-sm font-bold hover:bg-blue-600 hover:text-white cursor-pointer transition-colors border-b border-slate-50 last:border-0">
+                    ${s}
+                </div>
+            `).join('');
+            list.classList.remove('hidden');
+        } else {
+            list.classList.add('hidden');
+        }
+    }
+
+    function addTag(tag) {
+        if (!currentTags.includes(tag)) {
+            currentTags.push(tag);
+            renderTags();
+            updateMetadata();
+        }
+    }
+
+    function removeTag(tag) {
+        currentTags = currentTags.filter(t => t !== tag);
+        renderTags();
+        updateMetadata();
+    }
+
+    function renderTags() {
+        const cloud = document.getElementById('tagCloud');
+        cloud.innerHTML = currentTags.map(t => `
+            <span class="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-full uppercase tracking-widest">
+                ${t}
+                <button onclick="removeTag('${t.replace(/'/g, "\\'")}')" class="hover:text-rose-400"><i class="fas fa-times"></i></button>
+            </span>
+        `).join('');
+    }
+
+    async function searchRelated(e) {
+        const q = e.target.value;
+        const list = document.getElementById('relResults');
+        if (q.length < 2) { list.classList.add('hidden'); return; }
+
+        const res = await fetch(`/api/v1/notes/search?q=${encodeURIComponent(q)}`);
+        const notes = await res.json();
+        
+        if (notes.length > 0) {
+            list.innerHTML = notes.filter(n => n.id !== noteId).map(n => `
+                <div onclick="addRelation(${n.id})" 
+                     class="px-4 py-2 text-xs font-bold hover:bg-blue-600 hover:text-white cursor-pointer transition-colors border-b border-slate-50 last:border-0">
+                    ${n.title}
+                </div>
+            `).join('');
+            list.classList.remove('hidden');
+        } else {
+            list.classList.add('hidden');
+        }
+    }
+
+    async function addRelation(targetId) {
+        const res = await fetch(`/api/v1/notes/${noteId}/relations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_id: targetId })
+        });
+        if ((await res.json()).success) location.reload();
+    }
+
+    async function deleteRelation(targetId) {
+        if (!confirm("Remove link?")) return;
+        const res = await fetch(`/api/v1/notes/${noteId}/relations/${targetId}`, { method: 'DELETE' });
+        if ((await res.json()).success) location.reload();
+    }
+
+    async function searchBooks(e) {
+        const q = e.target.value;
+        const list = document.getElementById('bookResults');
+        if (q.length < 3) { list.classList.add('hidden'); return; }
+
+        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&limit=10`);
+        const data = await res.json();
+        
+        if (data.results && data.results.length > 0) {
+            list.innerHTML = data.results.map(b => `
+                <div onclick="addBookRelation(${b.id})" 
+                     class="px-4 py-2 text-xs font-bold hover:bg-blue-600 hover:text-white cursor-pointer transition-colors border-b border-slate-50 last:border-0">
+                    ${b.title} <span class="text-slate-400 font-normal">by ${b.author}</span>
+                </div>
+            `).join('');
+            list.classList.remove('hidden');
+        } else {
+            list.classList.add('hidden');
+        }
+    }
+
+    async function addBookRelation(bookId) {
+        const page = document.getElementById('refPage').value;
+        const res = await fetch(`/api/v1/notes/${noteId}/books`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ book_id: bookId, page: page ? parseInt(page) : null })
+        });
+        if ((await res.json()).success) location.reload();
+    }
+
+    async function deleteBookRelation(bookId, page) {
+        if (!confirm("Remove link?")) return;
+        let url = `/api/v1/notes/${noteId}/books/${bookId}`;
+        if (page) url += `/${page}`;
+        const res = await fetch(url, { method: 'DELETE' });
+        if ((await res.json()).success) location.reload();
+    }
+
+    async function deleteNote(id) {
+        if (!confirm("Are you sure? This will remove the record and all associated files from the disk.")) return;
+        const res = await fetch(`/api/v1/notes/${id}`, { method: 'DELETE' });
+        if ((await res.json()).success) {
+            window.location.href = "/notes";
+        }
     }
 </script>
-
-<!-- Hidden raw content for legacy/debug purposes if needed, but not rendered -->
-<textarea id="raw-content" style="display:none;">{{ content }}</textarea>
 {% endblock %}

@@ -284,7 +284,10 @@
             resultsInfo.classList.remove('hidden');
             document.getElementById('hitCount').textContent = `${data.total_count} documents found`;
 
-            resultsDiv.innerHTML = data.results.map(book => `
+            resultsDiv.innerHTML = data.results.map(book => {
+                const extension = book.path ? book.path.split('.').pop().toUpperCase() : 'PDF';
+                const safePath = book.path || '#';
+                return `
                 <div class="group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                     <div class="flex gap-4">
                         <div class="w-24 h-36 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 shadow-inner border border-slate-100 relative">
@@ -292,7 +295,7 @@
                                  onerror="this.src='https://via.placeholder.com/150x200?text=No+Cover'">
                             <div class="absolute top-1 right-1">
                                 <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-sm shadow-sm">
-                                    ${book.path.split('.').pop().toUpperCase()}
+                                    ${extension}
                                 </span>
                             </div>
                         </div>
@@ -308,12 +311,12 @@
                         <a href="/book/${book.id}" class="flex-grow text-center py-2 text-sm font-semibold text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
                             Details
                         </a>
-                        <a href="/open/${book.path}" target="_blank" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                        <a href="/open/${safePath}" target="_blank" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
                             Read
                         </a>
                     </div>
                 </div>
-            `).join('');
+            `; }).join('');
 
         } catch (error) {
             console.error('Browse error:', error);

@@ -187,10 +187,23 @@ class ZBMathService:
         from rapidfuzz import fuzz
         
         # Clean title: Remove subtitles and special chars
-        base_title = title.split(':')[0].split(' - ')[0].strip()
+        # But wait: if the title is "Grundlehren...: Actual Title", we want the part AFTER the colon.
+        if ':' in title:
+            parts = title.split(':')
+            # If the first part is very long or contains "Grundlehren" / "Graduate Texts", it's a series
+            if any(x in parts[0] for x in ["Grundlehren", "Graduate Texts", "Unitext", "Lecture Notes"]):
+                base_title = parts[1].strip()
+            else:
+                base_title = parts[0].strip()
+        else:
+            base_title = title.split(' - ')[0].strip()
+            
         clean_title = re.sub(r"[:/?#\[\]@!$&'()*+,;=]", " ", base_title).strip()
+        # Collapse multiple spaces
+        clean_title = re.sub(r"\s+", " ", clean_title)
         
         author_name = ""
+        author_initial_variant = ""
         if author and author.lower() != 'unknown':
             # Use only the first surname for searching
             first_author = author.split(',')[0].split('&')[0].split(' und ')[0].strip()
@@ -198,13 +211,19 @@ class ZBMathService:
             author_name = first_author.split('|')[0].strip()
             # If "H. Neunzert", take only surname "Neunzert"
             if ' ' in author_name:
-                author_name = author_name.split()[-1]
+                parts = author_name.split()
+                author_name = parts[-1]
+                # Create initial variant e.g. "A. Schwarz" if we have "Albert Schwarz"
+                if len(parts[0]) > 1:
+                    author_initial_variant = f"{parts[0][0]}. {author_name}"
 
         # Multi-stage Search Queries
         strategies = []
         if author_name:
             # S1: Short Title + Author (Specific fields)
             strategies.append((f'ti:"{clean_title}" AND au:"{author_name}"', "Title+Author (Strict)"))
+            if author_initial_variant:
+                strategies.append((f'ti:"{clean_title}" AND au:"{author_initial_variant}"', "Title+Author (Initial Variant)"))
             # S2: Short Title + Author (Flexible fields)
             strategies.append((f'ti:{clean_title} AND au:{author_name}', "Title+Author (Flexible)"))
             # S3: Broad Keywords (Author + First 3 words of title)
@@ -409,11 +428,12 @@ class ZBMathService:
                     msc_class = ?,
                     author = CASE WHEN author IS NULL OR author = 'Unknown' THEN ? ELSE author END,
                     title = CASE WHEN title IS NULL OR title = 'Unknown' THEN ? ELSE title END,
+                    zb_review = ?,
                     metadata_status = ?,
                     trust_score = ?,
                     last_metadata_refresh = unixepoch()
                 WHERE id = ?
-            """, (zbl_id, msc, zb_author_str, zb_title, status, similarity, book_id))
+            """, (zbl_id, msc, zb_author_str, zb_title, zb_data.get('review_markdown', ''), status, similarity, book_id))
 
         return {
             "success": True, 

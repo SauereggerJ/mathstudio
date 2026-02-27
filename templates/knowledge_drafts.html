@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Knowledge Base Drafts - MathStudio{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<style>
+    .draft-container { display: grid; grid-template-columns: 350px 1fr; gap: 2rem; height: calc(100vh - 180px); }
+    .draft-list { overflow-y: auto; background: white; border-radius: 1rem; border: 1px solid #e2e8f0; }
+    .draft-detail { overflow-y: auto; background: white; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 2rem; position: relative; }
+    .draft-item { cursor: pointer; padding: 1rem; border-bottom: 1px solid #f1f5f9; transition: all 0.2s; }
+    .draft-item:hover { background: #f8fafc; }
+    .draft-item.active { border-left: 4px solid #3b82f6; background: #eff6ff; }
+    .latex-preview { background: #fcfcfc; border: 1px solid #f1f5f9; border-radius: 0.5rem; padding: 1.5rem; margin-top: 1rem; }
+    .status-badge { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; padding: 0.2rem 0.5rem; rounded: 999px; }
+    .badge-review { background: #fef3c7; color: #92400e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-end">
+    <div>
+        <h1 class="text-3xl font-black text-slate-900">KB Drafts</h1>
+        <p class="text-slate-500">Review and finalize mathematical concepts extracted by the LLM.</p>
+    </div>
+    <div class="flex gap-2">
+        <button onclick="loadDrafts()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors"><i class="fas fa-sync-alt"></i></button>
+    </div>
+</div>
+
+<div class="draft-container">
+    <!-- Sidebar: Draft List -->
+    <div class="draft-list shadow-sm" id="draftList">
+        <div class="p-8 text-center text-slate-400">Loading drafts...</div>
+    </div>
+
+    <!-- Main: Draft Detail -->
+    <div class="draft-detail shadow-lg" id="draftDetail">
+        <div class="h-full flex flex-col items-center justify-center text-slate-300">
+            <i class="fas fa-edit fa-4x mb-4"></i>
+            <p class="text-lg font-medium">Select a draft to review</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentDraftId = null;
+    let pollInterval = null;
+
+    async function loadDrafts() {
+        const resp = await fetch('/api/v1/kb/drafts?status=review');
+        const drafts = await resp.json();
+        const listDiv = document.getElementById('draftList');
+        
+        if (drafts.length === 0) {
+            listDiv.innerHTML = '<div class="p-8 text-center text-slate-400">No pending drafts.</div>';
+            return;
+        }
+
+        listDiv.innerHTML = drafts.map(d => `
+            <div class="draft-item ${d.id === currentDraftId ? 'active' : ''}" onclick="selectDraft(${d.id})">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-xs font-bold text-slate-400">#${d.id}</span>
+                    <span class="status-badge badge-review">${d.status}</span>
+                </div>
+                <h4 class="font-bold text-slate-800 line-clamp-1">${d.concept_name}</h4>
+                <p class="text-xs text-slate-500 mt-1">Book ID ${d.source_book_id}, p. ${d.page_number}</p>
+            </div>
+        `).join('');
+    }
+
+    async function selectDraft(id) {
+        currentDraftId = id;
+        document.querySelectorAll('.draft-item').forEach(el => el.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        await refreshDraftDetail();
+        
+        // Start polling for this specific draft to see LLM updates
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(refreshDraftDetail, 3000);
+    }
+
+    async function refreshDraftDetail() {
+        if (!currentDraftId) return;
+        const resp = await fetch(`/api/v1/kb/drafts/${currentDraftId}`);
+        const d = await resp.json();
+        
+        const detailDiv = document.getElementById('draftDetail');
+        detailDiv.innerHTML = `
+            <div class="flex justify-between items-start mb-8">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-900">${d.concept_name}</h2>
+                    <p class="text-sm text-slate-500">Kind: <span class="font-bold uppercase">${d.kind}</span> | Source: Book ${d.source_book_id}, Page ${d.page_number}</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="deleteDraft(${d.id})" class="px-4 py-2 bg-rose-50 text-rose-600 font-bold rounded-lg hover:bg-rose-100 transition-all">Discard</button>
+                    <button onclick="commitDraft(${d.id})" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg transition-all">Approve & Commit</button>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <section>
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Statement</h3>
+                    <div class="latex-preview" id="statement-preview">${d.statement || '*No statement provided*'}</div>
+                </section>
+
+                ${d.proof ? `
+                <section>
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Proof</h3>
+                    <div class="latex-preview" id="proof-preview">${d.proof}</div>
+                </section>
+                ` : ''}
+            </div>
+
+            <div class="mt-12 pt-8 border-t border-slate-100">
+                <p class="text-xs text-slate-400 font-medium italic"><i class="fas fa-robot mr-2"></i> This draft is being iteratively refined by the LLM. You can provide feedback in the chat.</p>
+            </div>
+        `;
+        
+        // Render LaTeX
+        renderMathInElement(detailDiv, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '$', right: '$', display: false},
+                {left: '\(', right: '\)', display: false},
+                {left: '\[', right: '\]', display: true}
+            ],
+            throwOnError : false
+        });
+    }
+
+    async function commitDraft(id) {
+        if (!confirm("Move this draft to the permanent Knowledge Base?")) return;
+        const resp = await fetch(`/api/v1/kb/drafts/${id}/commit`, { method: 'POST' });
+        const res = await resp.json();
+        if (res.success) {
+            currentDraftId = null;
+            clearInterval(pollInterval);
+            document.getElementById('draftDetail').innerHTML = '<div class="h-full flex flex-col items-center justify-center text-emerald-500"><i class="fas fa-check-circle fa-4x mb-4"></i><p class="text-lg font-bold">Draft Committed!</p></div>';
+            loadDrafts();
+        } else {
+            alert("Error: " + res.error);
+        }
+    }
+
+    async function deleteDraft(id) {
+        if (!confirm("Are you sure you want to discard this draft?")) return;
+        const resp = await fetch(`/api/v1/kb/drafts/${id}`, { method: 'DELETE' });
+        if ((await resp.json()).success) {
+            currentDraftId = null;
+            clearInterval(pollInterval);
+            document.getElementById('draftDetail').innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-300"><i class="fas fa-trash fa-4x mb-4"></i><p>Draft Deleted</p></div>';
+            loadDrafts();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDrafts);
+</script>
+{% endblock %}

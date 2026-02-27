@@ -1,97 +1,119 @@
 import os
 import sys
-from pathlib import Path
-import pypdf
-from google import genai
-from google.genai import types
-
-from utils import load_api_key
-
-# Configuration (Mirrors search.py for consistency)
-GEMINI_API_KEY = load_api_key()
-LLM_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
-
-import requests
 import json
+import logging
+from pathlib import Path
+import fitz  # PyMuPDF
+from google.genai import types
+import requests
 
+from core.ai import ai
+from core.config import TEMP_UPLOADS_DIR
 
+logger = logging.getLogger(__name__)
 
-def extract_text_pypdf(pdf_path, page_num):
-    """Extracts text from a single page of a PDF using pypdf."""
+def extract_raw_text(book_path, page_num):
+    """
+    Extracts raw text from a PDF page using PyMuPDF.
+    Fast, free, no API calls. Used as fallback when AI conversion fails.
+    """
     try:
-        reader = pypdf.PdfReader(pdf_path)
-        if page_num < 1 or page_num > len(reader.pages):
-            return None, f"Page {page_num} out of range (1-{len(reader.pages)})"
-        
-        # pypdf pages are 0-indexed
-        page = reader.pages[page_num - 1]
-        text = page.extract_text()
-        return text, None
+        doc = fitz.open(book_path)
+        if page_num < 1 or page_num > len(doc):
+            doc.close()
+            return None
+        page = doc[page_num - 1]
+        text = page.get_text()
+        doc.close()
+        return text
     except Exception as e:
-        return None, str(e)
+        logger.error(f"Raw text extraction failed: {e}")
+        return None
+
 
 def convert_page(book_path, page_num):
     """
-    Converts a PDF page to a markdown note.
-    
-    Args:
-        book_path (str): Absolute path to the PDF file.
-        page_num (int): Page number (1-based).
-        
-    Returns:
-        tuple: (markdown_content, error_message)
+    Converts a PDF page to high-quality LaTeX using Gemini Vision.
+    Also detects definitions/theorems on the page for KB proposals.
+    Returns (data_dict, error_string).
     """
     if not os.path.exists(book_path):
         return None, "Book file not found."
         
-    text, error = extract_text_pypdf(book_path, page_num)
-    if error:
-        return None, f"PDF Extraction Error: {error}"
-        
-    if not text or len(text.strip()) < 10:
-        return None, "Extracted text is too short or empty."
-
-    prompt = (
-        "Du bist ein mathematischer Setzer. Formatiere diese Buchseite in ZWEI Formaten:\n"
-        "1. Sauberes Markdown mit LaTeX ($...$).\n"
-        "2. Vollständiger LaTeX-Code (standalone header, article class).\n\n"
-        "Ignoriere Seitenzahlen/Header. Gib ein JSON-Objekt zurück mit den Keys: 'markdown' und 'latex'.\n"
-        "Gib NUR das JSON zurück.\n\n"
-        f"INHALT:\n{text}"
-    )
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{LLM_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    temp_image = TEMP_UPLOADS_DIR / f"page_conv_{os.getpid()}_{page_num}.png"
     
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}],
-            "role": "user"
-        }],
-        "generationConfig": {
-            "responseMimeType": "application/json"
-        }
-    }
-
     try:
-        response = requests.post(url, json=payload, timeout=60)
+        # 1. Render page to high-res image + extract raw text BEFORE closing
+        doc = fitz.open(book_path)
+        if page_num < 1 or page_num > len(doc):
+            doc.close()
+            return None, f"Page {page_num} out of range."
         
-        if response.status_code != 200:
-            return None, f"Gemini API Error {response.status_code}: {response.text}"
-            
-        result = response.json()
-        if 'candidates' in result and result['candidates']:
-            content_text = result['candidates'][0]['content']['parts'][0]['text']
-            try:
-                data = json.loads(content_text)
-                return data, None 
-            except json.JSONDecodeError:
-                # Fallback if model returns raw text despite instructions
-                return {'markdown': content_text, 'latex': '% LaTeX generation failed because strict JSON was not returned.'}, None
+        page = doc[page_num - 1]
+        raw_text = page.get_text()  # Extract raw text while doc is open
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better OCR
+        pix.save(str(temp_image))
+        doc.close()
+
+        # 2. Prepare Prompt — also asks for theorem/definition discovery
+        prompt = (
+            "You are a master mathematical typesetter. Convert this image of a book page into TWO formats:\n"
+            "1. Clean Markdown with LaTeX ($...$).\n"
+            "2. High-quality LaTeX code (using amsmath, amssymb). Focus on structural correctness.\n\n"
+            "Additionally, extract any formal definitions, theorems, lemmas, propositions, or corollaries on this page.\n\n"
+            "Requirements:\n"
+            "- Extract ONLY the core mathematical content. Ignore headers, footers, and page numbers.\n"
+            "- Ensure complex formulas are perfectly preserved.\n"
+            "CRITICAL RULES FOR DISCOVERIES:\n"
+            "- ONLY extract explicitly labeled or boxed mathematical environments (e.g., 'Definition 1.2.1', 'Theorem 3.4', 'Lemma'). Do NOT extract inline text.\n"
+            "- The 'name' MUST be a descriptive, searchable concept name inferred from the text, followed by the formal label in parentheses. (e.g., 'Matrix Representation (Definition 1.2.1)' or 'Cauchy Sequence (Definition 3)'). Never just use 'Definition X'.\n"
+            "- The 'snippet' MUST contain the ENTIRE text and math of the block, not just a single equation. Include all the prose explaining the theorem/definition.\n"
+            "- Return a strictly valid JSON object with keys: 'markdown', 'latex', 'discoveries'.\n"
+            "- 'discoveries' is an array of objects: [{\"name\": \"...\", \"kind\": \"theorem|definition|lemma|proposition|corollary\", \"snippet\": \"full text and LaTeX of the statement\"}]\n"
+            "- If no formal definitions or theorems are found, return an empty array [] for 'discoveries'.\n"
+            "IMPORTANT: Return ONLY the JSON."
+        )
+
+        # 3. Upload and Process via AIService
+        uploaded_file = ai.client.files.upload(
+            file=str(temp_image),
+            config=types.UploadFileConfig(display_name=f"page_{page_num}_image")
+        )
+        
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(text=prompt),
+                    types.Part.from_uri(file_uri=uploaded_file.uri, mime_type=uploaded_file.mime_type)
+                ]
+            )
+        ]
+        
+        data = ai.generate_json(contents)
+        
+        # Cleanup uploaded file
+        try:
+            ai.client.files.delete(name=uploaded_file.name)
+        except Exception:
+            pass
+        if temp_image.exists():
+            temp_image.unlink()
+
+        if data:
+            data['raw_text'] = raw_text
+            # Ensure discoveries key exists
+            if 'discoveries' not in data:
+                data['discoveries'] = []
+            return data, None
         else:
-            return None, "No content returned from Gemini."
-            
+            return None, "Gemini failed to return valid JSON for the page image."
+
     except Exception as e:
-        return None, f"Gemini Request Error: {str(e)}"
+        if temp_image.exists():
+            temp_image.unlink()
+        logger.error(f"Vision conversion failed: {e}")
+        return None, f"Conversion Error: {str(e)}"
 
 if __name__ == "__main__":
     # Test execution

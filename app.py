@@ -15,8 +15,10 @@ from services.library import library_service
 from services.note import note_service
 from services.zbmath import zbmath_service
 from core.ai import ai
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app) # Enable CORS for all routes
 app.secret_key = 'supersecretkey'
 
 @app.template_filter('from_json')
@@ -25,6 +27,20 @@ def from_json_filter(value):
         return json.loads(value)
     except:
         return []
+
+@app.template_filter('from_unix_timestamp')
+def from_unix_timestamp_filter(value):
+    if not value: return "N/A"
+    return datetime.fromtimestamp(value).strftime('%d. %b %Y, %H:%M')
+
+@app.template_filter('read_file_content')
+def read_file_content_filter(filepath):
+    if not filepath: return ""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except:
+        return f"[Error reading file: {filepath}]"
 
 def update_state(action, **kwargs):
     """Updates the current_state.json file for agent awareness."""
@@ -71,12 +87,41 @@ def run_housekeeping():
         app.logger.error(f"HOUSEKEEPING Error: {e}")
 
 def enrichment_worker():
-    """Background thread for automated tasks (temporarily idling for batch operations)."""
-    time.sleep(15)
-    app.logger.info("Enrichment Worker started (IDLE MODE).")
-    while True:
-        # Idle loop to prevent DB locking during massive manual batch enrichment
-        time.sleep(60)
+    """Background thread for automated tasks. Ensures single-instance execution via lockfile."""
+    # Give the main server time to bind ports
+    time.sleep(10)
+    
+    lock_file = "/tmp/mathstudio_worker.lock"
+    try:
+        # Check for existing lock and stale PIDs
+        if os.path.exists(lock_file):
+            with open(lock_file, 'r') as f:
+                old_pid = f.read().strip()
+                if old_pid and os.path.exists(f"/proc/{old_pid}"):
+                    app.logger.info(f"Worker already running with PID {old_pid}. Skipping startup.")
+                    return
+        
+        # Write current PID
+        with open(lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+            
+        # Cleanup: Requeue tasks stuck in 'processing' from previous crash
+        with db.get_connection() as conn:
+            conn.execute("UPDATE llm_tasks SET status = 'pending' WHERE status = 'processing' AND task_type = 'extract_page_mlx'")
+            conn.commit()
+            
+        app.logger.info("Enrichment Worker (experimental_mac_llm) started.")
+        from experimental_mac_llm.experimental_worker import ExperimentalWorker
+        worker = ExperimentalWorker()
+        worker.run()
+    except Exception as e:
+        app.logger.error(f"Experimental MLX Worker crashed: {e}")
+    finally:
+        if os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+            except:
+                pass
 
 # Register API
 app.register_blueprint(api_v1, url_prefix='/api/v1')
@@ -94,6 +139,69 @@ def admin_dashboard(): return render_template('admin.html')
 
 @app.route('/msc')
 def msc_browser(): return render_template('msc_browser.html')
+
+@app.route('/analytics')
+def analytics_dashboard(): return render_template('analytics.html')
+
+@app.route('/knowledge')
+def knowledge_browser(): return render_template('knowledge_browser.html')
+
+@app.route('/m2-tester')
+def m2_tester(): return render_template('m2_tester.html')
+
+@app.route('/api/test_m2_extraction', methods=['POST'])
+def api_test_m2_extraction():
+    data = request.json
+    book_id = data.get('book_id')
+    page = data.get('page')
+    
+    if not book_id or not page:
+        return jsonify({"error": "book_id and page are required"}), 400
+        
+    try:
+        book_id = int(book_id)
+        page = int(page)
+    except ValueError:
+        return jsonify({"error": "book_id and page must be integers"}), 400
+        
+    payload = json.dumps({
+        "book_id": book_id,
+        "page_number": page,
+        "mode": "test"
+    })
+    
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO llm_tasks (task_type, payload, status, priority, created_at)
+            VALUES (?, ?, 'pending', 1, ?)
+        ''', ("extract_page_mlx", payload, int(time.time())))
+        task_id = cursor.lastrowid
+        
+    return jsonify({"success": True, "task_id": task_id, "message": f"Queued mock MLX task {task_id}"})
+
+@app.route('/api/check_m2_task/<int:task_id>')
+def check_m2_task(task_id):
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, result, error_log FROM llm_tasks WHERE id = ?", (task_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Task not found"}), 404
+        
+        status, result, error_log = row
+        error_msg = None
+        if error_log:
+            try:
+                error_msg = json.loads(error_log).get("error")
+            except:
+                error_msg = error_log
+                
+        return jsonify({
+            "status": status,
+            "result": result,
+            "error": error_msg
+        })
 
 @app.route('/book/<int:book_id>/edit')
 def edit_book(book_id):
@@ -181,8 +289,34 @@ def open_file(filepath):
 
 @app.route('/notes')
 def list_notes():
-    notes = note_service.list_notes()
-    return render_template('notes.html', notes=[n['filename'] for n in notes])
+    source_type = request.args.get('type')
+    notes = note_service.list_notes(source_type=source_type, limit=100)
+    return render_template('notes.html', notes=notes)
+
+@app.route('/note/<int:note_id>')
+def view_note_by_id(note_id):
+    note = note_service.get_note(note_id)
+    if not note: abort(404)
+    
+    content = ""
+    # Standardize path resolution: remove absolute container prefix if present
+    md_path = note['markdown_path']
+    if md_path:
+        if md_path.startswith('/library/mathstudio/'):
+            md_path = md_path.replace('/library/mathstudio/', '')
+        
+        full_path = Path(app.root_path) / md_path
+        if full_path.exists():
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+    # recommendations = note_service.get_recommendations(content) if content else []
+    
+    return render_template('view_note.html', 
+                           note=note, 
+                           content=content,
+                           has_pdf=note['pdf_path'] and os.path.exists(note['pdf_path']),
+                           has_latex=note['latex_path'] and os.path.exists(note['latex_path']))
 
 @app.route('/view-note/<filename>')
 def view_note(filename):
@@ -213,16 +347,6 @@ def rename_note(filename):
     if note_service.rename_note(old_base, new_base):
         return redirect(url_for('view_note', filename=new_base + ".tex"))
     return redirect(url_for('list_notes'))
-
-@app.route('/wishlist')
-def wishlist_view():
-    with db.get_connection() as conn:
-        items = [dict(r) for r in conn.execute("SELECT w.*, b.title as source_title FROM wishlist w LEFT JOIN books b ON w.source_book_id = b.id ORDER BY w.created_at DESC").fetchall()]
-    return render_template('wishlist.html', items=items)
-
-@app.route('/wishlist-check')
-def wishlist_check():
-    return render_template('wishlist_check.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5001)

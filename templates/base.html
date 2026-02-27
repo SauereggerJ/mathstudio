@@ -18,17 +18,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- KaTeX for Math Rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {
-        delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$', right: '$', display: false},
-            {left: '\\(', right: '\\)', display: false},
-            {left: '\\[', right: '\\]', display: true}
-        ],
-        throwOnError : false
-    });"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -101,17 +93,20 @@
                             class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-blue-700 md:p-0 transition-colors">Notes</a>
                     </li>
                     <li>
-                        <a href="/wishlist"
-                            class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-blue-700 md:p-0 transition-colors">Wishlist</a>
-                    </li>
-                    <li>
                         <a href="/msc"
                             class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-emerald-600 md:p-0 transition-colors">MSC
                             Browser</a>
                     </li>
                     <li>
-                        <a href="{{ url_for('wishlist_check') }}"
-                            class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-blue-700 md:p-0 transition-colors">Check</a>
+                        <a href="/knowledge"
+                            class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:hover:text-violet-600 md:p-0 transition-colors">Knowledge
+                            Base</a>
+                    </li>
+                    <li>
+                        <a href="/m2-tester"
+                            class="block py-2 px-3 text-indigo-700 font-bold rounded hover:bg-indigo-50 border border-transparent md:hover:border-indigo-200 md:hover:bg-indigo-50 px-3 py-1 bg-indigo-50/50 md:p-1.5 transition-colors">
+                            <i class="fas fa-microchip mr-1"></i> M2 Console
+                        </a>
                     </li>
                 </ul>
             </div>
@@ -211,6 +206,7 @@
         function initDraggable() {
             const drawer = document.getElementById("gemini-drawer");
             const header = document.getElementById("drawer-header");
+            if (!header || !drawer) return;
             let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
 
             header.onmousedown = dragMouseDown;
@@ -244,8 +240,24 @@
             }
         }
 
-        // Start draggable on load
-        window.onload = initDraggable;
+        // --- Core Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Draggable Gemini
+            initDraggable();
+
+            // 2. KaTeX Auto-Render
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '$', right: '$', display: false },
+                        { left: '\\(', right: '\\)', display: false },
+                        { left: '\\[', right: '\\]', display: true }
+                    ],
+                    throwOnError: false
+                });
+            }
+        });
     </script>
     {% block scripts %}{% endblock %}
 

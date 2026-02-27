@@ -9,7 +9,7 @@ from google.genai import types
 from core.database import db
 from core.ai import ai
 from core.utils import PDFHandler
-from core.config import LIBRARY_ROOT
+from core.config import LIBRARY_ROOT, IGNORED_FOLDERS
 from services.zbmath import zbmath_service
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,22 @@ class UniversalProcessor:
         self.ai = ai
         self.db = db
 
+    def _get_library_folders(self) -> List[str]:
+        """Returns a list of existing library folders for the AI to choose from."""
+        folders = []
+        try:
+            # Look for top-level numeric folders
+            for p in LIBRARY_ROOT.glob("[0-9]*"):
+                if p.is_dir() and p.name not in IGNORED_FOLDERS:
+                    folders.append(p.name)
+                    # Also look one level deeper
+                    for sub in p.glob("*"):
+                        if sub.is_dir() and not sub.name.startswith(('.', '_')):
+                            folders.append(f"{p.name}/{sub.name}")
+            folders.sort()
+        except: pass
+        return folders
+
     def process_book(self, book_id: int, save_to_db: bool = True) -> Dict[str, Any]:
         with self.db.get_connection() as conn:
             book = conn.execute("SELECT id, path, title, author FROM books WHERE id = ?", (book_id,)).fetchone()
@@ -30,6 +46,16 @@ class UniversalProcessor:
         handler = PDFHandler(abs_path)
         
         try:
+            # 1. Extract Native MuPDF TOC as baseline
+            native_toc = []
+            if abs_path.suffix.lower() == '.pdf':
+                try:
+                    import fitz
+                    doc = fitz.open(abs_path)
+                    native_toc = doc.get_toc()
+                    doc.close()
+                except: pass
+
             ranges = handler.estimate_slicing_ranges()
             
             # Combine Front pages and potential Index pages
@@ -38,8 +64,9 @@ class UniversalProcessor:
             meta_slice = Path(f"/tmp/ms_fast_{book_id}.pdf")
             handler.create_slice(combined_pages, meta_slice)
             
+            folders = self._get_library_folders()
             uploaded = self.ai.upload_file(meta_slice)
-            initial_json = self._initial_holistic_pass(uploaded)
+            initial_json = self._initial_holistic_pass(uploaded, folders, native_toc)
             
             if uploaded: self.ai.delete_file(uploaded.name)
             if meta_slice.exists(): meta_slice.unlink()
@@ -69,13 +96,20 @@ class UniversalProcessor:
             logger.error(f"Fast Pipeline failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def _initial_holistic_pass(self, file_obj) -> Optional[Dict[str, Any]]:
+    def _initial_holistic_pass(self, file_obj, folders: List[str] = None, native_toc: List = None) -> Optional[Dict[str, Any]]:
+        folder_list = "\n".join(folders) if folders else "No folders found."
+        native_toc_str = json.dumps(native_toc[:100]) if native_toc else "None found."
+        
         prompt = (
             "You are an expert mathematical librarian. Analyze the provided PDF (front matter and ToC).\n"
             "TASK: Extract high-fidelity metadata and a structured Table of Contents.\n"
+            "TOC VERIFICATION: A baseline Table of Contents from PDF metadata is provided below. Use it to verify page numbers and titles, but prioritize what you see visually on the provided pages if there are discrepancies.\n"
             "SUMMARY: Write a sophisticated, one-to-two sentence academic summary capturing the pedagogical approach and key themes.\n"
             "DESCRIPTION: Provide a detailed professional review (2-3 paragraphs) for a research database.\n"
-            "Return a strictly valid JSON object: {\"metadata\": {\"title\", \"author\", \"publisher\", \"year\", \"isbn\", \"doi\", \"msc_class\", \"summary\", \"description\", \"audience\", \"has_exercises\", \"has_solutions\"}, \"toc\": [{\"title\", \"page\", \"level\"}], \"index_terms\": [], \"page_offset\": 0}"
+            "ROUTING: Select the best existing folder from the list below. Be CONSERVATIVE: prefer placing special cases into a broader existing category (e.g. '04_Algebra' for a book on Group Theory) rather than creating new folders. Only suggest a new sub-path (Format: 'ExistingFolder/NewSub') if the topic is distinct and warrants its own directory.\n"
+            "Return a strictly valid JSON object: {\"metadata\": {\"title\", \"author\", \"publisher\", \"year\", \"isbn\", \"doi\", \"msc_class\", \"target_path\", \"summary\", \"description\", \"audience\", \"has_exercises\", \"has_solutions\"}, \"toc\": [{\"title\", \"page\", \"level\"}], \"index_terms\": [], \"page_offset\": 0}\n\n"
+            f"BASELINE TOC FROM PDF METADATA:\n{native_toc_str}\n\n"
+            f"EXISTING FOLDERS:\n{folder_list}"
         )
         contents = [types.Content(role="user", parts=[
             types.Part.from_uri(file_uri=file_obj.uri, mime_type=file_obj.mime_type),

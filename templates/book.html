@@ -260,13 +260,12 @@
                 </div>
             </div>
 
-            <!-- TAB: THE LAB -->
             <div class="tab-content space-y-6" id="lab">
                 <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
                     <h3 class="text-lg font-bold text-emerald-800 mb-4">AI Note Taker</h3>
                     <div class="flex gap-3">
-                        <input type="number" id="notePage"
-                            class="block w-full p-3 text-sm border-emerald-200 rounded-xl" placeholder="Page Number">
+                        <input type="text" id="notePage" inputmode="tel"
+                            class="block w-full p-3 text-sm border-emerald-200 rounded-xl" placeholder="Page(s) e.g. 10-15, 20">
                         <button onclick="createNote()"
                             class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Synthesize</button>
                     </div>
@@ -390,7 +389,7 @@
         const page = document.getElementById('notePage').value; const status = document.getElementById('noteStatus'); const resDiv = document.getElementById('noteResult');
         if (!page) return; status.textContent = "AI AT WORK...";
         try {
-            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: {{ id }}, page: parseInt(page) })
+            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: {{ id }}, page: page, refresh: true })
     });
     const data = await res.json();
     if (data.content) { status.textContent = "DONE."; resDiv.textContent = data.content; resDiv.classList.remove('hidden'); }

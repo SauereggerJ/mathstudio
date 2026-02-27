@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard - MathStudio{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+    .analytics-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    @media (min-width: 1024px) {
+        .analytics-grid {
+            grid-template-columns: 2fr 1fr;
+        }
+    }
+    .chart-container {
+        position: relative;
+        background: white;
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+        border: 1px solid #f1f5f9;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    }
+    #coauthor-graph {
+        width: 100%;
+        height: 600px;
+        background: #f8fafc;
+        border-radius: 1rem;
+        cursor: grab;
+    }
+    .node:hover { stroke: #2563eb; stroke-width: 2px; }
+    .link { stroke: #cbd5e1; stroke-opacity: 0.6; }
+    .label { font-size: 10px; font-family: sans-serif; pointer-events: none; fill: #64748b; }
+    .loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255,255,255,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #64748b;
+        z-index: 10;
+        border-radius: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-black text-slate-900">Analytics Dashboard</h1>
+            <p class="text-slate-500">Visualizing the knowledge graph and research trends.</p>
+        </div>
+        <div class="flex gap-3 mb-1">
+            <button onclick="location.reload()" class="text-xs font-bold px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all">
+                <i class="fas fa-sync-alt mr-2"></i> Reload Data
+            </button>
+            <a href="/admin" class="text-sm font-bold text-blue-600 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Back to Admin</a>
+        </div>
+    </div>
+</div>
+
+<div class="analytics-grid">
+    <!-- Main Timeline -->
+    <div class="chart-container lg:col-span-2">
+        <h3 class="text-lg font-bold text-slate-800 mb-4">Library Evolution (MSC Timeline)</h3>
+        <canvas id="timelineChart" height="100"></canvas>
+        <div id="timeline-loading" class="loading-overlay">Loading timeline...</div>
+    </div>
+
+    <!-- Bridge Authors -->
+    <div class="chart-container">
+        <h3 class="text-lg font-bold text-slate-800 mb-4">Polymaths (Cross-Pollination)</h3>
+        <div id="bridge-list" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+            <p class="text-slate-400 text-sm italic">Loading data...</p>
+        </div>
+    </div>
+
+    <!-- Co-author Graph -->
+    <div class="chart-container lg:col-span-2">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-lg font-bold text-slate-800">Co-Author Network</h3>
+                <p class="text-xs text-slate-400">Collaboration network based on shared publications.</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="exportCanvas()" class="text-xs font-bold px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all border border-emerald-100">
+                    <i class="fas fa-file-export mr-2"></i> Export to Obsidian Canvas
+                </button>
+                <span class="text-xs font-medium px-2 py-1 bg-blue-50 text-blue-600 rounded-full flex items-center">Interactive Graph</span>
+            </div>
+        </div>
+        <div id="coauthor-graph">
+            <div id="graph-loading" class="loading-overlay">Loading collaboration graph...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function fetchData(url) {
+        try {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            return await resp.json();
+        } catch (e) {
+            console.error(`Error loading ${url}:`, e);
+            return null;
+        }
+    }
+
+    async function exportCanvas() {
+        try {
+            const resp = await fetch('/api/v1/analytics/export/canvas', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) alert("✓ Exported successfully to Obsidian Inbox!");
+            else alert("✗ Export failed: " + (data.error || "Unknown error"));
+        } catch (e) { alert("✗ Network error during export."); }
+    }
+
+    // --- 1. Timeline Chart ---
+    async function initTimeline() {
+        const data = await fetchData('/api/v1/analytics/timeline');
+        document.getElementById('timeline-loading').style.display = 'none';
+        if (!data || !data.labels.length) return;
+        
+        const ctx = document.getElementById('timelineChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: data.datasets.map((ds, i) => ({
+                    ...ds,
+                    backgroundColor: `hsl(${i * 45 % 360}, 65%, 60%)`,
+                    borderRadius: 4
+                }))
+            },
+            options: {
+                responsive: true,
+                onClick: (e, elements, chart) => {
+                    if (elements.length > 0) {
+                        const i = elements[0].index;
+                        const dsI = elements[0].datasetIndex;
+                        const decade = chart.data.labels[i].substring(0,3);
+                        const mscPrefixes = chart.data.datasets[dsI].msc_codes;
+                        window.location.href = `/?year=${decade}&msc=${mscPrefixes.join(',')}`;
+                    }
+                },
+                plugins: { 
+                    legend: { 
+                        display: true, 
+                        position: 'right',
+                        labels: { boxWidth: 12, font: { size: 10, weight: 'bold' } }
+                    },
+                    tooltip: { 
+                        callbacks: {
+                            afterBody: (context) => {
+                                const decade = context[0].label;
+                                const milestone = data.milestones.find(m => m.year === decade);
+                                return milestone ? `\n★ Milestone: ${milestone.event}` : '';
+                            }
+                        }
+                    }
+                },
+                scales: { 
+                    y: { beginAtZero: true, stacked: true, grid: { color: '#f1f5f9' } },
+                    x: { stacked: true, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // --- 2. Cross Pollination ---
+    async function initBridges() {
+        const data = await fetchData('/api/v1/analytics/cross-pollination');
+        const container = document.getElementById('bridge-list');
+        if (!data || !data.bridges.length) {
+            container.innerHTML = '<p class="text-slate-400 text-sm italic">No bridge authors found.</p>';
+            return;
+        }
+        container.innerHTML = '';
+        
+        data.bridges.forEach(b => {
+            const div = document.createElement('div');
+            div.className = 'p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white hover:shadow-md hover:border-blue-200 transition-all cursor-pointer';
+            div.onclick = () => window.location.href = `/?author=${encodeURIComponent(b.author.split(' ')[0] + ' ' + b.author.split(' ').pop())}`;
+            div.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-sm text-slate-700">${b.author}</span>
+                    <span class="text-[10px] font-black bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-500">${b.count} Areas</span>
+                </div>
+                <div class="flex flex-wrap gap-1 mt-2">
+                    ${b.categories.map(c => `<span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">MSC ${c}</span>`).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // --- 3. Co-author Graph (D3) ---
+    async function initGraph() {
+        const data = await fetchData('/api/v1/analytics/coauthors');
+        document.getElementById('graph-loading').style.display = 'none';
+        if (!data || !data.nodes.length) return;
+        
+        // Filter: only show authors with at least one connection
+        const connectedIds = new Set();
+        data.links.forEach(l => {
+            connectedIds.add(typeof l.source === 'object' ? l.source.id : l.source);
+            connectedIds.add(typeof l.target === 'object' ? l.target.id : l.target);
+        });
+        
+        const connectedNodes = data.nodes.filter(n => connectedIds.has(n.id));
+        const filteredLinks = data.links.filter(l => 
+            connectedIds.has(typeof l.source === 'object' ? l.source.id : l.source) && 
+            connectedIds.has(typeof l.target === 'object' ? l.target.id : l.target)
+        );
+
+        const width = document.getElementById('coauthor-graph').clientWidth;
+        const height = 600;
+
+        const svg = d3.select("#coauthor-graph")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height]);
+
+        const g = svg.append("g");
+
+        svg.call(d3.zoom()
+            .extent([[0, 0], [width, height]])
+            .scaleExtent([0.1, 8])
+            .on("zoom", (event) => g.attr("transform", event.transform)));
+
+        const simulation = d3.forceSimulation(connectedNodes)
+            .force("link", d3.forceLink(filteredLinks).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(50));
+
+        const link = g.append("g")
+            .selectAll("line")
+            .data(filteredLinks)
+            .join("line")
+            .attr("class", "link")
+            .attr("stroke-width", d => Math.sqrt(d.value) * 2);
+
+        const node = g.append("g")
+            .selectAll("circle")
+            .data(connectedNodes)
+            .join("circle")
+            .attr("class", "node")
+            .attr("r", d => 6 + Math.sqrt(d.count) * 2)
+            .attr("fill", d => d.count > 5 ? "#2563eb" : "#60a5fa")
+            .style("cursor", "pointer")
+            .on("click", (event, d) => {
+                const parts = d.name.split(' ');
+                const searchName = parts.length > 1 ? `${parts[0]} ${parts[parts.length-1]}` : d.name;
+                window.location.href = `/?author=${encodeURIComponent(searchName)}`;
+            })
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.append("title").text(d => `${d.name}\n${d.count} books in library\nClick to see works`);
+
+        const label = g.append("g")
+            .selectAll("text")
+            .data(connectedNodes)
+            .join("text")
+            .attr("class", "label")
+            .attr("dy", d => -(10 + Math.sqrt(d.count) * 2))
+            .attr("text-anchor", "middle")
+            .text(d => d.name);
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+            
+            label
+                .attr("x", d => d.x)
+                .attr("y", d => d.y);
+        });
+
+        function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+        function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initTimeline();
+        initBridges();
+        initGraph();
+    });
+</script>
+{% endblock %}

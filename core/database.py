@@ -70,7 +70,8 @@ class DatabaseManager:
                     last_metadata_refresh INTEGER DEFAULT 0,
                     page_offset INTEGER DEFAULT 0,
                     metadata_status TEXT DEFAULT 'raw', -- raw, verified, conflict
-                    trust_score REAL DEFAULT 0.0
+                    trust_score REAL DEFAULT 0.0,
+                    zb_review TEXT
                 ) STRICT
             ''')
 
@@ -80,7 +81,8 @@ class DatabaseManager:
                 ("page_offset", "INTEGER DEFAULT 0"),
                 ("zbl_id", "TEXT"),
                 ("metadata_status", "TEXT DEFAULT 'raw'"),
-                ("trust_score", "REAL DEFAULT 0.0")
+                ("trust_score", "REAL DEFAULT 0.0"),
+                ("zb_review", "TEXT")
             ]:
                 try:
                     conn.execute(f"ALTER TABLE books ADD COLUMN {col} {col_type}")
@@ -340,12 +342,114 @@ class DatabaseManager:
                 ) STRICT
             ''')
 
+            # 17. Knowledge Base Drafts (Human-in-the-loop)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS kb_drafts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    concept_name TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    statement TEXT,
+                    proof TEXT,
+                    source_book_id INTEGER,
+                    page_number INTEGER,
+                    status TEXT DEFAULT 'review', -- review|approved|rejected
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    updated_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(source_book_id) REFERENCES books(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 17b. Knowledge Base Proposals (Auto-discovered theorems/definitions)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS kb_proposals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    concept_name TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    snippet TEXT,
+                    book_id INTEGER,
+                    page_number INTEGER,
+                    status TEXT DEFAULT 'pending',
+                    merge_target_id INTEGER,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+                )
+            ''')
+
             # --- Safe Migrations for V2 Knowledge Base ---
             # Add synthesis column to concepts if it doesn't exist
             cursor.execute("PRAGMA table_info(concepts)")
             columns = [info[1] for info in cursor.fetchall()]
             if 'synthesis' not in columns:
                 cursor.execute("ALTER TABLE concepts ADD COLUMN synthesis TEXT")
+
+            # 17. Notes Table (Artifacts for E-Ink and Research)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    source_type TEXT NOT NULL, -- 'handwritten', 'book_extraction', 'manual'
+                    source_book_id INTEGER,    -- NULL if handwritten
+                    source_page_number INTEGER, -- NULL if handwritten
+                    latex_path TEXT,
+                    markdown_path TEXT,
+                    pdf_path TEXT,
+                    json_meta_path TEXT,
+                    tags TEXT,
+                    msc TEXT,                  -- Added for E-Ink classification
+                    content_preview TEXT,      -- Short summary or first few lines
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    updated_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(source_book_id) REFERENCES books(id) ON DELETE SET NULL
+                ) STRICT
+            ''')
+
+            # 17.1 Migration for notes
+            try:
+                conn.execute("ALTER TABLE notes ADD COLUMN msc TEXT")
+            except sqlite3.OperationalError:
+                pass
+
+            # 17.2 Note Relations
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS note_relations (
+                    from_note_id INTEGER NOT NULL,
+                    to_note_id INTEGER NOT NULL,
+                    relation_type TEXT DEFAULT 'related',
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    PRIMARY KEY(from_note_id, to_note_id, relation_type),
+                    FOREIGN KEY(from_note_id) REFERENCES notes(id) ON DELETE CASCADE,
+                    FOREIGN KEY(to_note_id) REFERENCES notes(id) ON DELETE CASCADE
+                ) STRICT
+            ''')
+
+            # 17.3 Note to Book Associations
+            cursor.execute("DROP TABLE IF EXISTS note_book_relations") # Drop old faulty PK constraint
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS note_book_relations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    note_id INTEGER NOT NULL,
+                    book_id INTEGER NOT NULL,
+                    page_number INTEGER, -- NULL if general book reference
+                    relation_type TEXT DEFAULT 'references',
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    UNIQUE(note_id, book_id, page_number),
+                    FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+                ) STRICT
+            ''')
+
+            # 18. Notes FTS
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='notes_fts'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE VIRTUAL TABLE notes_fts USING fts5(
+                        title,
+                        tags,
+                        content,
+                        content_rowid='id',
+                        tokenize='porter unicode61 remove_diacritics 1'
+                    );
+                ''')
 
 # Global instance
 db = DatabaseManager()
