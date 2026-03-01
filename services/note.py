@@ -635,7 +635,7 @@ class NoteService:
         window_pages = list(range(start, end + 1))
 
         # Ensure all pages in window are digitized
-        results, error = self.get_or_convert_pages(book_id, window_pages, include_discoveries=False)
+        results, error = self.get_or_convert_pages(book_id, window_pages)
         if error:
             logger.error(f"Failed to digitize context window: {error}")
             return ""
@@ -649,28 +649,6 @@ class NoteService:
             full_context += f"\n\n% --- PAGE {p_num} ---\n\n{p_latex}"
         
         return full_context
-
-    def extract_and_save_knowledge_terms(self, book_id, target_page, window_before=2, window_after=4):
-        """Performs contextual extraction for a specific page and saves to knowledge_terms."""
-        context_latex = self.get_context_window_latex(book_id, target_page, window_size_before=window_before, window_size_after=window_after)
-        if not context_latex:
-            return 0, "No context available"
-
-        # Fetch metadata to help AI with descriptive naming
-        with self.db.get_connection() as conn:
-            book = conn.execute("SELECT title, author FROM books WHERE id = ?", (book_id,)).fetchone()
-        
-        metadata = dict(book) if book else None
-        terms, error = converter.extract_terms_from_context(context_latex, target_page, metadata=metadata)
-        if error:
-            return 0, error
-
-        count = 0
-        for t in terms:
-            if self._save_knowledge_term(book_id, target_page, t):
-                count += 1
-        
-        return count, None
 
     def extract_and_save_knowledge_terms_batch(self, book_id, pages_list, window_buffer=2, force=False):
         """
@@ -712,7 +690,7 @@ class NoteService:
             
             context_pages = list(range(fetch_start, fetch_end + 1))
             
-            results, _ = self.get_or_convert_pages(book_id, context_pages, include_discoveries=False, abort_on_failure=False)
+            results, _ = self.get_or_convert_pages(book_id, context_pages, abort_on_failure=False)
             
             context_latex = ""
             for pr in results:
@@ -867,21 +845,21 @@ class NoteService:
 
     def _save_knowledge_term(self, book_id, page_start, term_data):
         """Saves a single extracted term to the flat database table with deduplication.
-        Supports both old format (latex_snippet) and new format (start_marker + end_marker)."""
+        Uses the marker system to extract LaTeX snippets from the local cache."""
         name = term_data.get('name')
         t_type = term_data.get('type', 'theorem')
         keywords = term_data.get('used_terms')
         
-        # New marker-based format: extract snippet locally from cached page
-        latex = term_data.get('latex_snippet')  # backward compat with old format
-        if not latex:
-            start_marker = term_data.get('start_marker')
-            end_marker = term_data.get('end_marker')
-            if start_marker:
-                latex = self._extract_snippet_from_cache(book_id, page_start, start_marker, end_marker)
-                if not latex:
-                    latex = f"% Term: {name} (marker: {start_marker})"
-                    logger.warning(f"Could not extract snippet for '{name}' using marker '{start_marker}' — using placeholder")
+        # Extract snippet locally from cached page using markers
+        start_marker = term_data.get('start_marker')
+        end_marker = term_data.get('end_marker')
+        latex = None
+        
+        if start_marker:
+            latex = self._extract_snippet_from_cache(book_id, page_start, start_marker, end_marker)
+            if not latex:
+                latex = f"% Term: {name} (marker: {start_marker})"
+                logger.warning(f"Could not extract snippet for '{name}' using marker '{start_marker}' — using placeholder")
 
         if not name:
             return False
@@ -942,7 +920,7 @@ class NoteService:
                 return False
 
         
-    def get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7, include_discoveries=False, abort_on_failure=False):
+    def get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7, abort_on_failure=False):
         """Standard portal for fetching page LaTeX. Checks cache, then triggers batched AI conversion."""
         results = []
         needed_pages = []

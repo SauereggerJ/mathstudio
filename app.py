@@ -104,48 +104,8 @@ def run_housekeeping():
     except Exception as e:
         app.logger.error(f"HOUSEKEEPING Error: {e}")
 
-def enrichment_worker():
-    """Background thread for automated tasks. Ensures single-instance execution via lockfile."""
-    # Give the main server time to bind ports
-    time.sleep(10)
-    
-    lock_file = "/tmp/mathstudio_worker.lock"
-    try:
-        # Check for existing lock and stale PIDs
-        if os.path.exists(lock_file):
-            with open(lock_file, 'r') as f:
-                old_pid = f.read().strip()
-                if old_pid and os.path.exists(f"/proc/{old_pid}"):
-                    app.logger.info(f"Worker already running with PID {old_pid}. Skipping startup.")
-                    return
-        
-        # Write current PID
-        with open(lock_file, 'w') as f:
-            f.write(str(os.getpid()))
-            
-        # Cleanup: Requeue tasks stuck in 'processing' from previous crash
-        with db.get_connection() as conn:
-            conn.execute("UPDATE llm_tasks SET status = 'pending' WHERE status = 'processing' AND task_type = 'extract_page_mlx'")
-            conn.commit()
-            
-        app.logger.info("Enrichment Worker (experimental_mac_llm) started.")
-        from experimental_mac_llm.experimental_worker import ExperimentalWorker
-        worker = ExperimentalWorker()
-        worker.run()
-    except Exception as e:
-        app.logger.error(f"Experimental MLX Worker crashed: {e}")
-    finally:
-        if os.path.exists(lock_file):
-            try:
-                os.remove(lock_file)
-            except:
-                pass
-
 # Register API
 app.register_blueprint(api_v1, url_prefix='/api/v1')
-
-# Start Worker
-threading.Thread(target=enrichment_worker, daemon=True).start()
 
 # One-time backfill: populate LaTeX FTS from existing cached pages
 def _run_fts_backfill():
@@ -186,63 +146,6 @@ def analytics_dashboard(): return render_template('analytics.html')
 
 @app.route('/knowledge')
 def knowledge_browser(): return render_template('knowledge_browser.html')
-
-@app.route('/m2-tester')
-def m2_tester(): return render_template('m2_tester.html')
-
-@app.route('/api/test_m2_extraction', methods=['POST'])
-def api_test_m2_extraction():
-    data = request.json
-    book_id = data.get('book_id')
-    page = data.get('page')
-    
-    if not book_id or not page:
-        return jsonify({"error": "book_id and page are required"}), 400
-        
-    try:
-        book_id = int(book_id)
-        page = int(page)
-    except ValueError:
-        return jsonify({"error": "book_id and page must be integers"}), 400
-        
-    payload = json.dumps({
-        "book_id": book_id,
-        "page_number": page,
-        "mode": "test"
-    })
-    
-    with db.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO llm_tasks (task_type, payload, status, priority, created_at)
-            VALUES (?, ?, 'pending', 1, ?)
-        ''', ("extract_page_mlx", payload, int(time.time())))
-        task_id = cursor.lastrowid
-        
-    return jsonify({"success": True, "task_id": task_id, "message": f"Queued mock MLX task {task_id}"})
-
-@app.route('/api/check_m2_task/<int:task_id>')
-def check_m2_task(task_id):
-    with db.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT status, result, error_log FROM llm_tasks WHERE id = ?", (task_id,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": "Task not found"}), 404
-        
-        status, result, error_log = row
-        error_msg = None
-        if error_log:
-            try:
-                error_msg = json.loads(error_log).get("error")
-            except:
-                error_msg = error_log
-                
-        return jsonify({
-            "status": status,
-            "result": result,
-            "error": error_msg
-        })
 
 @app.route('/book/<int:book_id>/edit')
 def edit_book(book_id):

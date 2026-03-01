@@ -227,7 +227,6 @@ The database uses **SQLite 3 with WAL mode** and contains **18+ tables**. All sc
 | `concepts` | Mathematical concepts (Legacy) | `id`, `name`, `kind` (definition/theorem/etc.), `domain`, `aliases` (JSON) |
 | `entries` | Concept formulations (Legacy) | `id`, `concept_id` (FK), `book_id` (FK), `page_start`, `statement`, `proof` |
 | `kb_proposals` | Legacy staging area | `id`, `concept_name`, `kind`, `snippet`, `book_id`, `page_number`, `status` |
-| `llm_tasks` | Task queue for async AI ops | `id`, `task_type`, `payload` (JSON), `status`, `retry_count` |
 
 #### External Data & Enrichment Tables
 

@@ -341,7 +341,7 @@ async def list_tools() -> list[Tool]:
             name="synthesize_page_knowledge",
             description=(
                 "Extract Knowledge Base terms (theorems, definitions, lemmas) from specific book pages "
-                "and add them to the Knowledge Base draft queue for review. "
+                "and index them permanently in the Knowledge Base. "
                 "Call this after `get_book_pages_latex` when a page contains formal mathematical content "
                 "you want permanently indexed in the KB."
             ),
@@ -785,13 +785,13 @@ async def get_book_pages_latex(args: dict) -> list[TextContent]:
 
 
 async def synthesize_page_knowledge(args: dict) -> list[TextContent]:
-    payload = {"book_id": args["book_id"], "page": args["page"], "refresh": True, "abort_on_failure": True}
+    payload = {"book_id": args["book_id"], "page": args["page"], "refresh": True, "abort_on_failure": True, "force_extract": True}
     r = requests.post(f"{API_BASE}/tools/pdf-to-note", json=payload, timeout=300)
     r.raise_for_status()
     data = r.json()
     if data.get("success"):
         count = data.get("terms_found", 0)
-        return [TextContent(type="text", text=f"✓ Synthesis complete. {count} knowledge term(s) added to the draft queue.")]
+        return [TextContent(type="text", text=f"✓ Synthesis complete. {count} knowledge term(s) added directly to the Knowledge Base.")]
     return [TextContent(type="text", text=f"✗ Synthesis failed: {data.get('error', 'Unknown')}")]
 
 

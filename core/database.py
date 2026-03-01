@@ -269,23 +269,6 @@ class DatabaseManager:
                 ) STRICT
             ''')
 
-            # 16. LLM Task Queue
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS llm_tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    task_type TEXT NOT NULL,
-                    payload TEXT,
-                    status TEXT DEFAULT 'pending',
-                    priority INTEGER DEFAULT 5,
-                    retry_count INTEGER DEFAULT 0,
-                    max_retries INTEGER DEFAULT 3,
-                    error_log TEXT,
-                    result TEXT,
-                    created_at INTEGER DEFAULT (unixepoch()),
-                    completed_at INTEGER
-                ) STRICT
-            ''')
-
             # 17. Notes Table (Artifacts for E-Ink and Research)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS notes (

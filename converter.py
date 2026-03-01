@@ -268,46 +268,6 @@ def convert_pages_batch(book_path: str, pages: list[int]):
         logger.error(f"Batch conversion failed: {e}")
         return None, f"Conversion Error: {str(e)}"
 
-def extract_terms_from_context(concatenated_latex, target_page_num, metadata=None):
-    """
-    Analyzes a window of LaTeX pages to extract terms (theorems, etc.) starting on a specific page.
-    Handles overflow into subsequent pages.
-    """
-    context_str = ""
-    if metadata:
-        context_str = f"BOOK CONTEXT: Title: {metadata.get('title')}, Author: {metadata.get('author')}\n\n"
-
-    prompt = (
-        "You are a mathematical knowledge extraction agent. You are provided with a multi-page LaTeX document from a math book.\n"
-        f"{context_str}"
-        f"TASK: Identify every formal term (Definition, Theorem, Lemma, Proposition, Corollary, Example, Exercise) that STARTS on Page {target_page_num}.\n\n"
-        "RULES:\n"
-        f"1. ONLY extract terms that explicitly begin their statement on Page {target_page_num}.\n"
-        f"   - CRITICAL: If a Proof starts or continues on Page {target_page_num}, but its parent Theorem/Proposition started on a PREVIOUS page, DO NOT EXTRACT IT.\n"
-        "2. For each term, provide ONLY metadata — do NOT include the full LaTeX content:\n"
-        "   - 'name': A HIGHLY DESCRIPTIVE, SEMANTIC CONCEPT NAME followed by the formal label in parentheses. Example: 'Dominated Convergence Theorem (Theorem 2.25)'. NEVER use a generic label like 'Theorem 3' as the entire name.\n"
-        "   - 'type': One of: definition, theorem, lemma, proposition, corollary, example, exercise, remark, note. (NEVER use 'proof').\n"
-        f"   - 'page_start': {target_page_num}\n"
-        "   - 'used_terms': Technical mathematical keywords and notation used in the term.\n"
-        "   - 'start_marker': A short text string (5-30 chars) that uniquely identifies WHERE this term begins in the LaTeX. Use the formal label like '2.25 Theorem' or 'Definition 3.1' or the first few distinctive words.\n"
-        "   - 'end_marker': (optional) A short text string identifying where the NEXT term or section begins, marking the end of this term. Use the next label like '2.26' or 'Corollary' or leave empty if it's the last item on the page.\n"
-        "3. Return a JSON object with key 'terms' containing an array.\n"
-        "4. If no terms start on the target page, return: {\"terms\": []}\n\n"
-        "LATEX CONTENT:\n"
-        f"{concatenated_latex}\n\n"
-        "IMPORTANT: Return ONLY the JSON object. Do NOT include any LaTeX content in your response."
-    )
-
-    try:
-        data = ai.generate_json(prompt, schema=TERM_EXTRACTION_SCHEMA)
-        if data and 'terms' in data:
-            return data['terms'], None
-        return [], "Failed to parse terms from AI response."
-    except Exception as e:
-        logger.error(f"Contextual extraction failed: {e}")
-        return None, str(e)
-
-
 def extract_terms_batch(concatenated_latex, start_page, end_page, metadata=None):
     """
     Analyzes a window of LaTeX pages to extract terms (theorems, etc.) starting within a specific page range.

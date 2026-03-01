@@ -1130,7 +1130,7 @@ def pdf_to_note_tool():
         abort_on_failure = data.get('abort_on_failure', True)
         force_refresh = data.get('refresh', False)
 
-        force_extract = data.get('force_extract', False)
+        force_extract = data.get('force_extract', True)
 
         with db.get_connection() as conn:
             row = conn.execute("SELECT page_count FROM books WHERE id = ?", (book_id,)).fetchone()
@@ -1145,7 +1145,6 @@ def pdf_to_note_tool():
             book_id, target_pages, 
             force_refresh=force_refresh, 
             min_quality=min_quality,
-            include_discoveries=False,
             abort_on_failure=abort_on_failure
         )
         

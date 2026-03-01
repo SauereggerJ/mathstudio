@@ -97,22 +97,6 @@ Registry for research notes and transcriptions.
 | `created_at` | INTEGER | Unix timestamp. |
 | `updated_at` | INTEGER | Unix timestamp. |
 
-### 1.5 Table: `llm_tasks`
-Queue for asynchronous AI operations.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER (PK) | |
-| `task_type` | TEXT | e.g., `extract_page_mlx`, `rebuild_index`. |
-| `payload` | TEXT | JSON payload specific to the task. |
-| `status` | TEXT | `pending`, `processing`, `completed`, `failed`. |
-| `priority` | INTEGER | 1 (high) to 10 (low). |
-| `retry_count` | INTEGER | |
-| `error_log` | TEXT | Error details if failed. |
-| `result` | TEXT | JSON result if completed. |
-| `created_at` | INTEGER | Unix timestamp. |
-| `completed_at` | INTEGER | Unix timestamp. |
-
 ---
 
 ## 2. Application State: `current_state.json`
@@ -206,13 +190,3 @@ The Mathematical Subject Classification (MSC) hierarchy.
 
 ## 5. LLM Task Payloads
 
-### 5.1 `extract_page_mlx`
-Task for local MLX-based OCR and extraction.
-
-```json
-{
-  "book_id": 123,
-  "page_number": 45,
-  "mode": "test|prod"
-}
-```
