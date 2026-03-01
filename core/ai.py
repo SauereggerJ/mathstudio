@@ -40,8 +40,9 @@ class AIService:
         except Exception as e:
             logger.error(f"Failed to delete file from Gemini: {e}")
 
-    def generate_json(self, contents, retry_count=3):
-        """Generates a structured JSON response. 'contents' can be a string or SDK types."""
+    def generate_json(self, contents, retry_count=3, schema=None):
+        """Generates a structured JSON response. 'contents' can be a string or SDK types.
+        If schema is provided, it is passed to the API as response_schema for structured output."""
         backoff = 5
         # Normalize to Content object if string
         if isinstance(contents, str):
@@ -49,13 +50,36 @@ class AIService:
             
         for attempt in range(retry_count):
             try:
+                gen_config = types.GenerateContentConfig(response_mime_type="application/json")
+                if schema:
+                    gen_config = types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=schema
+                    )
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=contents,
-                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                    config=gen_config
                 )
+                
+                # Check for non-STOP finish reasons (SAFETY, RECITATION, MAX_TOKENS, etc.)
+                try:
+                    finish_reason = response.candidates[0].finish_reason if response.candidates else None
+                    if finish_reason and str(finish_reason) not in ('FinishReason.STOP', 'STOP', '1', 'None'):
+                        logger.error(f"[AI] Generation blocked — finish_reason: {finish_reason}. Safety/policy refusal.")
+                        return None
+                except Exception:
+                    pass
+
                 text = response.text
                 
+                # DEBUG LOGGING: Write raw response to the NAS for guaranteed visibility
+                try:
+                    with open("/home/jure/nasi_data/math/New_Research_Library/mathstudio/ai_debug_raw.log", "w") as f:
+                        f.write(text)
+                except:
+                    pass
+
                 # Clean up markdown code blocks if Gemini accidentally includes them
                 if text.startswith("```json"):
                     text = re.sub(r'^```json\s*', '', text)
@@ -64,30 +88,47 @@ class AIService:
                     text = re.sub(r'^```\s*', '', text)
                     text = re.sub(r'\s*```$', '', text)
                 
+                # SANITIZATION: Strip only the most problematic control chars (0-8, 11-12, 14-31)
+                # Keep \n (10), \r (13), \t (9) as strict=False below will handle them in strings.
+                # This fixes errors like the Vertical Tab (\x0b / 11) found on Page 232.
+                text = "".join(char for char in text if ord(char) >= 32 or char in "\n\r\t")
+
                 try:
-                    return json.loads(text)
+                    # strict=False allows literal control characters (like real tabs/newlines) inside strings
+                    return json.loads(text, strict=False)
                 except json.JSONDecodeError as e:
                     logger.warning(f"JSON Decode failed, attempting repair: {e}")
                     
-                    # 1. Try to fix unescaped backslashes (most common in LaTeX)
-                    # We look for \ that isn't part of a standard JSON escape sequence
+                    # 1. Aggressive backslash repair for LaTeX
+                    # In LaTeX, almost every \ should be realized as a literal backslash.
+                    # We double any \ that isn't already part of a valid JSON escape (\", \\, \/)
+                    # or a unicode escape (\uXXXX).
                     import re
-                    repaired = re.sub(r'\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'\\\\', text)
+                    # We don't exclude b,f,n,r,t here because in LaTeX \textbf, \newline etc. 
+                    # they are usually meant as literal backslashes, and if the AI wanted 
+                    # a real newline it would use a literal LF or a double-escaped \\n.
+                    repaired = re.sub(r'\\(?!["\\/]|u[0-9a-fA-F]{4})', r'\\\\', text)
+                    
                     try:
-                        return json.loads(repaired)
-                    except:
-                        # 2. Try replacing ALL single backslashes with double, then fixing double-doubles
-                        repaired2 = text.replace('\\', '\\\\').replace('\\\\\\\\', '\\\\')
-                        # But ensure quotes remain correctly escaped
-                        repaired2 = repaired2.replace('\\\\"', '\\"')
+                        return json.loads(repaired, strict=False)
+                    except Exception as e2:
+                        # 2. Last resort: Total backslash doubling
+                        repaired2 = text.replace('\\', '\\\\').replace('\\\\\\\\', '\\\\').replace('\\\\"', '\\"')
                         try:
-                            return json.loads(repaired2)
-                        except Exception as e2:
-                            logger.error(f"JSON repair failed completely: {e2}")
-                            logger.debug(f"Raw text: {text}")
+                            return json.loads(repaired2, strict=False)
+                        except Exception as e3:
+                            logger.error(f"JSON repair failed completely: {e3}")
+                            # Write the problematic response to the debug log for inspection
+                            try:
+                                with open("/home/jure/nasi_data/math/New_Research_Library/mathstudio/ai_debug_raw.log", "a") as f:
+                                    f.write(f"\n\n=== JSON REPAIR FAILURE ===\n{text[:2000]}\n")
+                            except Exception:
+                                pass
                             return None
             except Exception as e:
-                if '429' in str(e) and attempt < retry_count - 1:
+                err_str = str(e)
+                if ('429' in err_str or '503' in err_str) and attempt < retry_count - 1:
+                    logger.warning(f"[AI] Rate/capacity limit hit (attempt {attempt+1}), backing off {backoff}s...")
                     time.sleep(backoff)
                     backoff *= 2
                     continue

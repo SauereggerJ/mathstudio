@@ -43,6 +43,35 @@ class LibraryService:
                         return "SEMANTIC", dict(match)
         return None, None
 
+    def populate_missing_hashes(self, limit=None):
+        """Calculates and stores hashes for books where file_hash is missing."""
+        with self.db.get_connection() as conn:
+            query = "SELECT id, path FROM books WHERE file_hash IS NULL OR file_hash = ''"
+            if limit:
+                query += f" LIMIT {int(limit)}"
+            rows = conn.execute(query).fetchall()
+        
+        updated = 0
+        for row in rows:
+            book_id = row['id']
+            rel_path = row['path']
+            abs_path = LIBRARY_ROOT / rel_path
+            
+            if not abs_path.exists():
+                continue
+                
+            try:
+                # Reuse existing calculate_hash method
+                file_hash = self.calculate_hash(str(abs_path))
+                with self.db.get_connection() as conn:
+                    conn.execute("UPDATE books SET file_hash = ? WHERE id = ?", (file_hash, book_id))
+                updated += 1
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to hash book {book_id}: {e}")
+                
+        return updated
+
     def delete_book(self, book_id):
         """Archives the file and removes DB entries."""
         with self.db.get_connection() as conn:

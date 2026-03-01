@@ -116,6 +116,8 @@
                 </li>
                 <li class="me-2"><button class="tab-btn p-4"
                         onclick="openTab(event, 'bibliography')">Bibliography</button></li>
+                <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'extractions')">Converted
+                        Pages</button></li>
                 <li class="me-2"><button class="tab-btn p-4" onclick="openTab(event, 'lab')">The Lab</button></li>
                 <li><button class="tab-btn p-4" onclick="openTab(event, 'related')">Similar</button></li>
             </ul>
@@ -259,13 +261,54 @@
                     </p>{% endif %}
                 </div>
             </div>
+            <!-- TAB: CONVERTED PAGES -->
+            <div class="tab-content rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden"
+                id="extractions">
+                <div class="p-6">
+                    <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Digitized Content</h3>
+                    {% if extracted_pages %}
+                    <div class="grid grid-cols-1 gap-4">
+                        {% for p in extracted_pages %}
+                        <div
+                            class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div>
+                                <span
+                                    class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-sm">PAGE
+                                    {{ p.page_number }}</span>
+                                <span class="ml-3 text-xs font-bold text-slate-500 uppercase tracking-tighter">
+                                    Quality: {{ (p.quality_score * 100)|round|int }}%
+                                </span>
+                            </div>
+                            <div class="flex gap-2">
+                                <a href="/api/v1/admin/logs?file=app.log&tail=100" target="_blank" title="View log"
+                                    class="p-2 text-slate-400 hover:text-slate-600"><i
+                                        class="fas fa-terminal text-xs"></i></a>
+                                <a href="/api/v1/note/view-file?path={{ p.markdown_path|urlencode }}&raw=true"
+                                    target="_blank"
+                                    class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg hover:border-blue-500 transition-colors">Markdown</a>
+                                <a href="/api/v1/note/view-file?path={{ p.latex_path|urlencode }}&raw=true"
+                                    target="_blank"
+                                    class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg hover:border-blue-500 transition-colors">LaTeX</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-20 text-slate-400 italic">
+                        <i class="fas fa-ghost text-4xl mb-4 opacity-20"></i>
+                        <p>No pages have been converted yet. Use "The Lab" to digitize pages.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
 
             <div class="tab-content space-y-6" id="lab">
                 <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
                     <h3 class="text-lg font-bold text-emerald-800 mb-4">AI Note Taker</h3>
                     <div class="flex gap-3">
                         <input type="text" id="notePage" inputmode="tel"
-                            class="block w-full p-3 text-sm border-emerald-200 rounded-xl" placeholder="Page(s) e.g. 10-15, 20">
+                            class="block w-full p-3 text-sm border-emerald-200 rounded-xl"
+                            placeholder="Page(s) e.g. 10-15, 20">
                         <button onclick="createNote()"
                             class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Synthesize</button>
                     </div>
@@ -279,6 +322,54 @@
                         class="w-full bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg">Scan
                         Bibliography</button>
                     <div id="bibStatus" class="mt-3 text-xs font-bold text-amber-600"></div>
+                </div>
+
+                <!-- Full Book Scan -->
+                <div class="bg-violet-50 p-6 rounded-2xl border border-violet-100" id="scan-section">
+                    <h3 class="text-lg font-bold text-violet-800 mb-2">Full Book Scan</h3>
+                    <p class="text-xs text-violet-600 mb-4">Convert all content pages to LaTeX & extract mathematical
+                        terms. Processes 25 pages at a time with 5-minute cooldowns.</p>
+
+                    <div id="scan-idle">
+                        <button onclick="startScan()" id="scanBtn"
+                            class="w-full bg-violet-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-violet-700 transition-all">
+                            <i class="fas fa-rocket mr-2"></i>Start Full Scan
+                        </button>
+                    </div>
+
+                    <div id="scan-progress" class="hidden">
+                        <div class="mb-3">
+                            <div class="flex justify-between items-center mb-1">
+                                <span id="scan-status-text"
+                                    class="text-xs font-black text-violet-700 uppercase tracking-widest"></span>
+                                <span id="scan-percent" class="text-xs font-black text-violet-600"></span>
+                            </div>
+                            <div class="w-full bg-violet-200 rounded-full h-3 overflow-hidden">
+                                <div id="scan-bar" class="bg-violet-600 h-3 rounded-full transition-all duration-500"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] text-violet-500 font-bold">
+                            <span id="scan-detail"></span>
+                            <button onclick="cancelScan()"
+                                class="text-rose-500 hover:text-rose-700 uppercase tracking-widest font-black">
+                                <i class="fas fa-stop mr-1"></i>Cancel
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="scan-done" class="hidden text-center">
+                        <i class="fas fa-check-circle text-3xl text-emerald-500 mb-2"></i>
+                        <p id="scan-done-text" class="text-sm font-bold text-emerald-700"></p>
+                        <button onclick="resetScan()"
+                            class="mt-3 text-[10px] text-violet-500 hover:text-violet-700 font-black uppercase tracking-widest">
+                            <i class="fas fa-redo mr-1"></i>Reset & Re-scan
+                        </button>
+                    </div>
+
+                    <div class="mt-4 text-[10px] text-violet-400 font-bold uppercase tracking-widest">
+                        <i class="fas fa-gauge-high mr-1"></i>Daily quota: <span id="scan-quota">-/3</span>
+                    </div>
                 </div>
             </div>
 
@@ -382,17 +473,26 @@
     async function scanBibliography() {
         const status = document.getElementById('bibStatus'); status.textContent = "Scanning...";
         const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/v1/tools/bib-scan'; form.target = '_blank';
-        const input = document.createElement('input'); input.type = 'hidden'; input.name = 'book_id'; input.value = {{ id }};
+        const input = document.createElement('input'); input.type = 'hidden'; input.name = 'book_id'; input.value = parseInt("{{ id }}", 10);
         form.appendChild(input); document.body.appendChild(form); form.submit(); status.textContent = "Done.";
     }
     async function createNote() {
         const page = document.getElementById('notePage').value; const status = document.getElementById('noteStatus'); const resDiv = document.getElementById('noteResult');
         if (!page) return; status.textContent = "AI AT WORK...";
+        resDiv.classList.add('hidden');
         try {
-            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: {{ id }}, page: page, refresh: true })
-    });
-    const data = await res.json();
-    if (data.content) { status.textContent = "DONE."; resDiv.textContent = data.content; resDiv.classList.remove('hidden'); }
+            const res = await fetch('/api/v1/tools/pdf-to-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: parseInt("{{ id }}", 10), page: page, refresh: true, abort_on_failure: true }) });
+            const data = await res.json();
+            if (res.status === 422 || data.error) {
+                status.innerHTML = `<span class="text-rose-600"><i class="fas fa-exclamation-triangle mr-2"></i> BATCH ABORTED: ${data.error || 'Quality check failed'}</span>`;
+                if (data.content) { resDiv.textContent = data.content; resDiv.classList.remove('hidden'); }
+                return;
+            }
+            if (data.content) {
+                status.innerHTML = `<span class="text-emerald-600"><i class="fas fa-check-circle mr-2"></i> DONE. Found ${data.terms_found || 0} terms.</span>`;
+                resDiv.textContent = data.content;
+                resDiv.classList.remove('hidden');
+            }
         } catch (e) { status.textContent = "FAILED."; }
     }
     async function openExternal(path) { try { await fetch(`/api/open-external?path=${encodeURIComponent(path)}`); } catch (e) { } }
@@ -405,6 +505,120 @@
             if (data.success) window.location.reload();
             else alert("Error: " + data.error);
         } catch (e) { console.error(e); }
+    }
+
+    // ── Full Book Scan ──
+    let scanPollTimer = null;
+    const BOOK_ID = {{ id }};
+
+    document.addEventListener('DOMContentLoaded', () => { checkScanStatus(); });
+
+    async function checkScanStatus() {
+        try {
+            const resp = await fetch(`/api/v1/books/${BOOK_ID}/scan`);
+            const data = await resp.json();
+            document.getElementById('scan-quota').textContent = `${data.daily_used || 0}/3`;
+
+            if (!data.exists) {
+                showScanState('idle');
+                return;
+            }
+
+            if (data.status === 'queued' || data.status === 'running') {
+                updateScanProgress(data);
+                showScanState('progress');
+                startPolling();
+            } else if (data.status === 'completed') {
+                document.getElementById('scan-done-text').textContent =
+                    `Scan complete! ${data.terms_found} terms from ${data.pages_total} pages.`;
+                showScanState('done');
+            } else if (data.status === 'failed') {
+                document.getElementById('scan-done-text').textContent =
+                    `Scan failed: ${data.error_log || 'unknown error'}`;
+                document.querySelector('#scan-done i').className = 'fas fa-exclamation-triangle text-3xl text-rose-500 mb-2';
+                showScanState('done');
+            } else {
+                showScanState('idle');
+            }
+        } catch (e) { console.error('Scan status check failed', e); }
+    }
+
+    function showScanState(state) {
+        document.getElementById('scan-idle').classList.toggle('hidden', state !== 'idle');
+        document.getElementById('scan-progress').classList.toggle('hidden', state !== 'progress');
+        document.getElementById('scan-done').classList.toggle('hidden', state !== 'done');
+    }
+
+    function updateScanProgress(data) {
+        const pct = data.pages_total > 0 ? Math.round((data.pages_done / data.pages_total) * 100) : 0;
+        document.getElementById('scan-bar').style.width = pct + '%';
+        document.getElementById('scan-percent').textContent = pct + '%';
+        document.getElementById('scan-status-text').textContent =
+            data.status === 'queued' ? 'Queued...' : 'Scanning...';
+        document.getElementById('scan-detail').textContent =
+            `${data.pages_done}/${data.pages_total} pages · ${data.terms_found} terms`;
+    }
+
+    async function startScan() {
+        const btn = document.getElementById('scanBtn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch(`/api/v1/books/${BOOK_ID}/scan`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.error) {
+                alert(data.error);
+                btn.disabled = false;
+                return;
+            }
+            document.getElementById('scan-quota').textContent = `${data.daily_used}/3`;
+            showScanState('progress');
+            updateScanProgress({ pages_done: 0, pages_total: 0, terms_found: 0, status: 'queued' });
+            startPolling();
+        } catch (e) {
+            alert('Failed to start scan');
+            btn.disabled = false;
+        }
+    }
+
+    async function cancelScan() {
+        if (!confirm('Cancel the scan? Progress will be lost.')) return;
+        try {
+            await fetch(`/api/v1/books/${BOOK_ID}/scan`, { method: 'DELETE' });
+            stopPolling();
+            showScanState('idle');
+            document.getElementById('scanBtn').disabled = false;
+        } catch (e) { alert('Failed to cancel'); }
+    }
+
+    async function resetScan() {
+        try {
+            await fetch(`/api/v1/books/${BOOK_ID}/scan`, { method: 'DELETE' });
+            showScanState('idle');
+            document.getElementById('scanBtn').disabled = false;
+            document.querySelector('#scan-done i').className = 'fas fa-check-circle text-3xl text-emerald-500 mb-2';
+        } catch (e) { alert('Failed to reset'); }
+    }
+
+    function startPolling() {
+        stopPolling();
+        scanPollTimer = setInterval(async () => {
+            try {
+                const resp = await fetch(`/api/v1/books/${BOOK_ID}/scan`);
+                const data = await resp.json();
+                if (!data.exists) { stopPolling(); showScanState('idle'); return; }
+
+                if (data.status === 'running' || data.status === 'queued') {
+                    updateScanProgress(data);
+                } else {
+                    stopPolling();
+                    checkScanStatus(); // Re-render final state
+                }
+            } catch (e) { }
+        }, 10000);
+    }
+
+    function stopPolling() {
+        if (scanPollTimer) { clearInterval(scanPollTimer); scanPollTimer = null; }
     }
 
     // MSC label resolution

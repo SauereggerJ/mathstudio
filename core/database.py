@@ -164,6 +164,18 @@ class DatabaseManager:
                 ) STRICT;
             ''')
 
+            # 5.1 LaTeX Page FTS (search over AI-converted page content)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='extracted_pages_fts'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE VIRTUAL TABLE extracted_pages_fts USING fts5(
+                        book_id UNINDEXED,
+                        page_number UNINDEXED,
+                        latex_content,
+                        tokenize='porter unicode61 remove_diacritics 1'
+                    );
+                ''')
+
             # 6. Extracted Pages (LaTeX/Markdown Cache)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS extracted_pages (
@@ -257,74 +269,6 @@ class DatabaseManager:
                 ) STRICT
             ''')
 
-            # 12. Knowledge Base: Concepts
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS concepts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    aliases TEXT,
-                    domain TEXT,
-                    kind TEXT NOT NULL,
-                    canonical_entry_id INTEGER,
-                    synthesis TEXT,
-                    obsidian_path TEXT,
-                    created_at INTEGER DEFAULT (unixepoch()),
-                    updated_at INTEGER DEFAULT (unixepoch()),
-                    FOREIGN KEY(canonical_entry_id) REFERENCES entries(id) ON DELETE SET NULL
-                ) STRICT
-            ''')
-
-            # 13. Knowledge Base: Entries (specific formulations)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    concept_id INTEGER NOT NULL,
-                    book_id INTEGER,
-                    page_start INTEGER,
-                    page_end INTEGER,
-                    statement TEXT NOT NULL,
-                    proof TEXT,
-                    notes TEXT,
-                    scope TEXT,
-                    language TEXT DEFAULT 'en',
-                    style TEXT,
-                    is_canonical INTEGER DEFAULT 0,
-                    confidence REAL DEFAULT 1.0,
-                    extracted_by TEXT DEFAULT 'llm',
-                    embedding BLOB,
-                    created_at INTEGER DEFAULT (unixepoch()),
-                    FOREIGN KEY(concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
-                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE SET NULL
-                ) STRICT
-            ''')
-
-            # 14. Knowledge Base: Relations (graph edges)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS relations (
-                    from_concept_id INTEGER NOT NULL,
-                    to_concept_id INTEGER NOT NULL,
-                    relation_type TEXT NOT NULL,
-                    context TEXT,
-                    source_entry_id INTEGER,
-                    confidence REAL DEFAULT 1.0,
-                    created_at INTEGER DEFAULT (unixepoch()),
-                    PRIMARY KEY(from_concept_id, to_concept_id, relation_type),
-                    FOREIGN KEY(from_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
-                    FOREIGN KEY(to_concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
-                    FOREIGN KEY(source_entry_id) REFERENCES entries(id) ON DELETE SET NULL
-                ) STRICT
-            ''')
-
-            # 15. Knowledge Base: FTS over concepts + entries
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='concept_fts'")
-            if not cursor.fetchone():
-                cursor.execute('''
-                    CREATE VIRTUAL TABLE concept_fts USING fts5(
-                        name, aliases, statement, notes,
-                        tokenize='porter unicode61 remove_diacritics 1'
-                    );
-                ''')
-
             # 16. LLM Task Queue
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS llm_tasks (
@@ -341,46 +285,6 @@ class DatabaseManager:
                     completed_at INTEGER
                 ) STRICT
             ''')
-
-            # 17. Knowledge Base Drafts (Human-in-the-loop)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS kb_drafts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    concept_name TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    statement TEXT,
-                    proof TEXT,
-                    source_book_id INTEGER,
-                    page_number INTEGER,
-                    status TEXT DEFAULT 'review', -- review|approved|rejected
-                    created_at INTEGER DEFAULT (unixepoch()),
-                    updated_at INTEGER DEFAULT (unixepoch()),
-                    FOREIGN KEY(source_book_id) REFERENCES books(id) ON DELETE SET NULL
-                ) STRICT
-            ''')
-
-            # 17b. Knowledge Base Proposals (Auto-discovered theorems/definitions)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS kb_proposals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    concept_name TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    snippet TEXT,
-                    book_id INTEGER,
-                    page_number INTEGER,
-                    status TEXT DEFAULT 'pending',
-                    merge_target_id INTEGER,
-                    created_at INTEGER DEFAULT (unixepoch()),
-                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
-                )
-            ''')
-
-            # --- Safe Migrations for V2 Knowledge Base ---
-            # Add synthesis column to concepts if it doesn't exist
-            cursor.execute("PRAGMA table_info(concepts)")
-            columns = [info[1] for info in cursor.fetchall()]
-            if 'synthesis' not in columns:
-                cursor.execute("ALTER TABLE concepts ADD COLUMN synthesis TEXT")
 
             # 17. Notes Table (Artifacts for E-Ink and Research)
             cursor.execute('''
@@ -438,6 +342,36 @@ class DatabaseManager:
                 ) STRICT
             ''')
 
+            # 19. Flat Knowledge Base: Knowledge Terms
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_terms (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER NOT NULL,
+                    page_start INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    term_type TEXT NOT NULL, -- definition, theorem, lemma, example, exercise
+                    latex_content TEXT NOT NULL,
+                    used_terms TEXT, -- Comma-separated technical keywords
+                    status TEXT DEFAULT 'draft', -- draft, approved
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    updated_at INTEGER DEFAULT (unixepoch()),
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+                ) STRICT
+            ''')
+
+            # 20. Knowledge Terms FTS
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_terms_fts'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE VIRTUAL TABLE knowledge_terms_fts USING fts5(
+                        name,
+                        used_terms,
+                        latex_content,
+                        content_rowid='id',
+                        tokenize='porter unicode61 remove_diacritics 1'
+                    );
+                ''')
+
             # 18. Notes FTS
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='notes_fts'")
             if not cursor.fetchone():
@@ -450,6 +384,26 @@ class DatabaseManager:
                         tokenize='porter unicode61 remove_diacritics 1'
                     );
                 ''')
+
+            # 21. Book Scans (Full Book Scan Jobs)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS book_scans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER NOT NULL UNIQUE,
+                    status TEXT DEFAULT 'queued',
+                    pages_content TEXT,
+                    pages_done INTEGER DEFAULT 0,
+                    pages_total INTEGER DEFAULT 0,
+                    terms_found INTEGER DEFAULT 0,
+                    batch_size INTEGER DEFAULT 25,
+                    cooldown_seconds INTEGER DEFAULT 300,
+                    started_at INTEGER,
+                    completed_at INTEGER,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    error_log TEXT,
+                    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+                ) STRICT
+            ''')
 
 # Global instance
 db = DatabaseManager()

@@ -2,7 +2,11 @@
 """
 MathStudio MCP Server
 
-Exposes the MathStudio API v1 as an MCP server for LLM integration.
+Provides LLM access to the MathStudio Research Library:
+ - Library search and discovery
+ - PDF-to-LaTeX conversion pipeline (for deep research)
+ - Knowledge Base browsing (approved theorems/definitions)
+ - Note creation and management (handwritten + LLM-authored)
 """
 
 import json
@@ -20,14 +24,20 @@ from mcp.types import (
     Prompt,
     PromptMessage,
     GetPromptResult,
-    INTERNAL_ERROR,
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("mathstudio-mcp")
+LOG_FILE = Path(__file__).parent / "mcp.log"
 
-# Load configuration
+# Write to file + stderr so we can tail the log without disrupting stdio protocol
+_file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+_stderr_handler = logging.StreamHandler()
+_stderr_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+
+logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _stderr_handler])
+logger = logging.getLogger("mathstudio-mcp")
+logger.info(f"=== MCP Server starting. Log: {LOG_FILE} ===")
+
 CONFIG_PATH = Path(__file__).parent / "config.json"
 with open(CONFIG_PATH) as f:
     config = json.load(f)
@@ -36,332 +46,363 @@ API_BASE = config["api_base_url"]
 SERVER_NAME = config["server_name"]
 SERVER_VERSION = config["server_version"]
 
-# Initialize MCP server
 app = Server(SERVER_NAME)
 
 
-# --- Prompts ---
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
 
 @app.list_prompts()
 async def list_prompts() -> list[Prompt]:
-    """List available educational, research, and usage prompts."""
     return [
         Prompt(
             name="usage_manifesto",
-            description="Guidelines for using the MathStudio library effectively.",
+            description="Core guidelines for using the MathStudio library. Read this first.",
             arguments=[]
         ),
         Prompt(
-            name="researcher_workflow",
-            description="The optimal 5-step discovery-synthesis pipeline.",
-            arguments=[]
-        ),
-        Prompt(
-            name="note_creation_workflow",
-            description="Instructions for creating high-fidelity research notes from specific book sources (e.g. definitions, theorems).",
+            name="deep_research_workflow",
+            description="Multi-source research protocol: find → convert → synthesise → store.",
             arguments=[
-                {
-                    "name": "source_request",
-                    "description": "The user's request (e.g. 'Definition 2.3 from Amann Escher')",
-                    "required": True
-                }
+                {"name": "topic", "description": "Mathematical topic to research", "required": True}
             ]
-        )
+        ),
+        Prompt(
+            name="note_writing_workflow",
+            description="Full workflow for writing and storing a scholarly note on a mathematical topic.",
+            arguments=[
+                {"name": "request", "description": "What the user wants the note to cover", "required": True}
+            ]
+        ),
     ]
+
 
 @app.get_prompt()
 async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
-    """Return the structured instructions for a given prompt."""
+    args = arguments or {}
+
     if name == "usage_manifesto":
         return GetPromptResult(
-            description="MathStudio Usage Manifesto (Agentic RAG)",
-            messages=[
-                PromptMessage(
-                    role="user",
-                    content=TextContent(
-                        type="text",
-                        text=(
-                            "You are an Agentic RAG assistant for the MathStudio Research Library.\n\n"
-                            "**THE GUIDING PRINCIPLE (Leitidee)**: The Knowledge Base is a theorem/definition location index. "
-                            "Every concept maps to book pages where it appears, with cached LaTeX content.\n\n"
-                            "**THE WORKFLOW**:\n"
-                            "1. **Consult KB First**: Use `search_knowledge` or `get_concept_details` to find existing entries.\n"
-                            "2. **Library Fallback**: If not in KB, use `search_books` or `search_within_book` to find primary sources.\n"
-                            "3. **Read Pages**: Use `get_book_pages_latex` to read the exact pages once you find the right page number. This automatically caches the LaTeX AND discovers theorems on those pages (pushing them to the user review queue).\n"
-                            "4. **Answer & Cite**: Answer the user with the exact LaTeX content from the library.\n\n"
-                            "**CRITICAL RULE 1**: NEVER use `get_book_pages_latex` or `read_pdf_pages` to blindly read the Table of Contents or Index pages. This wastes AI resources and pollutes the proposal queue. Always use `search_within_book` to find the correct page numbers first.\n"
-                            "**CRITICAL RULE 2**: NEVER make assumptions. Always base your answers on extracted library text.\n"
-                            "**CRITICAL RULE 3**: UNDERSTAND PDF PAGE OFFSETS. The page number in a book (e.g., 'Page 10') is rarely the absolute PDF page number (which might be 24 due to Roman numeral prefaces). If `search_within_book` gives you a page, use the cheap `read_pdf_pages` tool to quickly peek at the absolute PDF page to see its printed number. Calculate the offset (e.g., +14 pages) and apply it to find the true page. Try up to 2 times, but DO NOT infinitely loop."
-                        )
-                    )
-                )
-            ]
+            description="MathStudio Usage Manifesto",
+            messages=[PromptMessage(role="user", content=TextContent(type="text", text="""\
+You are an Agentic Research Assistant for the MathStudio Mathematical Library.
+
+## YOUR MISSION
+Answer mathematical questions by extracting knowledge directly from primary sources in the library. Never guess or hallucinate; always cite actual book pages.
+
+## CORE TOOLS (in preferred order of use)
+1. **search_knowledge_base** — Search approved KB terms (theorems, definitions). This is the fastest path.
+2. **search_books** — Find relevant books across the library.
+3. **search_within_book** — Find the exact page where a concept appears.
+4. **get_book_pages_latex** — Convert pages to high-quality LaTeX. This caches results for reuse.
+5. **read_pdf_pages** — Cheap page peek to verify page offsets (printed vs. PDF page numbers).
+
+## THE RESEARCH IMPERATIVE
+**Never settle for the first result.** When researching a topic:
+- Search for it in MULTIPLE books (at least 2-3 if available).
+- Quote from each source, noting similarities and differences in approach.
+- Only then synthesise a conclusion.
+
+## PDF PAGE OFFSETS
+The printed page number (e.g., "Page 10") is NEVER the same as the PDF page index (often +12 due to prefaces). Use `read_pdf_pages` to peek at a page, read its printed number, calculate the offset, and jump to the correct PDF page. Do this at most 2 times before proceeding.
+
+## CRITICAL RULES
+- Never run `get_book_pages_latex` on Table of Contents or Index pages.
+- After converting pages, always summarise what you found and ask the user if they want the result stored as a note.
+"""))]
         )
-    elif name == "researcher_workflow":
+
+    if name == "deep_research_workflow":
+        topic = args.get("topic", "the requested topic")
         return GetPromptResult(
-            description="The simplified research discovery pipeline",
-            messages=[
-                PromptMessage(
-                    role="user",
-                    content=TextContent(
-                        type="text",
-                        text=(
-                            "To answer a mathematical question or find a specific proof:\n\n"
-                            "1. **KB Query**: Use `search_knowledge` to check existing entries.\n"
-                            "2. **Library Search**: Use `search_books` or `search_within_book` to find sources.\n"
-                            "3. **Read & Cache**: Use `get_book_pages_latex` to read the page. The system automatically:\n"
-                            "   - Converts the page to high-quality LaTeX (with retry + text fallback)\n"
-                            "   - Caches the LaTeX for future use\n"
-                            "   - Discovers theorems/definitions and creates proposals for user review\n"
-                            "4. **Review Proposals**: Use `list_kb_proposals` to see what's been auto-discovered. The user reviews these in the UI.\n"
-                            "5. **Answer**: Present findings from the actual LaTeX content.\n\n"
-                            "CRITICAL: Do not use `get_book_pages_latex` to parse the Table of Contents or Index. Always use Search first.\n"
-                            "CRITICAL: Be aware of PDF Page Offsets. The printed page number is usually lower than the absolute PDF page index. Use `read_pdf_pages` to peek at a page, see its printed number, calculate the offset difference, and jump to the correct absolute PDF page. Do this at most twice before stopping."
-                        )
-                    )
-                )
-            ]
+            description=f"Deep research protocol for: {topic}",
+            messages=[PromptMessage(role="user", content=TextContent(type="text", text=f"""\
+I need a deep, multi-source research session on: **{topic}**
+
+Follow this protocol strictly:
+
+### PHASE 1: KNOWLEDGE BASE FIRST
+- Call `search_knowledge_base` with the topic.
+- If good results exist, present them. Note which books they come from.
+
+### PHASE 2: FULL LIBRARY SEARCH
+- Call `search_books` to find all relevant books (aim for 3+ sources).
+- For each book found, call `search_within_book` to find the exact pages that discuss {topic}.
+- Call `get_book_details` to check if the book has a back-of-book index; if so, it might have more precise page numbers.
+
+### PHASE 3: PDF EXTRACTION (Required — do not skip)
+- For each relevant source (at least 2 books), call `get_book_pages_latex` to extract the actual content.
+- First use `read_pdf_pages` to verify the page offset if the page numbers seem off.
+- Present the extracted LaTeX/content from each source.
+
+### PHASE 4: SYNTHESIS
+- Synthesise the findings across all sources.
+- Note how different authors approach the topic differently.
+- Identify the most rigorous (or most accessible) treatment.
+
+### PHASE 5: OFFER TO STORE
+- Ask: "Would you like me to write this up as a permanent research note?"
+- If yes, follow the `note_writing_workflow`.
+"""))]
         )
-    elif name == "note_creation_workflow":
-        request = (arguments or {}).get("source_request", "a specific mathematical source")
-        prompt_text = f"""I want you to create or improve a high-fidelity research note based on this request: {request}
 
-Follow this exact multi-phase protocol:
-
-### PHASE 1: RESEARCH & PROPOSAL (The "Zwischenschritt")
-1. **Locate & Extract**: 
-   - Find the book(s) using `search_books`.
-   - Use `get_book_pages_latex` to retrieve high-quality, reusable LaTeX for the relevant pages.
-2. **Analysis**: Compare the source material with any existing notes if applicable.
-3. **The Proposal**: Stop and present a clear summary to the user:
-   - **Title & Metadata**: Proposed title, tags, MSC code, and book links.
-   - **Content Strategy**: What will be included in the note? (Definitions, Proofs, Intuition).
-   - **Structure**: How the Markdown and LaTeX will be organized. Note: Markdown should be formatted as a beautiful, standalone document (like a nice version of the PDF), AVOIDING Obsidian-specific syntax like [[double brackets]].
-   - **Wait for Approval**: Do not proceed to Phase 2 until the user gives the green light.
-
-### PHASE 2: AUTONOMOUS EXECUTION (After Approval)
-Once approved, execute the following WITHOUT further hints:
-1. **File Generation**:
-   - Create the note using `create_note`. You MUST provide both `markdown` and `latex` content.
-   - Format the Markdown content as a polished scholarly document.
-   - The system will automatically place technical metadata in a footer at the end of the file for portability.
-   - The system will automatically generate the `.md` and `.tex` files.
-2. **Metadata & Linking**:
-   - Use `add_note_book_relation` to link the note to the primary source book and page.
-   - Ensure the `tags`, `msc`, and `title` are set during creation or updated via `update_note_metadata`.
-3. **Compilation**:
-   - Immediately call `compile_note` to generate the `.pdf` version.
-4. **Final Delivery**:
-   - Confirm the Note ID and verify that all three formats (MD, LaTeX, PDF) are active and correctly linked.
-
-IMPORTANT: Aim for the highest scholarly standard. The note should be a permanent, high-fidelity artifact.
-"""
+    if name == "note_writing_workflow":
+        request = args.get("request", "a mathematical topic")
         return GetPromptResult(
-            description=f"High-fidelity note creation protocol for {request}",
-            messages=[PromptMessage(role="user", content=TextContent(type="text", text=prompt_text))]
+            description=f"Note writing workflow for: {request}",
+            messages=[PromptMessage(role="user", content=TextContent(type="text", text=f"""\
+I want you to write a high-quality research note about: **{request}**
+
+### PHASE 1: RESEARCH (Required before writing anything)
+1. Use `search_knowledge_base` to find pre-indexed terms.
+2. Use `search_books` and `search_within_book` to locate primary sources in the library.
+3. Use `get_book_pages_latex` on the relevant pages — **minimum 2 books, ideally 3**.
+4. Present a brief summary of what you found and where.
+
+### PHASE 2: DRAFT PROPOSAL
+Stop and present a draft to me:
+- **Title**: Descriptive, not just "Definition 2.3"
+- **Structure**: What sections the note will have
+- **Sources**: Which books / pages will be cited
+- **Content preview**: A few key statements in LaTeX
+
+Wait for my approval before continuing.
+
+### PHASE 3: CREATE THE NOTE (After approval only)
+Once I approve:
+1. Call `create_note` with:
+   - A polished `title`
+   - Full `markdown` content (well-structured, with LaTeX for math using `$...$`)
+   - Full `latex` content (proper LaTeX document, ready to compile)
+   - `tags`: comma-separated keywords
+2. Call `add_note_book_relation` to link the note to each source book with the correct page.
+3. Call `compile_note` to generate the PDF.
+4. Confirm the Note ID and all three formats (MD, LaTeX, PDF) are ready.
+
+IMPORTANT: The note should be a permanent, scholarly artifact — not a quick summary.
+"""))]
         )
-    
+
     raise ValueError(f"Unknown prompt: {name}")
 
-# --- Tool Definitions ---
+
+# ---------------------------------------------------------------------------
+# Tool Definitions
+# ---------------------------------------------------------------------------
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
-    """List all available tools."""
     return [
+
+        # ── LIBRARY SEARCH & DISCOVERY ──────────────────────────────────────
+
         Tool(
             name="search_books",
             description=(
                 "Search the mathematical library using hybrid vector + full-text search. "
-                "Supports optional AI-powered query expansion and result reranking. "
-                "Returns books and papers with metadata, snippets, and relevance scores."
+                "Returns books with metadata and relevance scores. "
+                "Always search with multiple queries to find all relevant sources before extracting content."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (e.g., 'linear algebra', 'topology')"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of results to return",
-                        "default": 10
-                    },
-                    "offset": {
-                        "type": "integer",
-                        "description": "Pagination offset (start index)",
-                        "default": 0
-                    },
-                    "use_fts": {
-                        "type": "boolean",
-                        "description": "Enable full-text search (BM25)",
-                        "default": True
-                    },
-                    "use_vector": {
-                        "type": "boolean",
-                        "description": "Enable vector similarity search",
-                        "default": True
-                    },
-                    "use_rerank": {
-                        "type": "boolean",
-                        "description": "Enable Gemini 2.0 AI reranking (slower, higher quality)",
-                        "default": False
-                    },
-                    "use_translate": {
-                        "type": "boolean",
-                        "description": "Enable AI query expansion with mathematical synonyms",
-                        "default": False
-                    },
-                    "field": {
-                        "type": "string",
-                        "enum": ["all", "title", "author", "index"],
-                        "description": "Target specific field (index search is highly recommended for terms)",
-                        "default": "all"
-                    }
+                    "query": {"type": "string", "description": "Search query (e.g., 'Banach spaces', 'Riemann integral')"},
+                    "limit": {"type": "integer", "default": 10},
+                    "use_fts": {"type": "boolean", "default": True},
+                    "use_vector": {"type": "boolean", "default": True},
+                    "field": {"type": "string", "enum": ["all", "title", "author", "index"], "default": "all"}
                 },
                 "required": ["query"]
             }
         ),
+
         Tool(
             name="get_book_details",
             description=(
                 "Retrieve comprehensive metadata for a specific book, including page count, "
-                "summary, MSC classification, and similar books. Essential for probing offsets."
+                "summary, MSC classification, and indexing status. "
+                "Always call this before extracting pages — it tells you if a deep index is available "
+                "and the page offset needed to find the correct PDF page."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID from search results"
-                    }
+                    "book_id": {"type": "integer", "description": "Book ID from search results"}
                 },
                 "required": ["book_id"]
             }
         ),
+
         Tool(
-            name="read_pdf_pages",
+            name="get_book_toc",
             description=(
-                "Extract raw, unformatted text from PDF page ranges. "
-                "FREE/COST-EFFICIENT. Use this to verify page offsets (finding the printed page number) "
-                "before using the AI-powered 'get_book_pages_latex'.\n"
-                "WARNING: DO NOT use this to blindly read the entire Table of Contents. Use 'search_within_book' instead."
+                "Retrieve the structured Table of Contents for a book. "
+                "Use this to understand which chapter covers a topic and its logical page range."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID"
-                    },
-                    "pages": {
-                        "type": "string",
-                        "description": "Page range (e.g., '10', '10-15', '10,12,15')"
-                    }
+                    "book_id": {"type": "integer"}
                 },
-                "required": ["book_id", "pages"]
+                "required": ["book_id"]
             }
         ),
+
         Tool(
-            name="convert_pdf_to_note",
+            name="search_within_book",
             description=(
-                "DEPRECATED: Use 'get_book_pages_latex' for research and content extraction. "
-                "This tool creates a permanent research note from PDF pages. Use it ONLY if you "
-                "specifically want to create a new, standalone entry in the notes database."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID"
-                    },
-                    "pages": {
-                        "type": "string",
-                        "description": "Page range (e.g., '10', '10-15')"
-                    }
-                },
-                "required": ["book_id", "pages"]
-            }
-        ),
-        Tool(
-            name="get_book_pages_latex",
-            description=(
-                "REUSABLE HIGH-QUALITY LATEX: Retrieve or trigger AI conversion of book pages into beautiful LaTeX. "
-                "WARNING: DO NOT use this tool on Table of Contents (TOC) pages or the Index. "
-                "Using this on TOC pages wastes massive AI resources and hallucinate garbage Knowledge Base proposals. "
-                "Only use this tool ONCE YOU ALREADY KNOW the exact page number that contains the actual theorem or math content you need."
+                "Search for a term or phrase within a specific book's pages. "
+                "Returns page numbers and snippets. Run `deep_index_book` first for best results."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "book_id": {"type": "integer"},
-                    "pages": {"type": "string", "description": "Page range (e.g., '10-12')"},
-                    "refresh": {"type": "boolean", "description": "Force a new AI conversion even if cached", "default": False},
-                    "min_quality": {"type": "number", "description": "Minimum acceptable quality score (0.0-1.0)", "default": 0.7}
+                    "query": {"type": "string", "description": "Term or phrase to find (e.g., 'Cauchy sequence', 'Hahn-Banach')"}
                 },
-                "required": ["book_id", "pages"]
+                "required": ["book_id", "query"]
             }
         ),
+
         Tool(
-            name="trigger_ingestion",
+            name="deep_index_book",
             description=(
-                "Trigger the book ingestion pipeline to process new PDFs and DjVu files. "
-                "This admin tool scans the 'Unsorted' directory, extracts metadata using Gemini, "
-                "performs deduplication, and routes files to the appropriate library folders."
+                "Enable page-level full-text search for a book. "
+                "Call this once per book before using `search_within_book` for accurate results."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "dry_run": {
-                        "type": "boolean",
-                        "description": "Preview changes without executing (recommended: true)",
-                        "default": True
-                    }
-                },
-                "required": []
-            }
-        ),
-        Tool(
-            name="get_book_toc",
-            description=(
-                "Retrieve the structured Table of Contents (TOC) for a book. "
-                "Use this to understand the book's structure and finding logical page numbers."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID"
-                    }
+                    "book_id": {"type": "integer"}
                 },
                 "required": ["book_id"]
             }
         ),
+
         Tool(
-            name="get_system_state",
+            name="reindex_book",
             description=(
-                "Retrieve the current state of the MathStudio Web UI. "
-                "Tells you which book the user is currently looking at or which action was last performed."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        ),
-        Tool(
-            name="update_metadata",
-            description=(
-                "Update the metadata for a specific book. "
-                "Use this to fix typos, update summaries, or apply AI-suggested metadata."
+                "Rebuild a book's Table of Contents or back-of-book Index using AI. "
+                "Use when `get_book_details` shows TOC or Index is missing.\n"
+                "Modes: 'toc' | 'index' | 'auto' (both)"
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "book_id": {"type": "integer", "description": "The ID of the book to update"},
+                    "book_id": {"type": "integer"},
+                    "mode": {"type": "string", "enum": ["toc", "index", "auto"], "default": "auto"}
+                },
+                "required": ["book_id"]
+            }
+        ),
+
+        # ── PDF CONTENT EXTRACTION ───────────────────────────────────────────
+
+        Tool(
+            name="read_pdf_pages",
+            description=(
+                "Extract raw (unformatted) text from PDF pages. FREE and instant. "
+                "Use this to verify page offsets: peek at a page, read its printed number, "
+                "calculate the difference from the PDF page index, then use `get_book_pages_latex` "
+                "on the correct page. Do not use this to read entire chapters."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
+                    "pages": {"type": "string", "description": "Page range (e.g., '10', '10-15', '10,12')"}
+                },
+                "required": ["book_id", "pages"]
+            }
+        ),
+
+        Tool(
+            name="get_book_pages_latex",
+            description=(
+                "CORE EXTRACTION TOOL. Convert book pages to high-quality LaTeX using AI vision. "
+                "Results are cached — subsequent calls for the same page are instant. "
+                "USE THIS on every source book when researching. Minimum 2 source books per research session. "
+                "WARNING: Never use on Table of Contents or Index pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
+                    "pages": {"type": "string", "description": "Page range (e.g., '112-115')"},
+                    "refresh": {"type": "boolean", "description": "Force re-conversion (overrides cache)", "default": False},
+                    "min_quality": {"type": "number", "description": "Minimum quality score (0.0–1.0)", "default": 0.7}
+                },
+                "required": ["book_id", "pages"]
+            }
+        ),
+
+        Tool(
+            name="synthesize_page_knowledge",
+            description=(
+                "Extract Knowledge Base terms (theorems, definitions, lemmas) from specific book pages "
+                "and add them to the Knowledge Base draft queue for review. "
+                "Call this after `get_book_pages_latex` when a page contains formal mathematical content "
+                "you want permanently indexed in the KB."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
+                    "page": {"type": "string", "description": "Single page or range to synthesise (e.g., '112', '112-114')"}
+                },
+                "required": ["book_id", "page"]
+            }
+        ),
+
+        # ── KNOWLEDGE BASE ────────────────────────────────────────────────────
+
+        Tool(
+            name="search_knowledge_base",
+            description=(
+                "Search the Knowledge Base for indexed theorems, definitions, and mathematical results. "
+                "These are human-reviewed, high-quality extractions with full LaTeX content. "
+                "Always check here first before doing a full PDF extraction."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search term (e.g., 'Hahn-Banach', 'Lipschitz continuity')"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["theorem", "definition", "lemma", "proposition", "corollary", "example", "remark", "note"],
+                        "description": "Filter by term type"
+                    },
+                    "limit": {"type": "integer", "default": 20}
+                },
+                "required": ["query"]
+            }
+        ),
+
+        Tool(
+            name="get_kb_term",
+            description=(
+                "Retrieve the full content of a specific Knowledge Base entry, including "
+                "the complete LaTeX snippet, source book, and page number."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "term_id": {"type": "integer", "description": "Term ID from search_knowledge_base results"}
+                },
+                "required": ["term_id"]
+            }
+        ),
+
+        # ── BOOK METADATA ─────────────────────────────────────────────────────
+
+        Tool(
+            name="update_book_metadata",
+            description="Correct or update a book's metadata (title, author, year, MSC code, summary, tags).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
                     "title": {"type": "string"},
                     "author": {"type": "string"},
                     "publisher": {"type": "string"},
@@ -371,100 +412,41 @@ async def list_tools() -> list[Tool]:
                     "summary": {"type": "string"},
                     "tags": {"type": "string"},
                     "level": {"type": "string"},
-                    "audience": {"type": "string"}
                 },
                 "required": ["book_id"]
             }
         ),
+
         Tool(
-            name="deep_index_book",
+            name="enrich_book_metadata",
             description=(
-                "Perform page-level indexing for a specific book. This enables highly accurate "
-                "search within the book's content. Use this when you need to find specific "
-                "definitions or theorems in a book that doesn't have a reliable TOC."
+                "Fetch professional metadata for a book from zbMATH Open (MSC codes, expert reviews, keywords). "
+                "Requires the book to have a DOI or zbMATH ID."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID"
-                    }
+                    "book_id": {"type": "integer"}
                 },
                 "required": ["book_id"]
             }
         ),
+
         Tool(
-            name="search_within_book",
-            description=(
-                "Search for a term or phrase within a specific book. Returns page numbers and snippets. "
-                "For best results, run 'deep_index_book' first if the book hasn't been deep-indexed."
-            ),
+            name="refresh_book_metadata",
+            description="Re-run the AI metadata extraction pipeline for a book (title, author, summary, MSC).",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID"
-                    },
-                    "query": {
-                        "type": "string",
-                        "description": "Term or phrase to search for"
-                    }
-                },
-                "required": ["book_id", "query"]
-            }
-        ),
-        Tool(
-            name="reindex_book",
-            description=(
-                "Trigger AI-driven reconstruction of a book's structure. "
-                "Use this when the Table of Contents (TOC) is missing or the Back-of-Book Index is empty. "
-                "Modes:\n"
-                "- 'toc': Reconstructs the TOC from the first 20 pages (using Gemini).\n"
-                "- 'index': Reconstructs the Index from the last 50 pages (using Gemini).\n"
-                "- 'auto': Performs both."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {"type": "integer", "description": "Book ID"},
-                    "mode": {
-                        "type": "string",
-                        "enum": ["toc", "index", "auto"],
-                        "default": "auto"
-                    }
+                    "book_id": {"type": "integer"}
                 },
                 "required": ["book_id"]
             }
         ),
-        Tool(
-            name="browse_library",
-            description="Browse library by metadata filters: author, msc, year, keyword.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "author": {"type": "string"},
-                    "msc": {"type": "string", "description": "MSC code (e.g. '11', '11R', '11R23')"},
-                    "year": {"type": "integer"},
-                    "keyword": {"type": "string"},
-                    "limit": {"type": "integer", "default": 100}
-                }
-            }
-        ),
-        Tool(
-            name="get_msc_stats",
-            description="Returns book counts per MSC code at all levels.",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="get_msc_tree",
-            description="Retrieve the full MSC 2020 hierarchy.",
-            inputSchema={"type": "object", "properties": {}}
-        ),
+
         Tool(
             name="scan_bibliography",
-            description="Scans book pages for bibliography entries using Vision LLM.",
+            description="Extract bibliography entries from a book's reference pages using AI vision.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -473,55 +455,27 @@ async def list_tools() -> list[Tool]:
                 "required": ["book_id"]
             }
         ),
-        Tool(
-            name="resolve_citations",
-            description="Triggers background resolution of citations for a book.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {"type": "integer"}
-                },
-                "required": ["book_id"]
-            }
-        ),
+
+        # ── NOTES ─────────────────────────────────────────────────────────────
+
         Tool(
             name="list_notes",
-            description="List structured notes from the database.",
+            description=(
+                "List research notes in the database. "
+                "Includes handwritten-scan notes and LLM-authored notes."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "type": {"type": "string", "enum": ["transcription", "handwritten", "converted"]},
-                    "book_id": {"type": "integer"},
+                    "book_id": {"type": "integer", "description": "Filter by source book"},
                     "limit": {"type": "integer", "default": 50}
                 }
             }
         ),
-        Tool(
-            name="search_notes",
-            description="Full-text search over structured notes.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "limit": {"type": "integer", "default": 50}
-                },
-                "required": ["query"]
-            }
-        ),
-        Tool(
-            name="get_note_details",
-            description="Retrieve detailed metadata and paths for a specific note.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "note_id": {"type": "integer"}
-                },
-                "required": ["note_id"]
-            }
-        ),
+
         Tool(
             name="get_note_content",
-            description="Retrieve the full markdown and latex content of a note.",
+            description="Retrieve the full Markdown and LaTeX content of a research note.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -530,93 +484,59 @@ async def list_tools() -> list[Tool]:
                 "required": ["note_id"]
             }
         ),
+
+        Tool(
+            name="create_note",
+            description=(
+                "Create and store a new research note. "
+                "Use this ONLY after presenting a draft to the user and receiving approval. "
+                "Provide both markdown and latex for full functionality."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Descriptive title (not just e.g., 'Definition 2.3')"},
+                    "markdown": {"type": "string", "description": "Full Markdown content with inline LaTeX ($...$)"},
+                    "latex": {"type": "string", "description": "Full LaTeX document for PDF compilation"},
+                    "tags": {"type": "string", "description": "Comma-separated subject keywords"},
+                    "msc": {"type": "string", "description": "MSC 2020 classification code"}
+                },
+                "required": ["title", "markdown"]
+            }
+        ),
+
         Tool(
             name="update_note_content",
-            description="Update the markdown and/or latex content of a note.",
+            description="Update the Markdown and/or LaTeX content of an existing note.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "note_id": {"type": "integer"},
-                    "markdown": {"type": "string", "description": "New markdown content"},
-                    "latex": {"type": "string", "description": "New latex content"}
+                    "markdown": {"type": "string"},
+                    "latex": {"type": "string"}
                 },
                 "required": ["note_id"]
             }
         ),
-        Tool(
-            name="update_note_metadata",
-            description="Update note metadata such as title, tags, and msc classification.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "note_id": {"type": "integer"},
-                    "title": {"type": "string"},
-                    "tags": {"type": "string", "description": "Comma-separated tags"},
-                    "msc": {"type": "string"}
-                },
-                "required": ["note_id"]
-            }
-        ),
-        Tool(
-            name="get_note_metadata",
-            description="Alias for get_note_details. Retrieve note metadata.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "note_id": {"type": "integer"}
-                },
-                "required": ["note_id"]
-            }
-        ),
-        Tool(
-            name="get_note_pdf",
-            description="Retrieve information about a note's compiled PDF file.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "note_id": {"type": "integer"}
-                },
-                "required": ["note_id"]
-            }
-        ),
+
         Tool(
             name="add_note_book_relation",
-            description="Link a note to a specific book and page number. This creates a persistent connection between a research note and its primary source.",
+            description="Link a note to a source book and page number, creating a permanent citation.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "note_id": {"type": "integer"},
                     "book_id": {"type": "integer"},
-                    "page": {"type": "integer", "description": "Optional page number in the book"},
+                    "page": {"type": "integer", "description": "Source page number"},
                     "relation_type": {"type": "string", "default": "references"}
                 },
                 "required": ["note_id", "book_id"]
             }
         ),
-        Tool(
-            name="create_note",
-            description=(
-                "Create a new mathematical research note (essay, derivation, synthesis). "
-                "Automatically triggers PDF compilation if LaTeX is provided. "
-                "FOR ATOMIC MATHEMATICAL FACTS (Definitions, Theorems), use `ingest_kb_draft` instead."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string", "description": "A descriptive title for the note"},
-                    "markdown": {"type": "string", "description": "High-quality Markdown content (Obsidian-flavored)"},
-                    "latex": {"type": "string", "description": "Clean LaTeX code for PDF generation"},
-                    "tags": {"type": "string", "description": "Comma-separated keywords"},
-                    "msc": {"type": "string", "description": "Likely MSC classification code"},
-                    "book_id": {"type": "integer", "description": "Optional ID of the source book"},
-                    "compile": {"type": "boolean", "default": True, "description": "Immediately trigger PDF compilation"}
-                },
-                "required": ["title", "markdown"]
-            }
-        ),
+
         Tool(
             name="compile_note",
-            description="Trigger LaTeX compilation for a specific note to generate its PDF representation.",
+            description="Compile a note's LaTeX to PDF. Call this after creating or updating a note with LaTeX content.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -625,1141 +545,470 @@ async def list_tools() -> list[Tool]:
                 "required": ["note_id"]
             }
         ),
+
         Tool(
             name="upload_note_scan",
-            description="Upload an image scan of a handwritten note to transcribe and store.",
+            description="Transcribe a handwritten note image (photo/scan) into Markdown + LaTeX and store it.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "file_path": {"type": "string", "description": "Local path to the image file"}
+                    "file_path": {"type": "string", "description": "Absolute path to the image file"}
                 },
                 "required": ["file_path"]
             }
         ),
+
+        # ── CONTEXT & BOOKMARKS ───────────────────────────────────────────────
+
         Tool(
-            name="compile_notes",
-            description="Triggers compilation of LaTeX notes into category and master PDFs.",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="refresh_book_metadata",
-            description="Triggers the Universal Vision-Reflection Pipeline to refresh book metadata.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {"type": "integer"}
-                },
-                "required": ["book_id"]
-            }
-        ),
-        Tool(
-            name="preview_metadata_refresh",
-            description="Generates a metadata update proposal using the pipeline (no save).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {"type": "integer"}
-                },
-                "required": ["book_id"]
-            }
-        ),
-        Tool(
-            name="batch_enrich_books",
-            description="Triggers batch enrichment for raw books using external sources.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "limit": {"type": "integer", "default": 50}
-                }
-            }
-        ),
-        Tool(
-            name="get_library_stats",
-            description="Returns general library statistics (total books, categories, publishers).",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="rebuild_fts_index",
-            description="Rebuilds the books_fts search index.",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="run_sanity_fix",
-            description="Runs library sanity checks and attempts to fix common issues.",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="manage_wishlist",
-            description="Add or list items in the book wishlist.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "action": {"type": "string", "enum": ["add", "list"]},
-                    "title": {"type": "string"},
-                    "author": {"type": "string"},
-                    "doi": {"type": "string"}
-                },
-                "required": ["action"]
-            }
-        ),
-        Tool(
-            name="open_external_file",
-            description="Opens a file using the system's default handler (Desktop mode).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Relative path from library root"}
-                },
-                "required": ["path"]
-            }
-        ),
-        Tool(
-            name="enrich_book_metadata",
-            description=(
-                "Connect to zbMATH Open API to enrich a book with professional metadata, "
-                "MSC classifications, and expert reviews. Requires a DOI or Zbl ID to be present."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "book_id": {"type": "integer", "description": "Book ID"}
-                },
-                "required": ["book_id"]
-            }
-        ),
-        Tool(
-            name="manage_bookmarks",
-            description=(
-                "Manage persistent bookmarks for key pages or problems. "
-                "Actions: 'create', 'list', 'delete'."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "action": {
-                        "type": "string",
-                        "enum": ["create", "list", "delete"],
-                        "description": "Action to perform"
-                    },
-                    "book_id": {
-                        "type": "integer",
-                        "description": "Book ID (required for create/list)"
-                    },
-                    "page_range": {
-                        "type": "string",
-                        "description": "Page range (e.g., '10-15') (for create)"
-                    },
-                    "tags": {
-                        "type": "string",
-                        "description": "Comma-separated tags (for create/list)"
-                    },
-                    "notes": {
-                        "type": "string",
-                        "description": "Notes or comments (for create)"
-                    },
-                    "bookmark_id": {
-                        "type": "integer",
-                        "description": "Bookmark ID (required for delete)"
-                    }
-                },
-                "required": ["action"]
-            }
-        ),
-        # --- Knowledge Base Tools ---
-        Tool(
-            name="search_knowledge",
-            description="Search the mathematical knowledge base for theorems, definitions, and concepts. Returns matching concepts with their location counts.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search term (e.g. 'Banach Fixed Point')"},
-                    "kind": {"type": "string", "enum": ["definition", "theorem", "lemma", "proposition", "corollary", "example", "axiom", "notation"]},
-                    "limit": {"type": "integer", "default": 20}
-                },
-                "required": ["query"]
-            }
-        ),
-        Tool(
-            name="get_concept_details",
-            description="Retrieve a concept with all its book locations and cached LaTeX content. Shows where this theorem/definition appears across the library.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "concept_id": {"type": "integer"}
-                },
-                "required": ["concept_id"]
-            }
+            name="get_system_state",
+            description="Read the current Web UI state — tells you which book the user is currently viewing.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
         ),
 
         Tool(
-            name="list_kb_proposals",
-            description="List pending auto-discovered theorems/definitions that need human review. These are found during PDF-to-LaTeX conversion.",
+            name="manage_bookmarks",
+            description=(
+                "Save, list, or delete bookmarks for important book pages. "
+                "Actions: 'create' | 'list' | 'delete'."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "status": {"type": "string", "default": "pending", "enum": ["pending", "approved", "merged", "rejected"]},
-                    "limit": {"type": "integer", "default": 50}
-                }
+                    "action": {"type": "string", "enum": ["create", "list", "delete"]},
+                    "book_id": {"type": "integer"},
+                    "page_range": {"type": "string", "description": "e.g., '112-115'"},
+                    "tags": {"type": "string"},
+                    "notes": {"type": "string"},
+                    "bookmark_id": {"type": "integer", "description": "Required for delete"}
+                },
+                "required": ["action"]
             }
         ),
     ]
 
 
+# ---------------------------------------------------------------------------
+# Tool Dispatch
+# ---------------------------------------------------------------------------
+
 @app.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
-    """Execute a tool."""
     try:
-        if name == "search_books":
-            return await search_books(arguments)
-        elif name == "get_book_details":
-            return await get_book_details(arguments)
-        elif name == "read_pdf_pages":
-            return await read_pdf_pages(arguments)
-        elif name == "convert_pdf_to_note":
-            return await convert_pdf_to_note(arguments)
-        elif name == "get_book_pages_latex":
-            return await get_book_pages_latex(arguments)
-        elif name == "trigger_ingestion":
-            return await trigger_ingestion(arguments)
-        elif name == "get_book_toc":
-            return await get_book_toc(arguments)
-        elif name == "get_system_state":
-            return await get_system_state(arguments)
-        elif name == "update_metadata":
-            return await update_metadata(arguments)
-        elif name == "manage_bookmarks":
-            return await manage_bookmarks(arguments)
-        elif name == "browse_library":
-            return await browse_library(arguments)
-        elif name == "get_msc_stats":
-            return await get_msc_stats(arguments)
-        elif name == "get_msc_tree":
-            return await get_msc_tree(arguments)
-        elif name == "scan_bibliography":
-            return await scan_bibliography(arguments)
-        elif name == "resolve_citations":
-            return await resolve_citations(arguments)
-        elif name == "list_notes":
-            return await list_notes(arguments)
-        elif name == "search_notes":
-            return await search_notes(arguments)
-        elif name == "get_note_details":
-            return await get_note_details(arguments)
-        elif name == "get_note_content":
-            return await get_note_content(arguments)
-        elif name == "update_note_content":
-            return await update_note_content(arguments)
-        elif name == "update_note_metadata":
-            return await update_note_metadata_note(arguments)
-        elif name == "get_note_metadata":
-            return await get_note_details(arguments)
-        elif name == "get_note_pdf":
-            return await get_note_pdf(arguments)
-        elif name == "add_note_book_relation":
-            return await add_note_book_relation(arguments)
-        elif name == "create_note":
-            return await create_note(arguments)
-        elif name == "compile_note":
-            return await compile_note(arguments)
-        elif name == "upload_note_scan":
-            return await upload_note_scan(arguments)
-        elif name == "compile_notes":
-            return await compile_notes(arguments)
-        elif name == "refresh_book_metadata":
-            return await refresh_book_metadata(arguments)
-        elif name == "preview_metadata_refresh":
-            return await preview_metadata_refresh(arguments)
-        elif name == "batch_enrich_books":
-            return await batch_enrich_books(arguments)
-        elif name == "get_library_stats":
-            return await get_library_stats(arguments)
-        elif name == "rebuild_fts_index":
-            return await rebuild_fts_index(arguments)
-        elif name == "run_sanity_fix":
-            return await run_sanity_fix(arguments)
-        elif name == "manage_wishlist":
-            return await manage_wishlist(arguments)
-        elif name == "open_external_file":
-            return await open_external_file(arguments)
-        elif name == "reindex_book":
-            return await reindex_book(arguments)
-        elif name == "enrich_book_metadata":
-            return await enrich_book_metadata(arguments)
-        elif name == "deep_index_book":
-            return await deep_index_book(arguments)
-        elif name == "search_within_book":
-            return await search_within_book(arguments)
-        # --- Knowledge Base Tools ---
-        elif name == "search_knowledge":
-            return await search_knowledge(arguments)
-        elif name == "get_concept_details":
-            return await get_concept_details(arguments)
-
-        elif name == "list_kb_proposals":
-            return await list_kb_proposals(arguments)
-        else:
+        dispatch = {
+            # Search & discovery
+            "search_books": search_books,
+            "get_book_details": get_book_details,
+            "get_book_toc": get_book_toc,
+            "search_within_book": search_within_book,
+            "deep_index_book": deep_index_book,
+            "reindex_book": reindex_book,
+            # Extraction
+            "read_pdf_pages": read_pdf_pages,
+            "get_book_pages_latex": get_book_pages_latex,
+            "synthesize_page_knowledge": synthesize_page_knowledge,
+            # Knowledge Base
+            "search_knowledge_base": search_knowledge_base,
+            "get_kb_term": get_kb_term,
+            # Book metadata
+            "update_book_metadata": update_book_metadata,
+            "enrich_book_metadata": enrich_book_metadata,
+            "refresh_book_metadata": refresh_book_metadata,
+            "scan_bibliography": scan_bibliography,
+            # Notes
+            "list_notes": list_notes,
+            "get_note_content": get_note_content,
+            "create_note": create_note,
+            "update_note_content": update_note_content,
+            "add_note_book_relation": add_note_book_relation,
+            "compile_note": compile_note,
+            "upload_note_scan": upload_note_scan,
+            # Context
+            "get_system_state": get_system_state,
+            "manage_bookmarks": manage_bookmarks,
+        }
+        fn = dispatch.get(name)
+        if fn is None:
             raise ValueError(f"Unknown tool: {name}")
+        import time as _time
+        _t0 = _time.time()
+        args_summary = json.dumps(arguments or {}, ensure_ascii=False)[:300]
+        logger.info(f"→ TOOL CALL: {name}  args={args_summary}")
+        result = await fn(arguments or {})
+        elapsed = _time.time() - _t0
+        result_len = sum(len(r.text) for r in result) if result else 0
+        logger.info(f"← TOOL DONE: {name}  {elapsed:.1f}s  response={result_len} chars")
+        return result
     except Exception as e:
-        logger.error(f"Tool execution error: {e}", exc_info=True)
+        logger.error(f"✗ TOOL ERROR [{name}]: {e}", exc_info=True)
         return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
-# --- Tool Implementations ---
-
-async def browse_library(args: dict) -> list[TextContent]:
-    """Browse the library by metadata."""
-    params = {
-        "author": args.get("author"),
-        "msc": args.get("msc"),
-        "year": args.get("year"),
-        "keyword": args.get("keyword"),
-        "limit": args.get("limit", 100)
-    }
-    # Filter out None values
-    params = {k: v for k, v in params.items() if v is not None}
-    
-    response = requests.get(f"{API_BASE}/browse", params=params, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    
-    results = data.get("results", [])
-    if not results:
-        return [TextContent(type="text", text="No books found matching the criteria.")]
-        
-    output = f"Browsing results ({data.get('filter', 'N/A')}):\n\n"
-    for i, book in enumerate(results, 1):
-        output += f"{i}. **{book['title']}** by {book['author']} (ID: {book['id']})\n"
-        
-    return [TextContent(type="text", text=output)]
-
-
-async def get_msc_stats(args: dict) -> list[TextContent]:
-    """Get MSC statistics."""
-    response = requests.get(f"{API_BASE}/msc-stats", timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
-
-
-async def get_msc_tree(args: dict) -> list[TextContent]:
-    """Get full MSC hierarchy."""
-    response = requests.get(f"{API_BASE}/msc-tree", timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text="MSC Tree retrieved (JSON). Use this for classification hierarchy.")]
-
-
-async def scan_bibliography(args: dict) -> list[TextContent]:
-    """Scan book bibliography."""
-    book_id = args["book_id"]
-    response = requests.post(f"{API_BASE}/tools/bib-scan", json={"book_id": book_id}, timeout=300)
-    
-    if response.ok:
-        # The API returns rendered HTML in some cases, but for MCP we want the data
-        # Note: api_v1.py bib_scan_tool currently returns render_template('bib_results.html')
-        # This might be a problem for MCP. I should check if it can return JSON.
-        # Actually, looking at api_v1.py, it returns render_template.
-        # I'll suggest a fix for that later or just return a success message here.
-        return [TextContent(type="text", text=f"✓ Bibliography scan triggered for book {book_id}. View results in Web UI or wait for resolution.")]
-    else:
-        return [TextContent(type="text", text=f"✗ Scan failed: {response.text}")]
-
-
-async def resolve_citations(args: dict) -> list[TextContent]:
-    """Resolve book citations."""
-    book_id = args["book_id"]
-    response = requests.post(f"{API_BASE}/books/{book_id}/citations/resolve", timeout=300)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Citation resolution completed for book {book_id}.")]
-
-
-async def list_notes(args: dict) -> list[TextContent]:
-    """List structured notes."""
-    params = {
-        "type": args.get("type"),
-        "book_id": args.get("book_id"),
-        "limit": args.get("limit", 50)
-    }
-    response = requests.get(f"{API_BASE}/notes", params=params, timeout=10)
-    response.raise_for_status()
-    notes = response.json()
-    
-    if not notes:
-        return [TextContent(type="text", text="No notes found.")]
-        
-    output = "Structured Notes:\n\n"
-    for n in notes:
-        output += f"- [ID {n['id']}] **{n['title']}** ({n.get('source_type', 'N/A')})\n"
-        
-    return [TextContent(type="text", text=output)]
-
-
-async def search_notes(args: dict) -> list[TextContent]:
-    """Search structured notes."""
-    params = {"q": args["query"], "limit": args.get("limit", 50)}
-    response = requests.get(f"{API_BASE}/notes/search", params=params, timeout=10)
-    response.raise_for_status()
-    results = response.json()
-    
-    if not results:
-        return [TextContent(type="text", text=f"No notes found for '{args['query']}'.")]
-        
-    output = f"Search results for notes: '{args['query']}':\n\n"
-    for r in results:
-        output += f"- [ID {r['id']}] **{r['title']}**\n"
-        if r.get('snippet'):
-            output += f"  Snippet: {r['snippet']}\n"
-            
-    return [TextContent(type="text", text=output)]
-
-
-async def get_note_details(args: dict) -> list[TextContent]:
-    """Get note details."""
-    note_id = args["note_id"]
-    response = requests.get(f"{API_BASE}/notes/{note_id}", timeout=10)
-    response.raise_for_status()
-    n = response.json()
-    
-    output = f"# {n['title']}\n"
-    output += f"ID: {n['id']} | Type: {n['source_type']} | Created: {n['created_at']}\n"
-    if n.get('tags'): output += f"Tags: {n['tags']}\n"
-    if n.get('msc'): output += f"MSC: {n['msc']}\n"
-    output += "\n"
-    
-    if n.get('markdown_path'):
-        output += f"- Markdown: {n['markdown_path']}\n"
-    if n.get('latex_path'):
-        output += f"- LaTeX: {n['latex_path']}\n"
-    if n.get('pdf_path'):
-        output += f"- PDF: {n['pdf_path']}\n"
-        
-    return [TextContent(type="text", text=output)]
-
-
-async def get_note_content(args: dict) -> list[TextContent]:
-    """Get the full content of a note."""
-    note_id = args["note_id"]
-    response = requests.get(f"{API_BASE}/notes/{note_id}/content", timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    
-    output = ""
-    if data.get('markdown'):
-        output += "### Markdown Content\n"
-        output += "```markdown\n"
-        output += data['markdown']
-        output += "\n```\n\n"
-        
-    if data.get('latex'):
-        output += "### LaTeX Content\n"
-        output += "```latex\n"
-        output += data['latex']
-        output += "\n```\n"
-        
-    if not output:
-        return [TextContent(type="text", text="Note has no markdown or latex content.")]
-        
-    return [TextContent(type="text", text=output)]
-
-
-async def update_note_content(args: dict) -> list[TextContent]:
-    """Update note content."""
-    note_id = args["note_id"]
-    payload = {
-        "markdown": args.get("markdown"),
-        "latex": args.get("latex")
-    }
-    response = requests.patch(f"{API_BASE}/notes/{note_id}/content", json=payload, timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Content for note {note_id} updated successfully.")]
-
-
-async def update_note_metadata_note(args: dict) -> list[TextContent]:
-    """Update note metadata."""
-    note_id = args.pop("note_id")
-    response = requests.patch(f"{API_BASE}/notes/{note_id}/metadata", json=args, timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Metadata for note {note_id} updated successfully.")]
-
-
-async def get_note_pdf(args: dict) -> list[TextContent]:
-    """Get note PDF information."""
-    note_id = args["note_id"]
-    response = requests.get(f"{API_BASE}/notes/{note_id}", timeout=10)
-    response.raise_for_status()
-    n = response.json()
-    
-    if not n.get('pdf_path'):
-        return [TextContent(type="text", text=f"Note {note_id} does not have a compiled PDF yet. Use 'compile_notes' to generate it.")]
-        
-    return [TextContent(type="text", text=f"PDF Path: {n['pdf_path']}\nYou can download it via: {API_BASE}/notes/{note_id}/pdf")]
-
-
-async def add_note_book_relation(args: dict) -> list[TextContent]:
-    """Link a note to a book."""
-    note_id = args["note_id"]
-    payload = {
-        "book_id": args["book_id"],
-        "page": args.get("page"),
-        "type": args.get("relation_type", "references")
-    }
-    response = requests.post(f"{API_BASE}/notes/{note_id}/books", json=payload, timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Persistent connection created: Note {note_id} linked to Book {args['book_id']}.")]
-
-
-async def create_note(args: dict) -> list[TextContent]:
-    """Create a new note."""
-    response = requests.post(f"{API_BASE}/notes", json=args, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    return [TextContent(type="text", text=f"✓ Note created successfully (ID: {data['id']}).")]
-
-
-async def compile_note(args: dict) -> list[TextContent]:
-    """Compile a note to PDF."""
-    note_id = args["note_id"]
-    response = requests.post(f"{API_BASE}/notes/{note_id}/compile", timeout=120)
-    
-    if response.ok:
-        data = response.json()
-        return [TextContent(type="text", text=f"✓ Compilation successful. PDF generated at: {data['pdf_path']}")]
-    else:
-        error_msg = response.json().get('error', 'Unknown error')
-        return [TextContent(type="text", text=f"✗ Compilation failed: {error_msg}")]
-
-
-async def upload_note_scan(args: dict) -> list[TextContent]:
-    """Upload and transcribe a note scan."""
-    file_path = Path(args["file_path"])
-    if not file_path.exists():
-        return [TextContent(type="text", text=f"Error: File not found at {file_path}")]
-        
-    with open(file_path, 'rb') as f:
-        files = {'file': (file_path.name, f, 'image/jpeg')}
-        response = requests.post(f"{API_BASE}/notes/upload", files=files, timeout=60)
-        
-    if response.ok:
-        data = response.json()
-        return [TextContent(type="text", text=f"✓ Note uploaded and transcribed (ID: {data['id']}).\n\nTranscription:\n{data['transcription']}")]
-    else:
-        return [TextContent(type="text", text=f"✗ Upload failed: {response.text}")]
-
-
-async def compile_notes(args: dict) -> list[TextContent]:
-    """Compile all notes."""
-    response = requests.post(f"{API_BASE}/notes/compile", timeout=300)
-    response.raise_for_status()
-    data = response.json()
-    return [TextContent(type="text", text=f"✓ Compilation complete: {data.get('message', 'Check logs')}")]
-
-
-async def refresh_book_metadata(args: dict) -> list[TextContent]:
-    """Refresh book metadata via pipeline."""
-    book_id = args["book_id"]
-    response = requests.post(f"{API_BASE}/books/{book_id}/metadata/refresh", timeout=180)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Metadata refreshed for book {book_id}.")]
-
-
-async def preview_metadata_refresh(args: dict) -> list[TextContent]:
-    """Preview metadata refresh."""
-    book_id = args["book_id"]
-    response = requests.post(f"{API_BASE}/books/{book_id}/metadata/refresh/preview", timeout=180)
-    response.raise_for_status()
-    return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
-
-
-async def batch_enrich_books(args: dict) -> list[TextContent]:
-    """Batch enrich books."""
-    payload = {"limit": args.get("limit", 50)}
-    response = requests.post(f"{API_BASE}/admin/enrich/batch", json=payload, timeout=600)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Batch enrichment completed. {json.dumps(response.json(), indent=2)}")]
-
-
-async def get_library_stats(args: dict) -> list[TextContent]:
-    """Get library statistics."""
-    response = requests.get(f"{API_BASE}/admin/stats", timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text=json.dumps(response.json(), indent=2))]
-
-
-async def rebuild_fts_index(args: dict) -> list[TextContent]:
-    """Rebuild FTS index."""
-    response = requests.post(f"{API_BASE}/admin/indexer", timeout=300)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ FTS index rebuilt: {response.json().get('message')}")]
-
-
-async def run_sanity_fix(args: dict) -> list[TextContent]:
-    """Run sanity fix."""
-    response = requests.post(f"{API_BASE}/admin/sanity/fix", timeout=300)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Sanity fix completed. {json.dumps(response.json(), indent=2)}")]
-
-
-async def manage_wishlist(args: dict) -> list[TextContent]:
-    """Manage wishlist."""
-    action = args["action"]
-    if action == "add":
-        payload = {
-            "title": args["title"],
-            "author": args.get("author"),
-            "doi": args.get("doi")
-        }
-        response = requests.post(f"{API_BASE}/wishlist", json=payload, timeout=10)
-        response.raise_for_status()
-        return [TextContent(type="text", text=f"✓ Added to wishlist (ID: {response.json().get('id')})")]
-    else:
-        # Note: There isn't a dedicated GET /wishlist in api_v1.py yet, but let's assume it exists or use stats
-        return [TextContent(type="text", text="Listing wishlist items is currently only available via Web UI or direct DB access.")]
-
-
-async def open_external_file(args: dict) -> list[TextContent]:
-    """Open file externally."""
-    params = {"path": args["path"]}
-    response = requests.get(f"{API_BASE}/tools/open-external", params=params, timeout=10)
-    response.raise_for_status()
-    return [TextContent(type="text", text=f"✓ Opened {args['path']} externally.")]
-
+# ---------------------------------------------------------------------------
+# Tool Implementations
+# ---------------------------------------------------------------------------
 
 async def search_books(args: dict) -> list[TextContent]:
-    """Search the library."""
     params = {
         "q": args["query"],
         "limit": args.get("limit", 10),
-        "offset": args.get("offset", 0),
         "fts": "true" if args.get("use_fts", True) else "false",
         "vec": "true" if args.get("use_vector", True) else "false",
-        "rank": "true" if args.get("use_rerank", False) else "false",
-        "trans": "true" if args.get("use_translate", False) else "false",
         "field": args.get("field", "all"),
     }
-    
     response = requests.get(f"{API_BASE}/search", params=params, timeout=30)
     response.raise_for_status()
     data = response.json()
-    
-    # Format results for LLM consumption
     results = data.get("results", [])
-    total = data.get("total_count", 0)
-    
     if not results:
-        return [TextContent(type="text", text=f"No results found for '{args['query']}'.")]
-    
-    output = f"Found {total} results for '{args['query']}'.\n\n"
-    for i, book in enumerate(results, 1):
-        output += f"{i}. **{book['title']}** by {book['author']}\n"
-        output += f"   - ID: {book['id']}\n"
-        output += f"   - Score: {book.get('score', 'N/A'):.2f}\n"
-        if book.get('year'):
-            output += f"   - Year: {book['year']}\n"
-        if book.get('summary'):
-            output += f"   - Summary: {book['summary'][:150]}...\n"
+        return [TextContent(type="text", text=f"No results for '{args['query']}'.")]
+    output = f"Found {data.get('total_count', len(results))} results for '{args['query']}':\n\n"
+    for i, b in enumerate(results, 1):
+        output += f"{i}. **{b['title']}** — {b['author']} [ID: {b['id']}]\n"
+        if b.get("summary"):
+            output += f"   {b['summary'][:120]}...\n"
         output += "\n"
-    
     return [TextContent(type="text", text=output)]
-
-
-async def reindex_book(args: dict) -> list[TextContent]:
-    """Trigger AI re-indexing (TOC or Index)."""
-    book_id = args["book_id"]
-    mode = args.get("mode", "auto")
-    
-    response = requests.post(f"{API_BASE}/books/{book_id}/reindex/{mode}", timeout=300)
-    
-    if response.ok:
-        data = response.json()
-        results = data.get("results", {})
-        output = f"✓ Re-indexing ({mode}) triggered successfully.\n"
-        for k, v in results.items():
-            status = "Success" if (isinstance(v, dict) and v.get('success')) or (isinstance(v, bool) and v) else "Check Logs"
-            output += f"- {k.upper()}: {status}\n"
-        return [TextContent(type="text", text=output)]
-    else:
-        error_msg = response.json().get('error', 'Unknown error')
-        return [TextContent(type="text", text=f"✗ Re-indexing failed: {error_msg}")]
-
-
-async def enrich_book_metadata(args: dict) -> list[TextContent]:
-    """Trigger zbMATH enrichment via API."""
-    book_id = args["book_id"]
-    response = requests.post(f"{API_BASE}/books/{book_id}/enrich", timeout=60)
-    
-    if response.ok:
-        data = response.json()
-        return [TextContent(type="text", text=f"✓ Enrichment successful for Zbl {data.get('zbl_id')}. Status: {data.get('status')}, Trust Score: {data.get('trust_score'):.2f}")]
-    else:
-        error_msg = response.json().get('error', 'Unknown error')
-        return [TextContent(type="text", text=f"✗ Enrichment failed: {error_msg}")]
 
 
 async def get_book_details(args: dict) -> list[TextContent]:
-    """Get detailed book information."""
-    book_id = args["book_id"]
-    response = requests.get(f"{API_BASE}/books/{book_id}", timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    
-    output = f"# {data['title']}\n"
-    output += f"Author: {data['author']}\n"
-    output += f"ID: {data['id']} | Pages: {data.get('page_count', 'Unknown')}\n"
-    
-    # Indexing Status
-    status = []
-    if data.get('has_index'): status.append("Back-of-Book Index ✓")
-    else: status.append("Back-of-Book Index ✗ (Recommend 'reindex_book')")
-    
-    if data.get('has_toc'): status.append("Table of Contents ✓")
-    else: status.append("Table of Contents ✗ (Recommend 'reindex_book')")
-        
-    if data.get('is_deep_indexed'):
-        status.append("Page-level FTS ✓")
-    else:
-        status.append("Page-level FTS ✗ (Recommend 'deep_index_book')")
-        
-    output += "Status: " + " | ".join(status) + "\n"
-    
-    page_offset = data.get('page_offset', 0)
-    if page_offset:
-        output += f"Page Offset: {page_offset} (PDF Page 1 = Printed Page {1 - page_offset})\n"
-    
-    output += "\n"
-    
-    if data.get('summary'):
-        output += f"## Summary\n{data['summary']}\n\n"
-    
-    if data.get('msc_class'):
-        output += f"MSC Classification: {data['msc_class']}\n"
-        
-    if data.get('tags'):
-        output += f"Tags: {data['tags']}\n"
+    r = requests.get(f"{API_BASE}/books/{args['book_id']}", timeout=10)
+    r.raise_for_status()
+    d = r.json()
+    out = f"# {d['title']}\n**Author:** {d['author']} | **ID:** {d['id']} | **Pages:** {d.get('page_count', '?')}\n\n"
+    flags = []
+    if d.get("has_toc"): flags.append("TOC ✓")
+    else: flags.append("TOC ✗ → run reindex_book")
+    if d.get("has_index"): flags.append("Index ✓")
+    else: flags.append("Index ✗ → run reindex_book")
+    if d.get("is_deep_indexed"): flags.append("DeepIndex ✓")
+    else: flags.append("DeepIndex ✗ → run deep_index_book")
+    out += "**Status:** " + " | ".join(flags) + "\n"
+    if d.get("page_offset"):
+        out += f"**Page Offset:** +{d['page_offset']} (PDF page = printed page + {d['page_offset']})\n"
+    if d.get("summary"): out += f"\n**Summary:** {d['summary']}\n"
+    if d.get("msc_class"): out += f"**MSC:** {d['msc_class']}\n"
+    if d.get("tags"): out += f"**Tags:** {d['tags']}\n"
+    if d.get("similar_books"):
+        out += "\n**Similar Books:**\n"
+        for b in d["similar_books"]:
+            out += f"  - {b['title']} [ID: {b['id']}]\n"
+    return [TextContent(type="text", text=out)]
 
-    # Expert metadata from zbMATH cache
-    if data.get('keywords'):
-        output += f"Expert Keywords: {data['keywords']}\n"
-    
-    if data.get('zb_review'):
-        output += f"\n## Expert Review (zbMATH)\n{data['zb_review'][:500]}...\n"
 
-    # Bibliography Summary
-    if data.get('bibliography'):
-        output += f"\n## Bibliography ({len(data['bibliography'])} entries)\n"
-        output += "Use 'scan_bibliography' or 'resolve_citations' to manage.\n"
+async def get_book_toc(args: dict) -> list[TextContent]:
+    r = requests.get(f"{API_BASE}/books/{args['book_id']}/toc", timeout=10)
+    r.raise_for_status()
+    toc = r.json().get("toc", [])
+    if not toc:
+        return [TextContent(type="text", text="No Table of Contents available for this book.")]
+    out = f"Table of Contents (Book {args['book_id']}):\n\n"
+    for item in toc:
+        if isinstance(item, (list, tuple)) and len(item) >= 3:
+            indent = "  " * item[1]
+            out += f"{indent}- {item[0]} (p. {item[2]})\n"
+        elif isinstance(item, dict):
+            indent = "  " * item.get("level", 0)
+            page = item.get("pdf_page") or item.get("page", "?")
+            out += f"{indent}- {item.get('title', '?')} (p. {page})\n"
+    return [TextContent(type="text", text=out)]
 
-    if data.get('similar_books'):
-        output += "\n## Similar Books\n"
-        for b in data['similar_books']:
-            output += f"- {b['title']} (ID: {b['id']})\n"
-            
-    return [TextContent(type="text", text=output)]
+
+async def search_within_book(args: dict) -> list[TextContent]:
+    r = requests.get(f"{API_BASE}/books/{args['book_id']}/search",
+                     params={"q": args["query"]}, timeout=30)
+    if not r.ok:
+        return [TextContent(type="text", text=f"Search failed: {r.text}")]
+    data = r.json()
+    matches = data.get("matches", [])
+    if not matches:
+        return [TextContent(type="text", text=f"No matches for '{args['query']}' in book {args['book_id']}.")]
+    is_deep = data.get("is_deep_indexed", False)
+    out = f"Matches ({len(matches)}) in book {args['book_id']} "
+    out += "— deep index ✓:\n\n" if is_deep else "— snippet search (run deep_index_book for better results):\n\n"
+    for m in matches:
+        out += f"  p. {m['page']}: {m['snippet']}\n"
+    return [TextContent(type="text", text=out)]
+
+
+async def deep_index_book(args: dict) -> list[TextContent]:
+    r = requests.post(f"{API_BASE}/books/{args['book_id']}/deep-index", timeout=300)
+    if r.ok:
+        return [TextContent(type="text", text=f"✓ Deep indexing complete: {r.json().get('message')}")]
+    return [TextContent(type="text", text=f"✗ Failed: {r.text}")]
+
+
+async def reindex_book(args: dict) -> list[TextContent]:
+    mode = args.get("mode", "auto")
+    r = requests.post(f"{API_BASE}/books/{args['book_id']}/reindex/{mode}", timeout=300)
+    if r.ok:
+        results = r.json().get("results", {})
+        out = f"✓ Re-indexing ({mode}) done.\n"
+        for k, v in results.items():
+            ok = (isinstance(v, dict) and v.get("success")) or (isinstance(v, bool) and v)
+            out += f"  {k.upper()}: {'✓' if ok else '✗'}\n"
+        return [TextContent(type="text", text=out)]
+    return [TextContent(type="text", text=f"✗ Re-indexing failed: {r.text}")]
 
 
 async def read_pdf_pages(args: dict) -> list[TextContent]:
-    """Extract raw text from PDF ranges."""
-    payload = {
-        "book_id": args["book_id"],
-        "pages": args["pages"]
-    }
-    
-    response = requests.post(f"{API_BASE}/tools/pdf-to-text", json=payload, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    
+    r = requests.post(f"{API_BASE}/tools/pdf-to-text",
+                      json={"book_id": args["book_id"], "pages": args["pages"]}, timeout=30)
+    r.raise_for_status()
+    data = r.json()
     if data.get("success"):
-        return [TextContent(type="text", text=data.get("text", ""))]
-    else:
-        return [TextContent(type="text", text=f"Error: {data.get('error', 'Unknown error')}")]
-
-
-async def convert_pdf_to_note(args: dict) -> list[TextContent]:
-    """Convert PDF range to notes."""
-    payload = {
-        "book_id": args["book_id"],
-        "pages": args["pages"]
-    }
-    
-    response = requests.post(
-        f"{API_BASE}/tools/pdf-to-note",
-        json=payload,
-        timeout=180
-    )
-    response.raise_for_status()
-    data = response.json()
-    
-    if data.get("success"):
-        filename = data.get("filename", "unknown")
-        content = data.get("content", "")
-        return [TextContent(
-            type="text",
-            text=f"✓ Note created: {filename}\n\nContent:\n{content}"
-        )]
-    else:
-        error = data.get("error", "Unknown error")
-        return [TextContent(type="text", text=f"✗ Conversion failed: {error}")]
+        return [TextContent(type="text", text=data.get("text", "(empty)"))]
+    return [TextContent(type="text", text=f"Error: {data.get('error', 'Unknown')}")]
 
 
 async def get_book_pages_latex(args: dict) -> list[TextContent]:
-    """Retrieve high-quality reusable LaTeX for book pages."""
     params = {
         "pages": args["pages"],
         "refresh": "true" if args.get("refresh") else "false",
         "min_quality": args.get("min_quality", 0.7)
     }
-    
-    response = requests.get(
-        f"{API_BASE}/books/{args['book_id']}/pages/latex",
-        params=params,
-        timeout=300
-    )
-    response.raise_for_status()
-    data = response.json()
-    
-    results = data.get("pages", [])
-    output = f"## Reusable LaTeX for Book {args['book_id']} (Pages: {args['pages']})\n\n"
-    
-    for r in results:
-        p = r['page']
-        if 'error' in r:
-            output += f"### Page {p}\nError: {r['error']}\n\n"
+    r = requests.get(f"{API_BASE}/books/{args['book_id']}/pages/latex",
+                     params=params, timeout=300)
+    r.raise_for_status()
+    data = r.json()
+    out = f"## LaTeX — Book {args['book_id']}, Pages {args['pages']}\n\n"
+    for p in data.get("pages", []):
+        page_num = p["page"]
+        if "error" in p:
+            out += f"### Page {page_num}\n⚠ Error: {p['error']}\n\n"
         else:
-            output += f"### Page {p} (Quality: {r.get('quality', 0):.2f}, Source: {r.get('source', 'unknown')})\n"
-            output += "```latex\n"
-            output += r.get('latex') or "% No LaTeX recovered for this page"
-            output += "\n```\n\n"
-            
-    return [TextContent(type="text", text=output)]
+            out += f"### Page {page_num} (quality: {p.get('quality', 0):.2f}, source: {p.get('source', '?')})\n"
+            out += "```latex\n"
+            out += p.get("latex") or "% No LaTeX recovered"
+            out += "\n```\n\n"
+    return [TextContent(type="text", text=out)]
 
 
-async def trigger_ingestion(args: dict) -> list[TextContent]:
-    """Trigger book ingestion pipeline."""
-    payload = {"dry_run": args.get("dry_run", True)}
-    
-    response = requests.post(
-        f"{API_BASE}/admin/ingest",
-        json=payload,
-        timeout=300
-    )
-    response.raise_for_status()
-    data = response.json()
-    
+async def synthesize_page_knowledge(args: dict) -> list[TextContent]:
+    payload = {"book_id": args["book_id"], "page": args["page"], "refresh": True, "abort_on_failure": True}
+    r = requests.post(f"{API_BASE}/tools/pdf-to-note", json=payload, timeout=300)
+    r.raise_for_status()
+    data = r.json()
     if data.get("success"):
-        mode = "DRY RUN" if payload["dry_run"] else "EXECUTION"
-        stdout = data.get("stdout", "")
-        return [TextContent(
-            type="text",
-            text=f"✓ Ingestion {mode} completed.\n\nOutput:\n{stdout[:1000]}"
-        )]
-    else:
-        stderr = data.get("stderr", "Unknown error")
-        return [TextContent(type="text", text=f"✗ Ingestion failed:\n{stderr[:500]}")]
+        count = data.get("terms_found", 0)
+        return [TextContent(type="text", text=f"✓ Synthesis complete. {count} knowledge term(s) added to the draft queue.")]
+    return [TextContent(type="text", text=f"✗ Synthesis failed: {data.get('error', 'Unknown')}")]
 
 
-async def get_book_toc(args: dict) -> list[TextContent]:
-    """Get book TOC from API."""
-    book_id = args["book_id"]
-    response = requests.get(f"{API_BASE}/books/{book_id}/toc", timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    
-    toc = data.get("toc", [])
-    if not toc:
-        return [TextContent(type="text", text="No Table of Contents available.")]
-        
-    output = f"Table of Contents for Book {book_id}:\n\n"
-    for item in toc:
-        # Format from services/search.py: 
-        # (title, level, page, msc, topics)
-        if isinstance(item, (list, tuple)) and len(item) >= 3:
-            title = item[0]
-            level = item[1]
-            page = item[2]
-            indent = "  " * level
-            output += f"{indent}- {title} (p. {page})\n"
-        # Fallback for other potential formats
-        elif isinstance(item, dict):
-            title = item.get('title', 'Untitled')
-            page = item.get('pdf_page') or item.get('page', 'N/A')
-            level = item.get('level', 0)
-            indent = "  " * level
-            output += f"{indent}- {title} (p. {page})\n"
-            
-    return [TextContent(type="text", text=output)]
+async def search_knowledge_base(args: dict) -> list[TextContent]:
+    params = {"q": args["query"], "limit": args.get("limit", 20), "status": "approved"}
+    if args.get("type"):
+        params["kind"] = args["type"]
+    r = requests.get(f"{API_BASE}/kb/terms/search", params=params, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    if not data:
+        return [TextContent(type="text", text=f"No KB entries found for '{args['query']}'.")]
+    out = f"Knowledge Base — {len(data)} result(s) for '{args['query']}':\n\n"
+    for item in data:
+        out += f"- **{item.get('name', '?')}** ({item.get('term_type', '?')}) "
+        out += f"— {item.get('book_author', 'Unknown')}, p. {item.get('page_start', '?')} "
+        out += f"[ID: {item.get('id')}]\n"
+    return [TextContent(type="text", text=out)]
 
 
-async def update_metadata(args: dict) -> list[TextContent]:
-    """Updates a book's metadata via API."""
+async def get_kb_term(args: dict) -> list[TextContent]:
+    r = requests.get(f"{API_BASE}/kb/terms/{args['term_id']}", timeout=10)
+    if not r.ok:
+        return [TextContent(type="text", text="Term not found.")]
+    t = r.json()
+    out = f"# {t['name']} ({t['term_type']})\n"
+    out += f"**Source:** {t.get('book_title', '?')} by {t.get('book_author', '?')}, p. {t.get('page_start', '?')}\n\n"
+    if t.get("used_terms"):
+        import json as _json
+        try:
+            kws = _json.loads(t["used_terms"]) if isinstance(t["used_terms"], str) else t["used_terms"]
+        except Exception:
+            kws = [k.strip() for k in t["used_terms"].split(",")]
+        out += "**Keywords:** " + ", ".join(kws) + "\n\n"
+    out += "```latex\n"
+    out += t.get("latex_content", "% No LaTeX content")
+    out += "\n```\n"
+    return [TextContent(type="text", text=out)]
+
+
+async def update_book_metadata(args: dict) -> list[TextContent]:
     book_id = args.pop("book_id")
-    
-    response = requests.patch(
-        f"{API_BASE}/books/{book_id}/metadata", 
-        json=args, 
-        timeout=10
-    )
-    
-    if response.ok:
-        return [TextContent(type="text", text=f"✓ Metadata for book {book_id} updated successfully.")]
-    else:
-        error_msg = response.json().get('error', 'Unknown error')
-        return [TextContent(type="text", text=f"✗ Metadata update failed: {error_msg}")]
+    r = requests.patch(f"{API_BASE}/books/{book_id}/metadata", json=args, timeout=10)
+    if r.ok:
+        return [TextContent(type="text", text=f"✓ Metadata updated for book {book_id}.")]
+    return [TextContent(type="text", text=f"✗ Update failed: {r.text}")]
+
+
+async def enrich_book_metadata(args: dict) -> list[TextContent]:
+    r = requests.post(f"{API_BASE}/books/{args['book_id']}/enrich", timeout=60)
+    if r.ok:
+        d = r.json()
+        return [TextContent(type="text", text=f"✓ zbMATH enrichment complete. Zbl: {d.get('zbl_id')}, Score: {d.get('trust_score', 0):.2f}")]
+    return [TextContent(type="text", text=f"✗ Enrichment failed: {r.text}")]
+
+
+async def refresh_book_metadata(args: dict) -> list[TextContent]:
+    r = requests.post(f"{API_BASE}/books/{args['book_id']}/metadata/refresh", timeout=180)
+    r.raise_for_status()
+    return [TextContent(type="text", text=f"✓ Metadata refreshed for book {args['book_id']}.")]
+
+
+async def scan_bibliography(args: dict) -> list[TextContent]:
+    r = requests.post(f"{API_BASE}/tools/bib-scan", json={"book_id": args["book_id"]}, timeout=300)
+    if r.ok:
+        return [TextContent(type="text", text=f"✓ Bibliography scan triggered. View results in the Web UI.")]
+    return [TextContent(type="text", text=f"✗ Scan failed: {r.text}")]
+
+
+async def list_notes(args: dict) -> list[TextContent]:
+    params = {"limit": args.get("limit", 50)}
+    if args.get("book_id"): params["book_id"] = args["book_id"]
+    r = requests.get(f"{API_BASE}/notes", params=params, timeout=10)
+    r.raise_for_status()
+    notes = r.json()
+    if not notes:
+        return [TextContent(type="text", text="No notes found.")]
+    out = "Research Notes:\n\n"
+    for n in notes:
+        out += f"- [ID {n['id']}] **{n['title']}** ({n.get('source_type', '?')})\n"
+    return [TextContent(type="text", text=out)]
+
+
+async def get_note_content(args: dict) -> list[TextContent]:
+    r = requests.get(f"{API_BASE}/notes/{args['note_id']}/content", timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    out = ""
+    if data.get("markdown"):
+        out += "### Markdown\n```markdown\n" + data["markdown"] + "\n```\n\n"
+    if data.get("latex"):
+        out += "### LaTeX\n```latex\n" + data["latex"] + "\n```\n"
+    return [TextContent(type="text", text=out or "Note has no content.")]
+
+
+async def create_note(args: dict) -> list[TextContent]:
+    r = requests.post(f"{API_BASE}/notes", json=args, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+    return [TextContent(type="text", text=f"✓ Note created (ID: {data['id']}). Now call add_note_book_relation and compile_note.")]
+
+
+async def update_note_content(args: dict) -> list[TextContent]:
+    note_id = args.pop("note_id")
+    r = requests.patch(f"{API_BASE}/notes/{note_id}/content", json=args, timeout=10)
+    r.raise_for_status()
+    return [TextContent(type="text", text=f"✓ Note {note_id} content updated.")]
+
+
+async def add_note_book_relation(args: dict) -> list[TextContent]:
+    note_id = args.pop("note_id")
+    payload = {"book_id": args["book_id"], "page": args.get("page"), "type": args.get("relation_type", "references")}
+    r = requests.post(f"{API_BASE}/notes/{note_id}/books", json=payload, timeout=10)
+    r.raise_for_status()
+    return [TextContent(type="text", text=f"✓ Note {note_id} linked to book {args['book_id']}.")]
+
+
+async def compile_note(args: dict) -> list[TextContent]:
+    r = requests.post(f"{API_BASE}/notes/{args['note_id']}/compile", timeout=120)
+    if r.ok:
+        return [TextContent(type="text", text=f"✓ PDF compiled: {r.json().get('pdf_path', '?')}")]
+    return [TextContent(type="text", text=f"✗ Compilation failed: {r.json().get('error', r.text)}")]
+
+
+async def upload_note_scan(args: dict) -> list[TextContent]:
+    fp = Path(args["file_path"])
+    if not fp.exists():
+        return [TextContent(type="text", text=f"File not found: {fp}")]
+    with open(fp, "rb") as f:
+        r = requests.post(f"{API_BASE}/notes/upload", files={"file": (fp.name, f, "image/jpeg")}, timeout=60)
+    if r.ok:
+        data = r.json()
+        return [TextContent(type="text", text=f"✓ Transcribed note stored (ID: {data['id']}).\n\n{data.get('transcription', '')}")]
+    return [TextContent(type="text", text=f"✗ Upload failed: {r.text}")]
 
 
 async def get_system_state(args: dict) -> list[TextContent]:
-    """Retrieve the current system state (what the user is looking at in the UI)."""
-    # The state file is located in the parent directory of the mcp_server folder
     state_path = Path(__file__).parent.parent / "current_state.json"
-    
     if not state_path.exists():
-        return [TextContent(type="text", text="No active system state found. The user might not be using the Web UI right now.")]
-    
+        return [TextContent(type="text", text="No active UI state — user may not be using the Web UI.")]
     try:
-        with open(state_path, "r") as f:
-            state = json.load(f)
-        
-        output = "### Current System State (Web UI)\n"
-        output += f"- **Action**: {state.get('action')}\n"
-        output += f"- **Timestamp**: {state.get('timestamp')}\n"
-        
-        if state.get("book_id"):
-            output += f"- **Active Book ID**: {state.get('book_id')}\n"
-            
-        extra = state.get("extra", {})
-        if extra:
-            for k, v in extra.items():
-                output += f"- **{k.capitalize()}**: {v}\n"
-                
-        return [TextContent(type="text", text=output)]
+        state = json.loads(state_path.read_text())
+        out = "### Current UI State\n"
+        out += f"- Action: {state.get('action')}\n"
+        if state.get("book_id"): out += f"- Book ID: {state['book_id']}\n"
+        for k, v in (state.get("extra") or {}).items():
+            out += f"- {k}: {v}\n"
+        return [TextContent(type="text", text=out)]
     except Exception as e:
-        return [TextContent(type="text", text=f"Error reading system state: {str(e)}")]
-
-
-async def deep_index_book(args: dict) -> list[TextContent]:
-    """Trigger deep indexing for a book."""
-    book_id = args["book_id"]
-    response = requests.post(f"{API_BASE}/books/{book_id}/deep-index", timeout=300)
-    
-    if response.ok:
-        data = response.json()
-        return [TextContent(type="text", text=f"✓ Deep indexing complete: {data['message']}")]
-    else:
-        error_msg = response.json().get('error', 'Unknown error')
-        return [TextContent(type="text", text=f"✗ Deep indexing failed: {error_msg}")]
-
-
-async def search_within_book(args: dict) -> list[TextContent]:
-    """Search within a book."""
-    book_id = args["book_id"]
-    query = args["query"]
-    
-    params = {"q": query}
-    response = requests.get(f"{API_BASE}/books/{book_id}/search", params=params, timeout=30)
-    
-    if response.ok:
-        data = response.json()
-        matches = data.get("matches", [])
-        is_deep = data.get("is_deep_indexed", False)
-        
-        if not matches:
-            return [TextContent(type="text", text=f"No matches found for '{query}' in book {book_id}.")]
-            
-        output = f"Matches for '{query}' in book {book_id} "
-        output += "(Deep Indexed):\n\n" if is_deep else "(Snippet Based - Recommend 'deep_index_book'):\n\n"
-        
-        for m in matches:
-            output += f"- p. {m['page']}: {m['snippet']}\n"
-            
-        return [TextContent(type="text", text=output)]
-    else:
-        error_msg = response.json().get('error', 'Unknown error')
-        return [TextContent(type="text", text=f"✗ Search within book failed: {error_msg}")]
+        return [TextContent(type="text", text=f"Error reading state: {e}")]
 
 
 async def manage_bookmarks(args: dict) -> list[TextContent]:
-    """Manage bookmarks."""
     action = args["action"]
-    
     if action == "create":
-        payload = {
-            "book_id": args.get("book_id"),
-            "page_range": args.get("page_range"),
-            "tags": args.get("tags"),
-            "notes": args.get("notes")
-        }
-        response = requests.post(f"{API_BASE}/bookmarks", json=payload, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        return [TextContent(type="text", text=f"✓ Bookmark created (ID: {data['id']})")]
-        
+        payload = {"book_id": args.get("book_id"), "page_range": args.get("page_range"),
+                   "tags": args.get("tags"), "notes": args.get("notes")}
+        r = requests.post(f"{API_BASE}/bookmarks", json=payload, timeout=5)
+        r.raise_for_status()
+        return [TextContent(type="text", text=f"✓ Bookmark created (ID: {r.json()['id']})")]
     elif action == "list":
         params = {}
         if args.get("book_id"): params["book_id"] = args["book_id"]
         if args.get("tags"): params["tag"] = args["tags"]
-        
-        response = requests.get(f"{API_BASE}/bookmarks", params=params, timeout=5)
-        response.raise_for_status()
-        bookmarks = response.json()
-        
-        if not bookmarks:
+        r = requests.get(f"{API_BASE}/bookmarks", params=params, timeout=5)
+        r.raise_for_status()
+        bms = r.json()
+        if not bms:
             return [TextContent(type="text", text="No bookmarks found.")]
-            
-        output = "Bookmarks:\n\n"
-        for b in bookmarks:
-            output += f"[ID {b['id']}] {b['book_title']} (p. {b['page_range']})\n"
-            if b.get('tags'): output += f"  Tags: {b['tags']}\n"
-            if b.get('notes'): output += f"  Notes: {b['notes']}\n"
-            output += "\n"
-        return [TextContent(type="text", text=output)]
-        
+        out = "Bookmarks:\n\n"
+        for b in bms:
+            out += f"[{b['id']}] {b['book_title']} p.{b['page_range']}"
+            if b.get("tags"): out += f" #{b['tags']}"
+            out += "\n"
+        return [TextContent(type="text", text=out)]
     elif action == "delete":
         bid = args.get("bookmark_id")
-        if not bid: return [TextContent(type="text", text="Error: bookmark_id required for delete.")]
-        
-        response = requests.delete(f"{API_BASE}/bookmarks/{bid}", timeout=5)
-        response.raise_for_status()
+        if not bid:
+            return [TextContent(type="text", text="bookmark_id required for delete.")]
+        r = requests.delete(f"{API_BASE}/bookmarks/{bid}", timeout=5)
+        r.raise_for_status()
         return [TextContent(type="text", text=f"✓ Bookmark {bid} deleted.")]
-        
     return [TextContent(type="text", text=f"Unknown action: {action}")]
 
 
-# --- Knowledge Base Handlers ---
-
-async def search_knowledge(args: dict) -> list[TextContent]:
-    params = {"q": args["query"], "limit": args.get("limit", 20)}
-    if args.get("kind"): params["kind"] = args["kind"]
-    resp = requests.get(f"{API_BASE}/kb/concepts/search", params=params, timeout=10)
-    data = resp.json()
-    if not data: return [TextContent(type="text", text="No knowledge base entries found.")]
-    output = f"Found {len(data)} results:\n\n"
-    for item in data:
-        name = item.get('name', item.get('concept_name', 'Unknown'))
-        locs = item.get('location_count', 0)
-        output += f"- **{name}** ({item.get('kind')}) — {locs} location(s) [ID: {item.get('id')}]\n"
-    return [TextContent(type="text", text=output)]
-
-async def get_concept_details(args: dict) -> list[TextContent]:
-    resp = requests.get(f"{API_BASE}/kb/concepts/{args['concept_id']}", timeout=10)
-    if not resp.ok: return [TextContent(type="text", text="Concept not found.")]
-    c = resp.json()
-    output = f"# {c['name']} ({c['kind']})\n"
-    if c.get('aliases'): output += f"Aliases: {', '.join(c['aliases'])}\n"
-    if c.get('domain'): output += f"Domain: {c['domain']}\n\n"
-    
-    output += f"## Found in {len(c['entries'])} book(s)\n\n"
-    for e in c['entries']:
-        book_info = e.get('book_title', 'Unknown Book')
-        author = e.get('book_author', '')
-        if author: book_info = f"{author} — {book_info}"
-        page = e.get('page_start', '?')
-        output += f"### {book_info}, p. {page}\n"
-        if e.get('has_latex') and e.get('latex_content'):
-            output += f"```latex\n{e['latex_content'][:2000]}\n```\n"
-        elif e.get('statement'):
-            output += f"Statement: {e['statement'][:500]}\n"
-        else:
-            output += f"*(LaTeX not yet cached for this page)*\n"
-        output += "\n"
-    
-    return [TextContent(type="text", text=output)]
-
-
-async def list_kb_proposals(args: dict) -> list[TextContent]:
-    params = {"status": args.get("status", "pending"), "limit": args.get("limit", 50)}
-    resp = requests.get(f"{API_BASE}/kb/proposals", params=params, timeout=10)
-    data = resp.json()
-    if not data: return [TextContent(type="text", text=f"No proposals found with status '{params['status']}'.")]
-    output = f"Pending Proposals ({len(data)}):\n\n"
-    for p in data:
-        merge_note = ""
-        if p.get('merge_target_name'):
-            merge_note = f" → suggested merge with '{p['merge_target_name']}'"
-        output += f"- [ID {p['id']}] **{p['concept_name']}** ({p['kind']}) — {p.get('book_title', 'Unknown')}, p.{p['page_number']}{merge_note}\n"
-    output += "\n*Review and approve/merge/reject these proposals in the Knowledge Base UI.*"
-    return [TextContent(type="text", text=output)]
-
-
-# --- Resource Definitions ---
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
 
 @app.list_resources()
 async def list_resources() -> list[Resource]:
-    """List available resources."""
     return [
-        Resource(
-            uri="mathstudio://api/docs",
-            name="API Documentation",
-            mimeType="text/markdown",
-            description="Complete API documentation with endpoints, parameters, and examples"
-        ),
         Resource(
             uri="mathstudio://library/stats",
             name="Library Statistics",
             mimeType="application/json",
-            description="Current library statistics (total books, papers, notes)"
+            description="Current library statistics"
         )
     ]
 
 
 @app.read_resource()
 async def read_resource(uri: str) -> str:
-    """Read a resource."""
-    if uri == "mathstudio://api/docs":
-        return """# MathStudio API Documentation
-
-## 1. Discovery & Search
-- `search_books(query, ...)`: Hybrid search (Vector + FTS).
-- `browse_library(author, msc, year, ...)`: Filtered browsing.
-- `get_msc_stats()`: Distribution of books by MSC code.
-- `get_msc_tree()`: The full MSC 2020 classification tree.
-
-## 2. Book Processing & Structure
-- `get_book_details(book_id)`: Comprehensive metadata and flags.
-- `get_book_toc(book_id)`: Structured Table of Contents.
-- `reindex_book(book_id, mode)`: AI-driven TOC/Index reconstruction.
-- `deep_index_book(book_id)`: Enable page-level FTS search.
-- `search_within_book(book_id, query)`: Search content or deep index.
-
-## 3. Notes & Vision
-- `list_notes(type, book_id, limit)`: List all notes.
-- `search_notes(query)`: Full-text search over note content.
-- `get_note_details(note_id)`: Metadata and paths for a note.
-- `get_note_content(note_id)`: Retrieve MD and LaTeX content.
-- `update_note_content(note_id, markdown, latex)`: Write new content.
-- `update_note_metadata(note_id, title, tags, msc)`: Update metadata.
-- `create_note(title, markdown, latex, ...)`: Create a note from scratch.
-- `add_note_book_relation(note_id, book_id, page)`: Link note to a book source.
-- `compile_note(note_id)`: Compile a single note to PDF.
-- `get_note_pdf(note_id)`: Get path to compiled PDF.
-- `upload_note_scan(file_path)`: Transcribe handwritten notes.
-- `convert_pdf_to_note(book_id, pages)`: AI-transcribe book segments.
-- `get_book_pages_latex(book_id, pages, refresh, min_quality)`: Get reusable high-quality LaTeX fragments.
-- `read_pdf_pages(book_id, pages)`: Raw text extraction (for verification).
-- `compile_notes()`: Compile all LaTeX notes to PDFs.
-
-## 4. Bibliography
-- `scan_bibliography(book_id)`: Vision-first extraction of citations.
-- `resolve_citations(book_id)`: Resolve citations to library or zbMATH.
-
-## 5. Administration
-- `trigger_ingestion(dry_run)`: Process new files in Unsorted.
-- `get_library_stats()`: General library health and distribution.
-- `run_sanity_fix()`: Attempt to fix database/path issues.
-"""
-    elif uri == "mathstudio://library/stats":
-        response = requests.get(f"{API_BASE}/admin/stats", timeout=10)
-        response.raise_for_status()
-        return json.dumps(response.json(), indent=2)
-    else:
-        raise ValueError(f"Unknown resource: {uri}")
+    if uri == "mathstudio://library/stats":
+        r = requests.get(f"{API_BASE}/admin/stats", timeout=10)
+        r.raise_for_status()
+        return json.dumps(r.json(), indent=2)
+    raise ValueError(f"Unknown resource: {uri}")
 
 
-# --- Main Entry Point ---
+# ---------------------------------------------------------------------------
+# Entry Point
+# ---------------------------------------------------------------------------
 
 async def main():
-    """Run the MCP server."""
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options()
-        )
+        await app.run(read_stream, write_stream, app.create_initialization_options())
 
 
 if __name__ == "__main__":

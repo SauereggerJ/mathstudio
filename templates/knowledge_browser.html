@@ -2,275 +2,182 @@
 {% block title %}Knowledge Base — MathStudio{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
+<div class="max-w-5xl mx-auto">
     <!-- Header -->
     <div class="mb-8">
         <h1
             class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-purple-600 mb-2">
             Knowledge Base
         </h1>
-        <p class="text-slate-500">Theorem & definition location index across your library</p>
+        <p class="text-slate-500">Search theorems, definitions & lemmas across your library</p>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex border-b border-gray-200 mb-6">
-        <button id="tab-browse" onclick="switchTab('browse')"
-            class="px-6 py-3 text-sm font-semibold border-b-2 border-violet-600 text-violet-600 transition-colors">
-            <i class="fas fa-book-open mr-2"></i>Browse
-        </button>
-        <button id="tab-proposals" onclick="switchTab('proposals')"
-            class="px-6 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-inbox mr-2"></i>Review Proposals
-            <span id="proposal-badge"
-                class="ml-1 bg-red-500 text-white text-xs rounded-full px-2 py-0.5 hidden">0</span>
-        </button>
+    <!-- Search Box -->
+    <div class="relative mb-8">
+        <i class="fas fa-search absolute left-4 top-4 text-slate-400 text-lg"></i>
+        <input id="kb-search" type="text" placeholder="Search by name, concept or keyword..."
+            class="w-full pl-12 pr-4 py-3.5 border-2 border-slate-200 rounded-2xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-base font-medium shadow-sm transition-all"
+            oninput="debounceSearch()" autofocus>
     </div>
 
-    <!-- ========== BROWSE TAB ========== -->
-    <div id="panel-browse">
-        <!-- Search + Sort Row -->
-        <div class="flex flex-col sm:flex-row gap-4 mb-6">
-            <div class="flex-1 relative">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <input id="kb-search" type="text" placeholder="Search theorems & definitions..."
-                    class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-sm"
-                    oninput="debounceSearch()">
-            </div>
-            <select id="kb-sort" onchange="loadConcepts()"
-                class="border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-violet-500 bg-white">
-                <option value="alpha">A → Z</option>
-                <option value="links">Most Locations</option>
-                <option value="newest">Newest First</option>
-            </select>
-        </div>
+    <!-- Stats Row -->
+    <div id="results-header" class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4"></div>
 
-        <!-- Alphabet Bar -->
-        <div id="alphabet-bar" class="flex flex-wrap gap-1 mb-6">
-            <button onclick="filterLetter(null)"
-                class="alphabet-btn px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors active-letter">
-                All
-            </button>
-        </div>
-
-        <!-- Results Header -->
-        <div id="results-header" class="text-sm text-gray-500 mb-4"></div>
-
-        <!-- Results List -->
-        <div id="results-list" class="space-y-2"></div>
-
-        <!-- Concept Detail Panel (shown inline when a concept is clicked) -->
-        <div id="concept-detail" class="hidden mt-6 bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h2 id="detail-name" class="text-xl font-bold text-slate-800"></h2>
-                    <span id="detail-kind" class="text-sm text-violet-600 font-medium"></span>
-                    <span id="detail-aliases" class="text-sm text-gray-400 ml-2"></span>
-                </div>
-                <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 text-lg">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="detail-entries" class="space-y-4"></div>
-        </div>
-    </div>
-
-    <!-- ========== PROPOSALS TAB ========== -->
-    <div id="panel-proposals" class="hidden">
-        <div id="proposals-list" class="space-y-4"></div>
-        <div id="proposals-empty" class="hidden text-center py-16 text-gray-400">
-            <i class="fas fa-check-circle text-4xl mb-3 text-green-300"></i>
-            <p class="text-lg font-medium">No pending proposals</p>
-            <p class="text-sm">New theorems & definitions will appear here when pages are converted to LaTeX</p>
-        </div>
-    </div>
+    <!-- Results List -->
+    <div id="results-list" class="space-y-2"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
     const API = '/api/v1';
-    let currentLetter = null;
     let searchTimeout = null;
-    let currentConceptId = null;
+    let currentTermId = null;
 
-    // ── Init ──
     document.addEventListener('DOMContentLoaded', () => {
-        loadConcepts();
-        loadProposalCount();
+        loadTerms();
     });
-
-    // ── Tab Switching ──
-    function switchTab(tab) {
-        document.getElementById('panel-browse').classList.toggle('hidden', tab !== 'browse');
-        document.getElementById('panel-proposals').classList.toggle('hidden', tab !== 'proposals');
-        document.getElementById('tab-browse').classList.toggle('border-violet-600', tab === 'browse');
-        document.getElementById('tab-browse').classList.toggle('text-violet-600', tab === 'browse');
-        document.getElementById('tab-browse').classList.toggle('border-transparent', tab !== 'browse');
-        document.getElementById('tab-browse').classList.toggle('text-gray-500', tab !== 'browse');
-        document.getElementById('tab-proposals').classList.toggle('border-violet-600', tab === 'proposals');
-        document.getElementById('tab-proposals').classList.toggle('text-violet-600', tab === 'proposals');
-        document.getElementById('tab-proposals').classList.toggle('border-transparent', tab !== 'proposals');
-        document.getElementById('tab-proposals').classList.toggle('text-gray-500', tab !== 'proposals');
-        if (tab === 'proposals') loadProposals();
-    }
-
-    // ── Browse: Load Concepts ──
-    async function loadConcepts() {
-        const search = document.getElementById('kb-search').value.trim();
-        const sort = document.getElementById('kb-sort').value;
-
-        if (search.length > 0) {
-            // FTS search mode
-            const resp = await fetch(`${API}/kb/concepts/search?q=${encodeURIComponent(search)}&limit=100`);
-            const data = await resp.json();
-            renderResults(data, `${data.length} result(s) for "${search}"`);
-            return;
-        }
-
-        // Browse mode (letter + sort)
-        let url = `${API}/kb/concepts?sort=${sort}&limit=200`;
-        if (currentLetter) url += `&letter=${currentLetter}`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-
-        // Build alphabet bar
-        buildAlphabetBar(data.letter_counts || {});
-
-        const label = currentLetter
-            ? `${data.total} concept(s) starting with "${currentLetter}"`
-            : `${data.total} concepts total`;
-        renderResults(data.concepts || [], label);
-    }
-
-    function buildAlphabetBar(counts) {
-        const bar = document.getElementById('alphabet-bar');
-        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-        let html = `<button onclick="filterLetter(null)"
-        class="alphabet-btn px-3 py-1.5 text-xs font-bold rounded-lg transition-colors
-        ${!currentLetter ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">All</button>`;
-
-        for (const l of letters) {
-            const cnt = counts[l] || 0;
-            const active = currentLetter === l;
-            const disabled = cnt === 0;
-            html += `<button onclick="filterLetter('${l}')" ${disabled ? 'disabled' : ''}
-            class="alphabet-btn px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors
-            ${active ? 'bg-violet-600 text-white' : disabled ? 'bg-gray-50 text-gray-300 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-            ${l}${cnt > 0 ? `<sup class="text-[10px] ml-0.5 opacity-60">${cnt}</sup>` : ''}
-        </button>`;
-        }
-        bar.innerHTML = html;
-    }
-
-    function filterLetter(letter) {
-        currentLetter = letter;
-        document.getElementById('kb-search').value = '';
-        closeDetail();
-        loadConcepts();
-    }
 
     function debounceSearch() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
-            closeDetail();
-            loadConcepts();
+            if (currentTermId) closeDetail();
+            loadTerms();
         }, 300);
     }
 
-    function renderResults(concepts, headerText) {
+    async function loadTerms() {
+        const search = document.getElementById('kb-search').value.trim();
+
+        if (search.length === 0) {
+            // Show empty welcome state
+            document.getElementById('results-header').textContent = '';
+            document.getElementById('results-list').innerHTML = `<div class="text-center py-20 text-slate-400">
+                <i class="fas fa-search text-5xl mb-5 text-violet-200"></i>
+                <p class="font-bold text-lg text-slate-600">Search your Knowledge Base</p>
+                <p class="text-sm mt-2">Type a concept, theorem name, or keyword to find matching terms</p>
+            </div>`;
+            return;
+        }
+
+        const resp = await fetch(`${API}/kb/terms/search?q=${encodeURIComponent(search)}&limit=100`);
+        const data = await resp.json();
+        renderResults(data, `${data.length} result(s) for "${search}"`);
+    }
+
+    function renderResults(terms, headerText) {
         document.getElementById('results-header').textContent = headerText;
         const list = document.getElementById('results-list');
 
-        if (!concepts.length) {
-            list.innerHTML = `<div class="text-center py-12 text-gray-400">
-            <i class="fas fa-search text-3xl mb-3"></i>
-            <p>No concepts found</p></div>`;
+        if (!terms.length) {
+            list.innerHTML = `<div class="text-center py-16 text-slate-400">
+                <i class="fas fa-search text-4xl mb-4 text-slate-300"></i>
+                <p class="font-bold text-lg text-slate-600">No matching terms found</p>
+                <p class="text-sm mt-1">Try different keywords or mathematical notation</p>
+            </div>`;
             return;
         }
 
-        list.innerHTML = concepts.map(c => {
-            const kindColors = {
-                'theorem': 'bg-blue-100 text-blue-700',
-                'definition': 'bg-green-100 text-green-700',
-                'lemma': 'bg-yellow-100 text-yellow-700',
-                'proposition': 'bg-orange-100 text-orange-700',
-                'corollary': 'bg-purple-100 text-purple-700',
-                'axiom': 'bg-red-100 text-red-700',
-            };
-            const kindClass = kindColors[c.kind] || 'bg-gray-100 text-gray-600';
-            const locs = c.location_count || 0;
-            const isActive = currentConceptId === c.id;
+        const kindColors = {
+            'theorem': 'bg-blue-50 text-blue-700 border-blue-200',
+            'definition': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            'lemma': 'bg-amber-50 text-amber-700 border-amber-200',
+            'proposition': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+            'corollary': 'bg-purple-50 text-purple-700 border-purple-200',
+            'example': 'bg-slate-50 text-slate-600 border-slate-200',
+            'exercise': 'bg-rose-50 text-rose-700 border-rose-200',
+            'remark': 'bg-teal-50 text-teal-700 border-teal-200',
+        };
 
-            return `<button onclick="showConcept(${c.id})"
-            class="w-full text-left px-4 py-3 rounded-lg border transition-all hover:shadow-md
-            ${isActive ? 'border-violet-400 bg-violet-50 shadow-md' : 'border-gray-100 bg-white hover:border-gray-200'}">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="px-2 py-0.5 rounded text-xs font-semibold ${kindClass}">${c.kind}</span>
-                    <span class="font-semibold text-slate-800">${c.name}</span>
-                </div>
-                <span class="text-xs text-gray-400 flex items-center gap-1">
-                    <i class="fas fa-map-marker-alt"></i> ${locs} location${locs !== 1 ? 's' : ''}
-                </span>
-            </div>
-        </button>`;
+        list.innerHTML = terms.map(t => {
+            const kindClass = kindColors[t.term_type] || 'bg-gray-50 text-gray-600 border-gray-200';
+            const source = t.book_author
+                ? `${escapeHtml(t.book_author)}, p. ${t.page_start}`
+                : `Book ${t.book_id}, p. ${t.page_start}`;
+
+            return `
+            <div id="term-container-${t.id}" class="rounded-xl border border-slate-100 bg-white transition-all hover:shadow-md overflow-hidden">
+                <button onclick="toggleTerm(${t.id})" id="term-btn-${t.id}" class="w-full text-left px-5 py-3.5 transition-all flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${kindClass}">${t.term_type}</span>
+                        <span class="font-bold text-slate-800 truncate">${escapeHtml(t.name)}</span>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-400 whitespace-nowrap flex items-center gap-1">
+                        <i class="fas fa-book text-slate-300"></i> ${source}
+                    </span>
+                </button>
+                <div id="term-detail-${t.id}" class="hidden"></div>
+            </div>`;
         }).join('');
     }
 
-    // ── Concept Detail ──
-    async function showConcept(id) {
-        currentConceptId = id;
-        const resp = await fetch(`${API}/kb/concepts/${id}`);
-        if (!resp.ok) return;
-        const c = await resp.json();
+    async function toggleTerm(id) {
+        const detailDiv = document.getElementById(`term-detail-${id}`);
+        const btnRow = document.getElementById(`term-btn-${id}`);
 
-        document.getElementById('detail-name').textContent = c.name;
-        document.getElementById('detail-kind').textContent = c.kind;
-        document.getElementById('detail-aliases').textContent =
-            c.aliases && c.aliases.length ? `(${c.aliases.join(', ')})` : '';
-
-        const entriesDiv = document.getElementById('detail-entries');
-        if (!c.entries || !c.entries.length) {
-            entriesDiv.innerHTML = '<p class="text-gray-400 italic">No locations registered yet</p>';
-        } else {
-            entriesDiv.innerHTML = c.entries.map(e => {
-                const book = e.book_author ? `${e.book_author} — ${e.book_title}` : (e.book_title || 'Unknown Book');
-                const page = e.page_start || '?';
-                const hasLatex = e.has_latex && e.latex_content;
-
-                let contentHtml = '';
-                if (e.statement) {
-                    contentHtml = `<div class="mt-2 bg-gray-50 rounded-lg p-3 text-sm font-mono text-gray-700 overflow-x-auto max-h-48 overflow-y-auto latex-preview">${escapeHtml(e.statement)}</div>`;
-                } else if (hasLatex) {
-                    // Show a snippet from the page as fallback
-                    const snippet = e.latex_content.substring(0, 800);
-                    contentHtml = `<div class="mt-2 bg-white border border-gray-100 rounded-lg p-3 text-xs font-mono text-gray-500 overflow-x-auto max-h-48 overflow-y-auto latex-preview"><div class="text-[10px] text-gray-400 font-sans mb-1 uppercase tracking-wider">Page Context</div>${escapeHtml(snippet)}${e.latex_content.length > 800 ? '\n...' : ''}</div>`;
-                } else {
-                    contentHtml = `<p class="mt-2 text-xs text-gray-400 italic">LaTeX not yet cached — use "get_book_pages_latex" to convert this page</p>`;
-                }
-
-                return `<div class="border border-gray-100 rounded-lg p-4 hover:border-gray-200 transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <span class="font-semibold text-slate-700">${escapeHtml(book)}</span>
-                        <span class="text-sm text-gray-500 ml-2">p. ${page}</span>
-                        ${e.has_latex ? '<span class="ml-2 text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded">LaTeX ✓</span>' : ''}
-                    </div>
-                    ${(e.book_id && e.book_path && (e.book_path.toLowerCase().endsWith('.pdf') || e.book_path.toLowerCase().endsWith('.djvu'))) ? `<a href="/view-pdf/${e.book_id}?page=${page}" target="_blank"
-                        class="text-xs bg-violet-100 text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-200 transition-colors font-medium">
-                        <i class="fas fa-file-pdf mr-1"></i>View PDF</a>` : (e.book_id ? `<span class="text-xs text-gray-400 px-3 py-1 rounded-lg border border-gray-100 bg-gray-50"><i class="fas fa-book mr-1"></i>EPUB/Other</span>` : '')}
-                </div>
-                ${contentHtml}
-            </div>`;
-            }).join('');
+        if (!detailDiv.classList.contains('hidden')) {
+            detailDiv.classList.add('hidden');
+            detailDiv.innerHTML = '';
+            btnRow.classList.remove('bg-violet-50/50');
+            currentTermId = null;
+            return;
         }
 
-        document.getElementById('concept-detail').classList.remove('hidden');
+        // Close previously open
+        if (currentTermId && currentTermId !== id) {
+            const oldDetail = document.getElementById(`term-detail-${currentTermId}`);
+            const oldBtn = document.getElementById(`term-btn-${currentTermId}`);
+            if (oldDetail) { oldDetail.classList.add('hidden'); oldDetail.innerHTML = ''; }
+            if (oldBtn) oldBtn.classList.remove('bg-violet-50/50');
+        }
 
-        // Re-render KaTeX in the detail panel
+        currentTermId = id;
+        btnRow.classList.add('bg-violet-50/50');
+
+        const resp = await fetch(`${API}/kb/terms/${id}`);
+        if (!resp.ok) return;
+        const t = await resp.json();
+
+        let html = '<div class="p-6 border-t border-slate-100 bg-slate-50/50">';
+
+        // Keywords
+        if (t.used_terms) {
+            const kws = parseKeywords(t.used_terms);
+            if (kws.length) {
+                html += `<div class="flex flex-wrap gap-1 mb-4">${kws.map(kw =>
+                    `<span class="px-2 py-0.5 bg-white text-slate-500 text-[10px] font-bold rounded-lg border border-slate-200">${escapeHtml(kw)}</span>`
+                ).join('')}</div>`;
+            }
+        }
+
+        // LaTeX content
+        if (t.latex_content) {
+            html += `<div class="bg-slate-900 rounded-xl p-5 text-xs font-mono text-emerald-400 overflow-x-auto max-h-[500px] overflow-y-auto shadow-inner latex-preview">${escapeHtml(t.latex_content)}</div>`;
+        }
+
+        // Source link
+        html += '<div class="mt-4 flex justify-between items-center">';
+        if (t.book_path) {
+            html += `<a href="/open/${encodeURIComponent(t.book_path)}#page=${t.page_start}" target="_blank"
+                class="inline-flex items-center px-4 py-2 bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 transition-all shadow-lg shadow-violet-600/20">
+                <i class="fas fa-file-pdf mr-2"></i> Open Book (P. ${t.page_start})
+            </a>`;
+        } else {
+            html += `<span class="text-[10px] text-slate-400 font-bold">Book ${t.book_id}, Page ${t.page_start}</span>`;
+        }
+        html += `<button onclick="deleteTerm(${t.id})" class="text-rose-400 hover:text-rose-600 text-[10px] font-black uppercase tracking-widest transition-colors">
+            <i class="fas fa-trash-alt mr-1"></i> Remove
+        </button>`;
+        html += '</div></div>';
+
+        detailDiv.innerHTML = html;
+        detailDiv.classList.remove('hidden');
+
+        // Render math
         setTimeout(() => {
-            if (typeof renderMathInElement === 'function') {
-                renderMathInElement(document.getElementById('concept-detail'), {
+            const latex = detailDiv.querySelector('.latex-preview');
+            if (latex) {
+                renderMathInElement(latex, {
                     delimiters: [
                         { left: '$$', right: '$$', display: true },
                         { left: '$', right: '$', display: false },
@@ -281,150 +188,37 @@
                 });
             }
         }, 50);
-
-        // Re-render results to highlight active
-        loadConcepts();
     }
 
     function closeDetail() {
-        currentConceptId = null;
-        document.getElementById('concept-detail').classList.add('hidden');
+        if (currentTermId) {
+            const d = document.getElementById(`term-detail-${currentTermId}`);
+            const b = document.getElementById(`term-btn-${currentTermId}`);
+            if (d) { d.classList.add('hidden'); d.innerHTML = ''; }
+            if (b) b.classList.remove('bg-violet-50/50');
+            currentTermId = null;
+        }
     }
 
-    // ── Proposals ──
-    async function loadProposalCount() {
+    async function deleteTerm(id) {
+        if (!confirm("Remove this term from your Knowledge Base?")) return;
+        const resp = await fetch(`${API}/kb/terms/${id}`, { method: 'DELETE' });
+        if ((await resp.json()).success) {
+            closeDetail();
+            loadTerms();
+            showToast('✓ Term removed');
+        }
+    }
+
+    function parseKeywords(str) {
+        if (!str) return [];
         try {
-            const resp = await fetch(`${API}/kb/proposals/count`);
-            const data = await resp.json();
-            const badge = document.getElementById('proposal-badge');
-            if (data.count > 0) {
-                badge.textContent = data.count;
-                badge.classList.remove('hidden');
-            } else {
-                badge.classList.add('hidden');
-            }
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) return parsed.map(s => String(s).trim()).filter(s => s);
         } catch (e) { }
+        return str.split(',').map(s => s.trim()).filter(s => s);
     }
 
-    async function loadProposals() {
-        const resp = await fetch(`${API}/kb/proposals?status=pending&limit=100`);
-        const proposals = await resp.json();
-        const list = document.getElementById('proposals-list');
-        const empty = document.getElementById('proposals-empty');
-
-        if (!proposals.length) {
-            list.innerHTML = '';
-            empty.classList.remove('hidden');
-            return;
-        }
-        empty.classList.add('hidden');
-
-        list.innerHTML = proposals.map(p => {
-            const kindColors = {
-                'theorem': 'bg-blue-100 text-blue-700',
-                'definition': 'bg-green-100 text-green-700',
-                'lemma': 'bg-yellow-100 text-yellow-700',
-                'proposition': 'bg-orange-100 text-orange-700',
-                'corollary': 'bg-purple-100 text-purple-700',
-            };
-            const kindClass = kindColors[p.kind] || 'bg-gray-100 text-gray-600';
-            const book = p.book_author ? `${p.book_author} — ${p.book_title}` : (p.book_title || 'Unknown');
-
-            let mergeHtml = '';
-            if (p.merge_target_name) {
-                mergeHtml = `<div class="mt-2 text-sm text-amber-600 flex items-center gap-1">
-                <i class="fas fa-link"></i> Similar to: <strong>${escapeHtml(p.merge_target_name)}</strong> (ID ${p.merge_target_id})
-            </div>`;
-            }
-
-            return `<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow" id="proposal-${p.id}">
-            <div class="flex items-start justify-between mb-3">
-                <div>
-                    <span class="px-2 py-0.5 rounded text-xs font-semibold ${kindClass}">${p.kind}</span>
-                    <span class="font-bold text-slate-800 ml-2 text-lg">${escapeHtml(p.concept_name)}</span>
-                </div>
-                <span class="text-xs text-gray-400">${new Date(p.created_at * 1000).toLocaleDateString()}</span>
-            </div>
-            <div class="text-sm text-gray-500 mb-2">
-                <i class="fas fa-book mr-1"></i> ${escapeHtml(book)}, p. ${p.page_number}
-            </div>
-            ${p.snippet ? `<div class="bg-gray-50 rounded-lg p-3 text-sm font-mono text-gray-700 mb-3 latex-preview">${escapeHtml(p.snippet)}</div>` : ''}
-            ${mergeHtml}
-            <div class="flex gap-2 mt-4">
-                <button onclick="approveProposal(${p.id})"
-                    class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
-                    <i class="fas fa-check mr-1"></i> Approve
-                </button>
-                ${p.merge_target_id ? `
-                <button onclick="mergeProposal(${p.id}, ${p.merge_target_id})"
-                    class="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors">
-                    <i class="fas fa-link mr-1"></i> Merge with "${escapeHtml(p.merge_target_name)}"
-                </button>` : ''}
-                <button onclick="rejectProposal(${p.id})"
-                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-red-100 hover:text-red-700 transition-colors">
-                    <i class="fas fa-times mr-1"></i> Reject
-                </button>
-            </div>
-        </div>`;
-        }).join('');
-
-        // Render KaTeX in proposals
-        setTimeout(() => {
-            if (typeof renderMathInElement === 'function') {
-                renderMathInElement(document.getElementById('proposals-list'), {
-                    delimiters: [
-                        { left: '$$', right: '$$', display: true },
-                        { left: '$', right: '$', display: false },
-                        { left: '\\(', right: '\\)', display: false },
-                        { left: '\\[', right: '\\]', display: true }
-                    ],
-                    throwOnError: false
-                });
-            }
-        }, 50);
-    }
-
-    async function approveProposal(id) {
-        const resp = await fetch(`${API}/kb/proposals/${id}/approve`, { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) {
-            document.getElementById(`proposal-${id}`).remove();
-            loadProposalCount();
-            showToast('✓ Proposal approved — concept created');
-        } else {
-            showToast('✗ ' + (data.error || 'Failed'), 'error');
-        }
-    }
-
-    async function mergeProposal(id, targetId) {
-        const resp = await fetch(`${API}/kb/proposals/${id}/merge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_concept_id: targetId })
-        });
-        const data = await resp.json();
-        if (data.success) {
-            document.getElementById(`proposal-${id}`).remove();
-            loadProposalCount();
-            showToast('✓ Merged into existing concept');
-        } else {
-            showToast('✗ ' + (data.error || 'Failed'), 'error');
-        }
-    }
-
-    async function rejectProposal(id) {
-        const resp = await fetch(`${API}/kb/proposals/${id}/reject`, { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) {
-            document.getElementById(`proposal-${id}`).remove();
-            loadProposalCount();
-            showToast('✓ Proposal rejected');
-        } else {
-            showToast('✗ ' + (data.error || 'Failed'), 'error');
-        }
-    }
-
-    // ── Utilities ──
     function escapeHtml(str) {
         if (!str) return '';
         const div = document.createElement('div');
@@ -432,10 +226,9 @@
         return div.innerHTML;
     }
 
-    function showToast(msg, type = 'success') {
+    function showToast(msg) {
         const toast = document.createElement('div');
-        toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-lg text-sm font-medium transition-all
-        ${type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`;
+        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl text-sm font-black uppercase tracking-widest bg-slate-900 text-white border border-slate-700';
         toast.textContent = msg;
         document.body.appendChild(toast);
         setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);

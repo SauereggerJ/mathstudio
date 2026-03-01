@@ -29,7 +29,7 @@ MathStudio is a **personal mathematical research library management system** des
 
 - **AI-powered metadata extraction** (Gemini Vision) for automatic cataloging
 - **Multi-strategy hybrid search** (FTS5 + vector embeddings + AI reranking)
-- **Knowledge Base** with formal concept/entry/relation graph, Obsidian vault integration
+- **Knowledge Base**: Flat Term Index for formal theorems and definitions, with "Speaking Name" AI inference and Obsidian sync
 - **Note system** supporting handwritten scan transcription and PDF-to-LaTeX conversion
 - **External API enrichment** via zbMATH, Crossref, OpenAlex, arXiv, OpenLibrary
 - **MCP server** enabling LLM agents (Claude, Gemini) to interact with the library as an Agentic RAG system
@@ -57,8 +57,8 @@ graph TB
 
     subgraph "Service Layer"
         SEARCH["SearchService<br/>FTS + Vector + Rerank"]
-        NOTE["NoteService<br/>Transcription + Cache"]
-        KB["KnowledgeService<br/>Concepts/Entries/Relations"]
+        NOTE["NoteService<br/>Transcription + Extraction + Cache"]
+        KB["KnowledgeService<br/>Flat Term Index"]
         ZB["ZBMathService<br/>Crossref/OpenAlex/OAI"]
         IDX["IndexerService<br/>Full-text + Page-level"]
         ING["IngestorService<br/>Pipeline Orchestrator"]
@@ -73,8 +73,8 @@ graph TB
     end
 
     subgraph "Core"
-        DB["DatabaseManager<br/>SQLite WAL, 18+ tables"]
-        AI["AIService<br/>Gemini 2.0 Flash"]
+        DB["DatabaseManager<br/>SQLite WAL, 20+ tables"]
+        AI["AIService<br/>Gemini 2.5 Flash-lite"]
         PDF["PDFHandler<br/>PyMuPDF + DjVu"]
         CFG["Config<br/>Paths & API Keys"]
     end
@@ -219,15 +219,15 @@ The database uses **SQLite 3 with WAL mode** and contains **18+ tables**. All sc
 | `note_relations` | Note-to-note links | `from_note_id`, `to_note_id`, `relation_type` |
 | `note_book_relations` | Note-to-book associations | `note_id`, `book_id`, `page_number`, `relation_type` |
 
-#### Knowledge Base Tables
+#### Knowledge Base Tables (Term Hunter)
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
-| `concepts` | Mathematical concepts | `id`, `name`, `kind` (definition/theorem/lemma/etc.), `domain`, `aliases` (JSON), `synthesis`, `canonical_entry_id`, `obsidian_path` |
-| `entries` | Formulations of concepts | `id`, `concept_id` (FK), `book_id` (FK), `page_start`, `page_end`, `statement`, `proof`, `notes`, `scope`, `language`, `style`, `confidence`, `is_canonical`, `embedding` (BLOB), `extracted_by` |
-| `relations` | Concept-to-concept edges | `from_concept_id`, `to_concept_id`, `relation_type` (uses/implies/generalizes/etc.), `context`, `confidence` |
-| `kb_proposals` | Staging area for auto-extracted KB entries | `id`, `concept_name`, `kind`, `snippet`, `book_id`, `page_number`, `status` (pending/approved/merged/rejected), `merge_target_id` |
-| `llm_tasks` | Task queue for async AI ops | `id`, `task_type`, `payload` (JSON), `status`, `priority`, `retry_count`, `max_retries`, `error_log` (JSON) |
+| `knowledge_terms` | Flat Knowledge Index | `id`, `book_id` (FK), `page_start`, `name` (Speaking Name), `term_type`, `latex_content`, `used_terms`, `status` (draft/approved) |
+| `concepts` | Mathematical concepts (Legacy) | `id`, `name`, `kind` (definition/theorem/etc.), `domain`, `aliases` (JSON) |
+| `entries` | Concept formulations (Legacy) | `id`, `concept_id` (FK), `book_id` (FK), `page_start`, `statement`, `proof` |
+| `kb_proposals` | Legacy staging area | `id`, `concept_name`, `kind`, `snippet`, `book_id`, `page_number`, `status` |
+| `llm_tasks` | Task queue for async AI ops | `id`, `task_type`, `payload` (JSON), `status`, `retry_count` |
 
 #### External Data & Enrichment Tables
 
@@ -246,7 +246,8 @@ The database uses **SQLite 3 with WAL mode** and contains **18+ tables**. All sc
 | `books_fts` | `title`, `author`, `content`, `index_content` | `books` |
 | `pages_fts` | `book_id`, `page_number`, `content` | Deep-indexed page text |
 | `notes_fts` | `title`, `tags`, `content` | `notes` |
-| `concept_fts` | `name`, `aliases`, `statement`, `notes` | `concepts` + `entries` |
+| `knowledge_terms_fts` | `name`, `used_terms`, `latex_content` | `knowledge_terms` |
+| `concept_fts` | `name`, `aliases`, `statement`, `notes` | `concepts` + `entries` (Legacy) |
 
 #### Auxiliary Tables
 
@@ -273,7 +274,8 @@ erDiagram
     concepts ||--o{ relations : "from"
     concepts ||--o{ relations : "to"
 
-    kb_proposals }o--|| books : "extracted from"
+    knowledge_terms }o--|| books : "harvested from"
+    kb_proposals }o--|| books : "extracted from (Legacy)"
 
     zbmath_cache ||--o{ books : "enriches"
 ```
@@ -296,7 +298,7 @@ Central configuration hub. Key paths:
 | `CONVERTED_NOTES_DIR` | `mathstudio/converted_notes/` | PDF extraction output |
 | `NOTES_OUTPUT_DIR` | `mathstudio/notes_output/` | Handwritten note output |
 | `KNOWLEDGE_VAULT_ROOT` | `vault/10_Knowledge/` | Obsidian KB root |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | Default AI model |
+| `GEMINI_MODEL` | `gemini-2.5-flash-lite...` | Balanced Speed/Brain for Extraction |
 | `EMBEDDING_MODEL` | `models/text-embedding-004` | Vector embedding model |
 | `IGNORED_FOLDERS` | `{'mathstudio', '.git', ...}` | Folders excluded from scanning |
 
@@ -381,32 +383,26 @@ The largest service (857 lines). Handles two major workflows:
 5. DB record created, FTS synced
 6. Optionally copied to Obsidian Inbox
 
-**B. PDF Page → LaTeX Conversion (with Quality Cache)**:
+**B. PDF Page → LaTeX & Term Harvesting (The Lab)**:
 1. Check `extracted_pages` cache for existing high-quality conversion
-2. If cached and quality ≥ `min_quality` (default 0.7) → return from cache
-3. Otherwise: render page to 2x PNG → Gemini Vision → LaTeX + Markdown
-4. Quality evaluation: separate Gemini call rates accuracy 0.0–1.0
-5. If quality ≥ threshold → save to `converted_notes/{book_id}/page_{N}.{tex,md}`
-6. Register in `extracted_pages` table
+2. If missing/low quality: render 2x PNG → Gemini Vision (OCR)
+3. **Batch Knowledge Extraction**: If triggered (Synthesize), grab a context window for a range of pages (in chunks of up to 5 pages) to minimize token usage and redundant API calls.
+4. AI inferences **Speaking Names** (e.g., 'Cauchy Sequence (Definition 3)') using the "Thinking Step" protocol and includes the `page_start`.
+5. **Fuzzy Deduplication**: Discovered terms are checked against existing terms in the database using exact name match and a fuzzy similarity check (via Rapidfuzz, >85% LaTeX similarity) to avoid duplicates before saving as `draft`.
+6. Sync to `knowledge_terms_fts` for immediate searchability
 
-**Key methods**: `transcribe_note()`, `get_or_convert_pages()`, `create_note_from_pdf()`, `save_page_to_cache()`, `evaluate_latex_quality()`, `sync_filesystem_to_db()`
+**Key methods**: `transcribe_note()`, `get_or_convert_pages()`, `create_note_from_pdf()`, `save_page_to_cache()`, `extract_and_save_knowledge_terms_batch()`, `sync_filesystem_to_db()`
 
-### 6.3 `KnowledgeService` — Mathematical Knowledge Base
+### 6.3 `KnowledgeService` — Flat Term Index
 
-Implements a **formal concept graph** with these entities:
+The modern KB focuses on atomic mathematical terms stored in a flat structure for maximum searchability and browser performance.
 
-- **Concepts**: Named mathematical objects (definition, theorem, lemma, etc.)
-- **Entries**: Multiple formulations of a concept from different sources
-- **Relations**: Directed typed edges (uses, implies, generalizes, special_case_of, etc.)
-- **Proposals**: Queue for theorems/definitions auto-discovered by the PDF-to-LaTeX converter (`get_or_convert_pages`).
+- **Knowledge Terms**: Independent entities representing a definition, theorem, or remark.
+- **Speaking Names**: AI-generated descriptive titles (e.g., "Basis of Dual Space (Remark 2.15)") derived from content analysis.
+- **Status Workflow**: New harvests start as `draft` for user verification before being promoted to `approved`.
+- **Search & Browse**: Optimized FTS5 search and alphabetical browsing by first letter.
 
-**Key workflows**:
-- **Auto-Discovery**: `get_or_convert_pages()` → converts PDF page → adds discovered Math blocks into `kb_proposals`.
-- **Proposal lifecycle**: `pending` → `approved` (creates new concept) or `merged` (adds location to existing concept) or `rejected`.
-- **Dedup on commit**: Fuzzy name matching (rapidfuzz, threshold 90) prevents duplicate concepts
-- **Obsidian rendering**: Jinja2 templates render concepts to Markdown files with auto-wikilinking
-- **Graph traversal**: BFS with hard depth cap of 3 for `get_related_concepts()`
-- **Task queue**: `llm_tasks` table for async AI operations with retry logic
+**Legacy Graph Arch (Concepts/Entries/Relations)**: Still exists in the DB for complex relational research but the primary ingestion focus has shifted to the Flat Term Index.
 
 ### 6.4 `ZBMathService` — External Metadata Enrichment
 

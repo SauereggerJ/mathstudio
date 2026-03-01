@@ -46,32 +46,26 @@ Base URL: `http://localhost:5001/api/v1`
 | POST | `/notes/upload` | Multipart file | Upload handwritten scan |
 | POST | `/notes/compile` | — | Compile all notes to category/master PDFs |
 
-### 7.4 Knowledge Base
+### 7.4 Knowledge Base (Flat Index)
 
 | Method | Endpoint | Parameters | Description |
 |--------|----------|-----------|-------------|
-| GET | `/kb/concepts/search` | `q`, `kind`, `limit` | Search concepts + entries |
-| GET | `/kb/concepts/<id>` | — | Full concept with entries + relations |
-| POST | `/kb/concepts` | JSON: `name`, `kind`, `domain`, `aliases` | Create concept |
-| PATCH | `/kb/concepts/<id>` | JSON fields | Update concept |
-| DELETE | `/kb/concepts/<id>` | — | Delete concept (CASCADE) |
-| POST | `/kb/concepts/<id>/entries` | JSON: `statement`, `proof`, `book_id`, etc. | Add formulation |
-| POST | `/kb/concepts/<id>/relations` | JSON: `to_id`, `type`, `context` | Add relation |
-| POST | `/kb/ingest-page` | JSON: `book_id`, `page`, `concept_name` | Ingest page → draft |
-| GET | `/kb/drafts` | `status`, `limit` | List drafts |
-| GET | `/kb/drafts/<id>` | — | Read draft details |
-| PATCH | `/kb/drafts/<id>` | JSON fields | Update draft |
-| POST | `/kb/drafts/<id>/commit` | — | Promote draft → KB |
-| DELETE | `/kb/drafts/<id>` | — | Discard draft |
-| GET | `/kb/schema` | — | Valid kinds + relation types |
-| POST | `/kb/vault/regenerate` | — | Re-render all concepts to Obsidian |
+| GET | `/kb/terms` | `letter`, `kind`, `status`, `sort`, `limit` | Browse atomic knowledge terms |
+| GET | `/kb/terms/search` | `q`, `kind`, `status`, `limit` | Full-text search over knowledge terms |
+| GET | `/kb/terms/<id>` | — | Term details + book context |
+| PATCH | `/kb/terms/<id>/status` | JSON: `status` ('draft'/'approved') | Update review status |
+| DELETE | `/kb/terms/<id>` | — | Delete term (syncs with FTS) |
+| POST | `/kb/vault/regenerate` | — | Re-render terms to Obsidian |
+
+> [!NOTE]
+> The legacy concept/entry/relation endpoints (`/kb/concepts`) are still supported but the primary ingestion flow now targets the Flat Term Index.
 
 ### 7.5 Tools & Administration
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/tools/pdf-to-text` | Raw text extraction from pages |
-| POST | `/tools/pdf-to-note` | AI conversion of pages to note |
+| POST | `/tools/pdf-to-note` | Term Hunter: Contextual harvesting of math terms |
 | POST | `/tools/bib-scan` | Vision-based bibliography extraction |
 | GET | `/tools/open-external` | Open file in system handler |
 | POST | `/admin/ingest` | Process Unsorted folder |
@@ -104,7 +98,7 @@ The MCP server ([server.py](file:///home/jure/nasi_data/math/New_Research_Librar
 | **Books** (7) | `get_book_details`, `get_book_toc`, `read_pdf_pages`, `update_metadata`, `reindex_book`, `refresh_book_metadata`, `preview_metadata_refresh` |
 | **Notes** (13) | `list_notes`, `search_notes`, `get_note_details`, `get_note_content`, `update_note_content`, `update_note_metadata`, `get_note_pdf`, `create_note`, `compile_note`, `compile_notes`, `upload_note_scan`, `convert_pdf_to_note`, `add_note_book_relation` |
 | **LaTeX** (1) | `get_book_pages_latex` (with quality cache) |
-| **KB** (7) | `search_knowledge`, `get_concept_details`, `ingest_kb_draft`, `read_kb_draft`, `update_kb_draft`, `commit_kb_draft`, `list_kb_drafts` |
+| **KB** (7) | `list_knowledge_terms`, `search_knowledge_terms`, `get_term_details`, `update_term_status`, `delete_term`, `regenerate_kb_vault` |
 | **Bibliography** (2) | `scan_bibliography`, `resolve_citations` |
 | **Admin** (6) | `trigger_ingestion`, `get_library_stats`, `rebuild_fts_index`, `run_sanity_fix`, `manage_wishlist`, `manage_bookmarks` |
 | **Enrichment** (2) | `enrich_book_metadata`, `batch_enrich_books` |
@@ -240,36 +234,34 @@ sequenceDiagram
     end
 ```
 
-### 10.4 Knowledge Base Ingestion Flow
+### 10.4 Knowledge Harvesting Flow (The Lab)
 
 ```mermaid
 sequenceDiagram
-    participant LLM as LLM Agent
-    participant MCP as MCP Server
+    participant UI as Web UI (Lab)
     participant API as api_v1.py
-    participant KS as KnowledgeService
     participant NS as NoteService
+    participant CV as converter.py
+    participant AI as Gemini 2.5 Flash-lite
+    participant DB as SQLite
 
-    LLM->>MCP: get_book_pages_latex(book_id=5, pages="42")
-    MCP->>API: GET /books/5/pages/latex?pages=42
-    API->>NS: get_or_convert_pages(5, [42])
-    Note over NS: AI conversion happens, extracts math
-    NS->>KS: ingest_from_page(5, 42) creates proposals
-    NS-->>API: {latex: "extracted LaTeX...", proposals_created: 1}
-    API-->>MCP: JSON
-    MCP-->>LLM: "LaTeX Content... (also proposals created)"
-
-    LLM->>MCP: list_kb_proposals()
-    MCP->>API: GET /kb/proposals
-    API-->>MCP: [ {id: 7, concept_name: "Banach Fixed Point", ...} ]
-    LLM->>LLM: Present to user for review
-    Note over LLM: User approves via UI Dashboard
-    Note over KS: UI calls POST /kb/proposals/7/merge
-    MCP->>API: POST /kb/drafts/7/commit
-    API->>KS: commit_draft(7)
-    KS->>KS: Fuzzy dedup check on concept name
-    KS->>KS: Create or link to existing concept
-    KS->>KS: Insert entry + sync FTS
+    UI->>API: POST /tools/pdf-to-note (Pages 40-50)
+    API->>NS: extract_and_save_knowledge_terms_batch(Pages 40-50)
+    NS->>NS: Split into chunks of 5 + buffer
+    loop Each 5-Page Chunk
+        NS->>DB: Fetch Book Title & Author
+        NS->>CV: extract_terms_batch(LaTeX_Chunk, Start, End, Metadata)
+        CV->>AI: Holistic analysis with Thinking Step
+        AI-->>CV: JSON: Terms with Speaking Names and page_starts
+        CV-->>NS: List[{name, type, page_start, latex_snippet, used_terms}]
+        loop Each term
+            NS->>NS: Fuzzy Deduplication (RapidFuzz >85% similar)
+            NS->>DB: INSERT INTO knowledge_terms (status='draft')
+            NS->>DB: INSERT INTO knowledge_terms_fts
+        end
+    end
+    NS-->>API: {terms_found: 12}
+    API-->>UI: Reload Browser
 ```
 
 ---
@@ -348,16 +340,19 @@ Android E-Ink app searches library via REST API → displays search results with
 
 ## 13. Future Development Plan
 
-### Phase 1: PDF-to-LaTeX Cache Storage (Priority)
+### Phase 1: Robustness & Contextual Quality (Priority)
 
 > [!IMPORTANT]
-> This is the user's key requested feature: storing PDF-to-LaTeX conversion results for persistent reuse.
+> This phase is partially complete with the implementation of the "Term Hunter" pipeline and "Speaking Name" protocol.
 
-**Current state**: The `extracted_pages` table and `save_page_to_cache()` / `get_cached_page()` methods already exist but are only used within the `NoteService.get_or_convert_pages()` flow. The cache is functional but underutilized.
+**Recent enhancements**:
+1. **Speaking Name Protocol**: Prompt-driven descriptive naming for terms.
+2. **Batch Knowledge Extraction**: Multi-page windows for extraction optimized into chunks (up to 5 pages) to minimize API tokens and redundant calls.
+3. **Fuzzy Deduplication**: Rapidfuzz checks prevent near-identical AI-generated terms from being duplicated in the database.
+4. **Flat Term Browser**: Direct browsing and search of harvested discoveries.
 
-**Proposed enhancements**:
-1. **Proactive batch conversion**: New `batch_convert_pages` endpoint that processes entire chapters (e.g., pages 50–80) in the background, saving all results to the cache
-2. **Cache dashboard**: Admin UI page showing cache coverage per book (e.g., "42/350 pages converted, avg quality 0.78")
+**Remaining goals**:
+1. **Cache dashboard**: Admin UI page showing cache coverage per book (e.g., "42/350 pages converted, avg quality 0.78")
 3. **Quality re-evaluation**: Periodic background job to re-evaluate cached pages with newer Gemini models and replace low-quality conversions
 4. **Export API**: Endpoint to export all cached LaTeX for a book as a single `.tex` document with chapter structure from TOC
 5. **MCP cache status tool**: `get_book_cache_status(book_id)` showing which pages are cached and their quality scores

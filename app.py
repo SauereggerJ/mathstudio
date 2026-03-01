@@ -21,6 +21,24 @@ app = Flask(__name__)
 CORS(app) # Enable CORS for all routes
 app.secret_key = 'supersecretkey'
 
+# Configure logging to file
+import logging
+log_file = os.path.join(os.path.dirname(__file__), 'app.log')
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+))
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+# Also add it to our service loggers if they don't have one
+logging.getLogger('services').addHandler(file_handler)
+logging.getLogger('services').setLevel(logging.INFO)
+logging.getLogger('core').addHandler(file_handler)
+logging.getLogger('core').setLevel(logging.INFO)
+
+app.logger.info(f"=== MathStudio App Starting. Log: {log_file} ===")
+
+
 @app.template_filter('from_json')
 def from_json_filter(value):
     try:
@@ -128,6 +146,29 @@ app.register_blueprint(api_v1, url_prefix='/api/v1')
 
 # Start Worker
 threading.Thread(target=enrichment_worker, daemon=True).start()
+
+# One-time backfill: populate LaTeX FTS from existing cached pages
+def _run_fts_backfill():
+    time.sleep(5)  # Let the app fully start
+    try:
+        db.initialize_schema()  # Ensure extracted_pages_fts exists
+        count = note_service.backfill_latex_fts()
+        if count > 0:
+            app.logger.info(f"Startup: Backfilled {count} pages into extracted_pages_fts")
+    except Exception as e:
+        app.logger.warning(f"FTS backfill failed: {e}")
+
+threading.Thread(target=_run_fts_backfill, daemon=True).start()
+
+# Start scan worker (processes Full Book Scans one at a time)
+def _run_scan_worker():
+    time.sleep(15)  # Let everything else start first
+    try:
+        note_service.scan_worker()
+    except Exception as e:
+        app.logger.error(f"Scan worker crashed: {e}")
+
+threading.Thread(target=_run_scan_worker, daemon=True).start()
 
 # --- Frontend Routes ---
 
@@ -256,8 +297,16 @@ def book_details(book_id):
         """, (book_id,))
         bibliography = [dict(row) for row in cursor.fetchall()]
 
+        cursor.execute("""
+            SELECT page_number, quality_score, created_at, latex_path, markdown_path
+            FROM extracted_pages
+            WHERE book_id = ?
+            ORDER BY page_number ASC
+        """, (book_id,))
+        extracted_pages = [dict(row) for row in cursor.fetchall()]
+
     update_state("view_book", book_id=book_id, extra={"title": book_dict['title'], "path": str(book_dict['path'])})
-    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, cover_url=f'/static/thumbnails/{book_id}/page_1.png', zb_extra=zb_extra)
+    return render_template('book.html', **book_dict, query=query, similar_books=similar_books, chapters=chapters, matches=matches, index_matches=index_matches, bibliography=bibliography, extracted_pages=extracted_pages, cover_url=f'/static/thumbnails/{book_id}/page_1.png', zb_extra=zb_extra)
 
 @app.route('/view-pdf/<int:book_id>')
 def view_as_pdf(book_id):

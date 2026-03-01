@@ -278,6 +278,48 @@ def search_within_book_endpoint(book_id):
         return jsonify({'book_id': book_id, 'query': query, 'matches': matches, 'is_deep_indexed': is_deep})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
+@api_v1.route('/books/<int:book_id>/search/latex', methods=['GET'])
+def search_book_latex(book_id):
+    """Full-text search over AI-converted LaTeX pages of a specific book."""
+    query = request.args.get('q', '')
+    limit = request.args.get('limit', 20, type=int)
+    if not query:
+        return jsonify({'error': 'Missing query parameter (q)'}), 400
+    try:
+        with db.get_connection() as conn:
+            rows = conn.execute("""
+                SELECT page_number, 
+                       snippet(extracted_pages_fts, 2, '**', '**', '...', 40) as snippet
+                FROM extracted_pages_fts
+                WHERE book_id = ? AND latex_content MATCH ?
+                ORDER BY rank
+                LIMIT ?
+            """, (book_id, query, limit)).fetchall()
+            results = [{'page': r['page_number'], 'snippet': r['snippet']} for r in rows]
+        
+        # Also find associated knowledge terms for matched pages
+        matched_pages = [r['page'] for r in results]
+        terms_by_page = {}
+        if matched_pages:
+            with db.get_connection() as conn:
+                placeholders = ','.join('?' * len(matched_pages))
+                term_rows = conn.execute(f"""
+                    SELECT page_start, name, term_type FROM knowledge_terms 
+                    WHERE book_id = ? AND page_start IN ({placeholders})
+                """, [book_id] + matched_pages).fetchall()
+                for tr in term_rows:
+                    p = tr['page_start']
+                    if p not in terms_by_page:
+                        terms_by_page[p] = []
+                    terms_by_page[p].append({'name': tr['name'], 'type': tr['term_type']})
+        
+        for r in results:
+            r['terms'] = terms_by_page.get(r['page'], [])
+        
+        return jsonify({'book_id': book_id, 'query': query, 'results': results, 'total': len(results)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/books/<int:book_id>/toc', methods=['GET'])
 def get_book_toc_endpoint(book_id):
     """Returns structured Table of Contents."""
@@ -612,6 +654,45 @@ def delete_bookmark(bookmark_id):
 
 # --- 4. Structured Notes & Transcriptions ---
 
+@api_v1.route('/note/view-file', methods=['GET'])
+def view_note_file():
+    """Serves raw file content for converted notes (Markdown/LaTeX)."""
+    path_param = request.args.get('path')
+    if not path_param:
+        return jsonify({'error': 'No path provided'}), 400
+    
+    # Standardize path resolution: remove absolute container prefix if present
+    if path_param.startswith('/library/mathstudio/'):
+        path_param = path_param.replace('/library/mathstudio/', '')
+    
+    # Security: Ensure we only read from allowed directories
+    from core.config import PROJECT_ROOT, CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR
+    full_path = (PROJECT_ROOT / path_param).resolve()
+    
+    # Check if inside project directories
+    if not str(full_path).startswith(str(PROJECT_ROOT)):
+        return jsonify({'error': 'Access denied'}), 403
+        
+    if not full_path.exists():
+        return jsonify({'error': f'File not found: {path_param}'}), 404
+        
+    try:
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # If it's a browser request for raw text, wrapping in a simple pre tag or json
+        if request.args.get('raw') == 'true':
+            return content
+            
+        # Return as JSON for easy rendering in UI if needed, or just the content
+        return jsonify({
+            'path': path_param,
+            'content': content,
+            'filename': full_path.name
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/notes', methods=['GET'])
 def list_notes_endpoint():
     """Returns a list of structured notes from the DB."""
@@ -922,9 +1003,67 @@ def admin_stats():
 @api_v1.route('/admin/sanity/fix', methods=['POST'])
 def admin_sanity_fix():
     try:
+        # First, ensure all books have hashes so duplicates can be caught
+        hashed_count = library_service.populate_missing_hashes()
+        # Then, perform the actual deduplication and cleanup
         results = library_service.check_sanity(fix=True)
+        results['hashed_count'] = hashed_count
         return jsonify({'success': True, 'results': results})
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/purge-extracted-pages', methods=['POST'])
+def admin_purge_extracted_pages():
+    """Deletes all extracted page files from disk and their database records. Tabula rasa."""
+    import shutil
+    from core.config import CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR
+    deleted_dirs = []
+    errors = []
+    
+    try:
+        # 1. Wipe converted notes folder contents
+        for folder in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR]:
+            if folder.exists():
+                for item in folder.iterdir():
+                    try:
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            item.unlink()
+                        deleted_dirs.append(str(item))
+                    except Exception as e:
+                        errors.append(f"{item}: {e}")
+        
+        # 2. Wipe knowledge vault generated and drafts
+        for folder in [KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR]:
+            if folder.exists():
+                for item in folder.iterdir():
+                    try:
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            item.unlink()
+                        deleted_dirs.append(str(item))
+                    except Exception as e:
+                        errors.append(f"{item}: {e}")
+        
+        # 3. Clear extracted pages database records
+        with db.get_connection() as conn:
+            ep_count = conn.execute("SELECT COUNT(*) FROM extracted_pages").fetchone()[0]
+            conn.execute("DELETE FROM extracted_pages")
+            
+            kt_count = conn.execute("SELECT COUNT(*) FROM knowledge_terms").fetchone()[0]
+            conn.execute("DELETE FROM knowledge_terms")
+            conn.execute("DELETE FROM knowledge_terms_fts")
+        
+        return jsonify({
+            'success': True,
+            'extracted_pages_deleted': ep_count,
+            'knowledge_terms_deleted': kt_count,
+            'disk_items_deleted': len(deleted_dirs),
+            'errors': errors
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/tools/pdf-to-text', methods=['POST'])
 def pdf_to_text_tool():
@@ -975,7 +1114,7 @@ def pdf_to_text_tool():
 
 @api_v1.route('/tools/pdf-to-note', methods=['POST'])
 def pdf_to_note_tool():
-    """Converts PDF pages to LaTeX/Markdown (cached) and triggers KB proposals. Does NOT create a Note."""
+    """Converts PDF pages to LaTeX/Markdown (cached) and triggers Contextual KB extraction. Does NOT create a Note."""
     try:
         data = request.json
         book_id = data.get('book_id')
@@ -984,6 +1123,15 @@ def pdf_to_note_tool():
         if not book_id or not pages_str:
             return jsonify({'error': 'book_id and pages/page are required'}), 400
             
+        # Optional Parameters
+        min_quality = data.get('min_quality', 0.7)
+        window_before = data.get('window_before', 2)
+        window_after = data.get('window_after', 4)
+        abort_on_failure = data.get('abort_on_failure', True)
+        force_refresh = data.get('refresh', False)
+
+        force_extract = data.get('force_extract', False)
+
         with db.get_connection() as conn:
             row = conn.execute("SELECT page_count FROM books WHERE id = ?", (book_id,)).fetchone()
         
@@ -992,34 +1140,141 @@ def pdf_to_note_tool():
         target_pages = parse_page_range(pages_str, row['page_count'])
         if not target_pages: return jsonify({'error': 'Invalid page range'}), 400
         
-        force_refresh = data.get('refresh', False)
-        
-        # Convert + cache + trigger proposals (no Note record created)
+        # 1. Standard full-page conversion (fills cache)
         results, convert_error = note_service.get_or_convert_pages(
-            book_id, target_pages, force_refresh=force_refresh
+            book_id, target_pages, 
+            force_refresh=force_refresh, 
+            min_quality=min_quality,
+            include_discoveries=False,
+            abort_on_failure=abort_on_failure
         )
         
         if convert_error:
-            return jsonify({'success': False, 'error': convert_error}), 500
+            # If aborted, results contains partial pages already done
+            return jsonify({
+                'success': False, 
+                'error': convert_error,
+                'partial_results': results
+            }), 422 # 422 Unprocessable Entity for logic errors
         
+        # 2. Contextual Knowledge Extraction (Batch Optimized)
+        total_terms, err = note_service.extract_and_save_knowledge_terms_batch(
+            book_id, target_pages,
+            window_buffer=max(window_before, window_after),
+            force=force_extract
+        )
+        if err:
+            logger.error(f"Batch extraction encountered an error: {err}")
+
         # Combine for display
         combined = ""
         for pr in results:
-            page_num = pr.get('page')
-            if pr.get('error'):
-                combined += f"\n\n> [Error on page {page_num}: {pr['error']}]\n\n"
-            elif pr.get('markdown'):
-                combined += f"\n## Page {page_num}\n\n{pr['markdown']}"
-            elif pr.get('raw_text'):
-                combined += f"\n## Page {page_num} (raw text)\n\n{pr['raw_text']}"
-        
+            p_num = pr.get('page')
+            p_latex = pr.get('latex') or f"% [Page {p_num} LaTeX missing/failed]"
+            combined += f"\n\n% --- PAGE {p_num} ---\n\n{p_latex}"
+            
         return jsonify({
             'success': True,
-            'content': combined.strip(),
-            'pages_converted': len([r for r in results if not r.get('error')])
+            'content': combined,
+            'pages_converted': len(results),
+            'terms_found': total_terms
         })
     except Exception as e:
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+# ── Full Book Scan ──
+
+@api_v1.route('/books/<int:book_id>/scan', methods=['POST'])
+def enqueue_book_scan(book_id):
+    """Enqueue a full book scan with daily limit enforcement."""
+    try:
+        with db.get_connection() as conn:
+            # Check book exists
+            book = conn.execute("SELECT id, title FROM books WHERE id = ?", (book_id,)).fetchone()
+            if not book:
+                return jsonify({'error': 'Book not found'}), 404
+            
+            # Check if already scanning or scanned
+            existing = conn.execute(
+                "SELECT id, status FROM book_scans WHERE book_id = ?", (book_id,)
+            ).fetchone()
+            if existing:
+                if existing['status'] in ('queued', 'running'):
+                    return jsonify({'error': 'Scan already in progress', 'status': existing['status']}), 409
+                if existing['status'] == 'completed':
+                    return jsonify({'error': 'Book already scanned. Delete the scan to re-run.'}), 409
+                # Failed or cancelled — allow re-queue by deleting old
+                conn.execute("DELETE FROM book_scans WHERE id = ?", (existing['id'],))
+            
+            # Daily limit: max 3 books per day
+            today_count = conn.execute(
+                "SELECT COUNT(*) FROM book_scans WHERE created_at > unixepoch() - 86400"
+            ).fetchone()[0]
+            if today_count >= 3:
+                return jsonify({'error': 'Daily scan limit reached (3/day). Try again tomorrow.'}), 429
+            
+            # Enqueue
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO book_scans (book_id) VALUES (?)", (book_id,)
+            )
+            scan_id = cursor.lastrowid
+        
+        return jsonify({'success': True, 'scan_id': scan_id, 'daily_used': today_count + 1, 'daily_limit': 3})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/scan', methods=['GET'])
+def get_book_scan_status(book_id):
+    """Get scan progress for a book."""
+    try:
+        with db.get_connection() as conn:
+            scan = conn.execute(
+                "SELECT * FROM book_scans WHERE book_id = ?", (book_id,)
+            ).fetchone()
+            
+            today_count = conn.execute(
+                "SELECT COUNT(*) FROM book_scans WHERE created_at > unixepoch() - 86400"
+            ).fetchone()[0]
+        
+        if not scan:
+            return jsonify({'exists': False, 'daily_used': today_count, 'daily_limit': 3})
+        
+        return jsonify({
+            'exists': True,
+            'scan_id': scan['id'],
+            'status': scan['status'],
+            'pages_done': scan['pages_done'],
+            'pages_total': scan['pages_total'],
+            'terms_found': scan['terms_found'],
+            'started_at': scan['started_at'],
+            'completed_at': scan['completed_at'],
+            'error_log': scan['error_log'],
+            'daily_used': today_count,
+            'daily_limit': 3
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/books/<int:book_id>/scan', methods=['DELETE'])
+def cancel_book_scan(book_id):
+    """Cancel or delete a book scan."""
+    try:
+        with db.get_connection() as conn:
+            scan = conn.execute(
+                "SELECT id, status FROM book_scans WHERE book_id = ?", (book_id,)
+            ).fetchone()
+            if not scan:
+                return jsonify({'error': 'No scan found'}), 404
+            
+            if scan['status'] == 'running':
+                conn.execute("UPDATE book_scans SET status = 'cancelled' WHERE id = ?", (scan['id'],))
+                return jsonify({'success': True, 'message': 'Scan will be cancelled after current chunk'})
+            else:
+                conn.execute("DELETE FROM book_scans WHERE id = ?", (scan['id'],))
+                return jsonify({'success': True, 'message': 'Scan deleted'})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @api_v1.route('/wishlist', methods=['POST'])
@@ -1097,17 +1352,23 @@ def resolve_conflict():
 def get_admin_logs():
     """Returns the last lines of the enrichment logs."""
     log_file = request.args.get('file', 'enrichment_full_run.log')
-    # Prevent path traversal
-    if log_file not in ['enrichment_full_run.log', 'enrichment_batch.log']:
+    tail = request.args.get('tail', 100, type=int)
+    ALLOWED_LOGS = {
+        'enrichment_full_run.log': 'enrichment_full_run.log',
+        'enrichment_batch.log': 'enrichment_batch.log',
+        'mcp.log': str(Path(__file__).parent / 'mcp_server' / 'mcp.log'),
+        'app.log': str(Path(__file__).parent / 'app.log'),
+    }
+    if log_file not in ALLOWED_LOGS:
         return jsonify({'error': 'Access denied'}), 403
-        
+    resolved = ALLOWED_LOGS[log_file]
+
     try:
-        if not os.path.exists(log_file):
-            return jsonify({'logs': 'Log file not found yet.'})
+        if not os.path.exists(resolved):
+            return jsonify({'logs': f'Log file not found: {resolved}'})
             
-        with open(log_file, 'r') as f:
-            # Get last 100 lines
-            lines = f.readlines()[-100:]
+        with open(resolved, 'r') as f:
+            lines = f.readlines()[-tail:]
             return jsonify({'logs': "".join(lines)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1139,128 +1400,83 @@ def open_external_tool():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- 4. Knowledge Base ---
+# --- Knowledge Base: Flat Terms (Term Hunter & Browse) ---
 
-@api_v1.route('/kb/concepts', methods=['GET'])
-def kb_browse_concepts():
-    """Browse concepts with letter filter and sorting."""
+@api_v1.route('/kb/terms', methods=['GET'])
+def list_knowledge_terms():
+    """List or browse knowledge terms from the flat table."""
+    status = request.args.get('status', 'approved')
     letter = request.args.get('letter')
     sort = request.args.get('sort', 'alpha')
     kind = request.args.get('kind')
     limit = request.args.get('limit', 100, type=int)
     offset = request.args.get('offset', 0, type=int)
-    result = knowledge_service.browse_concepts(letter=letter, sort=sort, kind=kind,
-                                                limit=limit, offset=offset)
+    
+    result = knowledge_service.browse_terms(
+        letter=letter, sort=sort, kind=kind, status=status,
+        limit=limit, offset=offset
+    )
     return jsonify(result)
 
-@api_v1.route('/kb/concepts', methods=['POST'])
-def kb_add_concept():
-    data = request.json
-    if not data.get('name') or not data.get('kind'):
-        return jsonify({'error': 'name and kind are required'}), 400
-    result = knowledge_service.add_concept(
-        name=data['name'], kind=data['kind'],
-        domain=data.get('domain'), aliases=data.get('aliases'))
-    return jsonify(result), 200 if result.get('success') else 409
-
-@api_v1.route('/kb/concepts/<int:concept_id>', methods=['GET'])
-def kb_get_concept(concept_id):
-    result = knowledge_service.get_concept(concept_id)
-    if not result: return jsonify({'error': 'Not found'}), 404
-    return jsonify(result)
-
-@api_v1.route('/kb/concepts/<int:concept_id>', methods=['PATCH'])
-def kb_update_concept(concept_id):
-    result = knowledge_service.update_concept(concept_id, **request.json)
-    return jsonify(result), 200 if result.get('success') else 400
-
-@api_v1.route('/kb/concepts/<int:concept_id>', methods=['DELETE'])
-def kb_delete_concept(concept_id):
-    result = knowledge_service.delete_concept(concept_id)
-    return jsonify(result), 200 if result.get('success') else 400
-
-@api_v1.route('/kb/concepts/search', methods=['GET'])
-def kb_search_concepts():
+@api_v1.route('/kb/terms/search', methods=['GET'])
+def kb_search_terms():
     query = request.args.get('q', '')
     if not query: return jsonify({'error': 'q is required'}), 400
-    results = knowledge_service.search_concepts(
-        query, kind=request.args.get('kind'),
-        limit=request.args.get('limit', 20, type=int))
+    status = request.args.get('status', 'approved')
+    kind = request.args.get('kind')
+    limit = request.args.get('limit', 50, type=int)
+    
+    results = knowledge_service.search_terms(query, kind=kind, status=status, limit=limit)
     return jsonify(results)
 
-@api_v1.route('/kb/add-location', methods=['POST'])
-def kb_add_location():
-    """Register where a theorem/definition appears in a book."""
-    data = request.json
-    if not data.get('concept_name') or not data.get('book_id') or not data.get('page'):
-        return jsonify({'error': 'concept_name, book_id, and page are required'}), 400
-    result = knowledge_service.add_location(
-        concept_name=data['concept_name'],
-        kind=data.get('kind', 'theorem'),
-        book_id=data['book_id'],
-        page=data['page'],
-        statement_preview=data.get('statement_preview'))
-    return jsonify(result), 200 if result.get('success') else 400
+@api_v1.route('/kb/terms/count', methods=['GET'])
+def get_knowledge_terms_count():
+    status = request.args.get('status', 'draft')
+    count = knowledge_service.get_term_count(status)
+    return jsonify({'count': count})
 
-@api_v1.route('/kb/entries', methods=['POST'])
-def kb_add_entry():
-    data = request.json
-    if not data.get('concept_id'):
-        return jsonify({'error': 'concept_id is required'}), 400
-    result = knowledge_service.add_entry(
-        concept_id=data['concept_id'],
-        book_id=data.get('book_id'),
-        page_start=data.get('page_start'),
-        page_end=data.get('page_end'),
-        statement=data.get('statement'),
-        is_canonical=data.get('is_canonical'))
-    return jsonify(result), 200 if result.get('success') else 400
+@api_v1.route('/kb/terms/<int:term_id>', methods=['GET'])
+def get_knowledge_term(term_id):
+    term = knowledge_service.get_term(term_id)
+    if not term: return jsonify({'error': 'Term not found'}), 404
+    return jsonify(term)
 
-@api_v1.route('/kb/entries/<int:entry_id>', methods=['DELETE'])
-def kb_delete_entry(entry_id):
-    result = knowledge_service.delete_entry(entry_id)
-    return jsonify(result), 200 if result.get('success') else 400
+@api_v1.route('/kb/terms/<int:term_id>/approve', methods=['POST'])
+def approve_knowledge_term(term_id):
+    """Moves a term from draft to approved status."""
+    if knowledge_service.update_term_status(term_id, 'approved'):
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to approve term'}), 400
 
-@api_v1.route('/kb/schema', methods=['GET'])
-def kb_get_schema():
-    return jsonify(knowledge_service.get_kb_schema_info())
+@api_v1.route('/kb/terms/<int:term_id>', methods=['DELETE'])
+def delete_knowledge_term(term_id):
+    if knowledge_service.delete_term(term_id):
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to delete term'}), 400
 
-# --- KB Proposals (auto-discovery approval) ---
+# --- Legacy KB Redirects (to prevent UI break during transition) ---
+
+@api_v1.route('/kb/concepts', methods=['GET'])
+def legacy_kb_browse():
+    # Redirect browse request to the new flat term browser
+    return list_knowledge_terms()
+
+@api_v1.route('/kb/concepts/search', methods=['GET'])
+def legacy_kb_search():
+    return kb_search_terms()
+
+@api_v1.route('/kb/concepts/<int:term_id>', methods=['GET'])
+def legacy_kb_get(term_id):
+    return get_knowledge_term(term_id)
 
 @api_v1.route('/kb/proposals', methods=['GET'])
-def kb_list_proposals():
-    status = request.args.get('status', 'pending')
-    limit = request.args.get('limit', 50, type=int)
-    return jsonify(knowledge_service.list_proposals(status, limit))
+def legacy_kb_proposals():
+    # In new architecture, proposals are just 'draft' terms
+    return list_knowledge_terms() # Status defaults to approved, but UI can override
 
 @api_v1.route('/kb/proposals/count', methods=['GET'])
-def kb_proposal_count():
-    return jsonify({'count': knowledge_service.get_proposal_count()})
-
-@api_v1.route('/kb/proposals/<int:proposal_id>', methods=['GET'])
-def kb_get_proposal(proposal_id):
-    result = knowledge_service.get_proposal(proposal_id)
-    if not result: return jsonify({'error': 'Not found'}), 404
-    return jsonify(result)
-
-@api_v1.route('/kb/proposals/<int:proposal_id>/approve', methods=['POST'])
-def kb_approve_proposal(proposal_id):
-    result = knowledge_service.approve_proposal(proposal_id)
-    return jsonify(result), 200 if result.get('success') else 400
-
-@api_v1.route('/kb/proposals/<int:proposal_id>/merge', methods=['POST'])
-def kb_merge_proposal(proposal_id):
-    data = request.json or {}
-    target_id = data.get('target_concept_id')
-    if not target_id:
-        return jsonify({'error': 'target_concept_id is required'}), 400
-    result = knowledge_service.merge_proposal(proposal_id, target_id)
-    return jsonify(result), 200 if result.get('success') else 400
-
-@api_v1.route('/kb/proposals/<int:proposal_id>/reject', methods=['POST'])
-def kb_reject_proposal(proposal_id):
-    result = knowledge_service.reject_proposal(proposal_id)
-    return jsonify(result), 200 if result.get('success') else 400
+def legacy_kb_proposal_count():
+    return get_knowledge_terms_count()
 
 # --- 5. Analytics ---
 

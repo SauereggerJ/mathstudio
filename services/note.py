@@ -7,9 +7,11 @@ import time
 import subprocess
 import logging
 from pathlib import Path
+from typing import List, Tuple
 from PIL import Image
 import numpy as np
 from google.genai import types
+import converter
 from core.database import db
 from core.ai import ai
 from core.config import LIBRARY_ROOT, CONVERTED_NOTES_DIR, OBSIDIAN_INBOX, NOTES_OUTPUT_DIR, EMBEDDING_MODEL, PROJECT_ROOT
@@ -34,6 +36,9 @@ class NoteService:
             out_io = io.BytesIO()
             img.save(out_io, format="JPEG", quality=85, optimize=True)
             return out_io.getvalue()
+        except Exception as e:
+            print(f"[NoteService] Image optimization failed: {e}")
+            return image_bytes
         except Exception as e:
             print(f"[NoteService] Image optimization failed: {e}")
             return image_bytes
@@ -91,6 +96,96 @@ class NoteService:
             if temp_file_path.exists():
                 temp_file_path.unlink()
             return None
+
+    def lint_latex(self, latex_code: str) -> List[str]:
+        """Performs fast local structural analysis of LaTeX code."""
+        if not latex_code: return ["Empty LaTeX code"]
+        errors = []
+        import re
+
+        # 1. Check for matching \begin and \end
+        begins = re.findall(r'\\begin\{([^}]+)\}', latex_code)
+        ends = re.findall(r'\\end\{([^}]+)\}', latex_code)
+        if len(begins) != len(ends):
+            errors.append(f"Mismatched environment counts: {len(begins)} begins vs {len(ends)} ends")
+        else:
+            # Check order/nesting roughly
+            stack = []
+            for match in re.finditer(r'\\(begin|end)\{([^}]+)\}', latex_code):
+                tag_type, env_name = match.groups()
+                if tag_type == 'begin':
+                    stack.append(env_name)
+                else:
+                    if not stack:
+                        errors.append(f"Unmatched \\end{{{env_name}}}")
+                    else:
+                        last = stack.pop()
+                        if last != env_name:
+                            errors.append(f"Environment nesting error: expected \\end{{{last}}}, found \\end{{{env_name}}}")
+
+        # 2. Check for matching braces { }
+        if latex_code.count('{') != latex_code.count('}'):
+            errors.append(f"Mismatched curly braces: {latex_code.count('{')} opening vs {latex_code.count('}')} closing")
+
+        # 3. Check for common unescaped characters in text mode
+        # (Very heuristic, ignore inside math mode or comments)
+        # For simplicity, just look for raw & or % not preceded by \
+        # This is noisy, so we only flag it if it looks really suspicious
+        raw_ampersands = re.findall(r'(?<!\\)&', latex_code)
+        # Filter ampersands that are likely inside tabular/matrix (which is OK)
+        if raw_ampersands:
+            if not any(env in latex_code for env in ['tabular', 'matrix', 'align', 'gather', 'split', 'cases', 'aligned', 'array', 'multline', 'eqnarray']):
+                errors.append(f"Found {len(raw_ampersands)} potential unescaped ampersands outside math environments")
+
+        return errors
+
+    def verify_compilation(self, latex_snippet: str) -> Tuple[bool, str]:
+        """Attempts to compile a LaTeX snippet using pdflatex."""
+        import tempfile
+        from core.config import TEMP_UPLOADS_DIR
+        
+        # Wrap snippet in an article with comprehensive math support
+        full_doc = [
+            "\\documentclass{article}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage{amsmath,amssymb,amsfonts,amsthm,mathrsfs,mathtools}",
+            "\\newtheorem{theorem}{Theorem}[section]",
+            "\\newtheorem{lemma}[theorem]{Lemma}",
+            "\\newtheorem{proposition}[theorem]{Proposition}",
+            "\\newtheorem{corollary}[theorem]{Corollary}",
+            "\\newtheorem{definition}[theorem]{Definition}",
+            "\\newtheorem{remark}[theorem]{Remark}",
+            "\\newtheorem{example}[theorem]{Example}",
+            "\\newtheorem{exercise}[theorem]{Exercise}",
+            "\\pagestyle{empty}",
+            "\\begin{document}",
+            latex_snippet,
+            "\\end{document}"
+        ]
+        doc_str = "\n".join(full_doc)
+        
+        with tempfile.TemporaryDirectory(dir=TEMP_UPLOADS_DIR) as tmpdir:
+            tmp_path = Path(tmpdir)
+            tex_file = tmp_path / "test.tex"
+            tex_file.write_text(doc_str, encoding='utf-8')
+            
+            try:
+                result = subprocess.run(
+                    ['pdflatex', '-interaction=nonstopmode', '-halt-on-error', 'test.tex'],
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    timeout=15
+                )
+                if result.returncode == 0:
+                    return True, ""
+                else:
+                    # Extract last few lines of error
+                    return False, result.stdout[-500:]
+            except subprocess.TimeoutExpired:
+                return False, "Compilation timed out"
+            except Exception as e:
+                return False, str(e)
 
     def get_recommendations(self, text, limit=3):
         """Finds relevant books based on note content."""
@@ -435,22 +530,22 @@ class NoteService:
             row = cursor.fetchone()
             
         if row:
-            latex_path = Path(PROJECT_ROOT / row['latex_path'])
-            markdown_path = Path(PROJECT_ROOT / row['markdown_path'])
-            
-            result = {
+            cached = {
+                'page': page_number,
+                'latex': '',
+                'markdown': '',
+                'raw_text': None,
                 'quality_score': row['quality_score'],
-                'quality_comments': row['quality_comments']
+                'comments': row['quality_comments']
             }
             
-            if latex_path.exists():
-                with open(latex_path, 'r', encoding='utf-8') as f:
-                    result['latex'] = f.read()
-            if markdown_path.exists():
-                with open(markdown_path, 'r', encoding='utf-8') as f:
-                    result['markdown'] = f.read()
+            if row['latex_path']:
+                full_tex = PROJECT_ROOT / row['latex_path']
+                if full_tex.exists():
+                    with open(full_tex, 'r', encoding='utf-8') as f:
+                        cached['latex'] = f.read()
             
-            return result
+            return cached
         return None
 
     def save_page_to_cache(self, book_id, page_number, latex, markdown, quality_score=1.0, quality_comments=None):
@@ -463,12 +558,10 @@ class NoteService:
         
         with open(latex_path, 'w', encoding='utf-8') as f:
             f.write(latex)
-        with open(markdown_path, 'w', encoding='utf-8') as f:
-            f.write(markdown)
             
         # Store as relative paths
         rel_latex = str(latex_path.relative_to(PROJECT_ROOT))
-        rel_markdown = str(markdown_path.relative_to(PROJECT_ROOT))
+        rel_markdown = None # Markdown is deprecated for individual pages
 
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
@@ -477,202 +570,526 @@ class NoteService:
                 (book_id, page_number, latex_path, markdown_path, quality_score, quality_comments, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, unixepoch())
             """, (book_id, page_number, rel_latex, rel_markdown, quality_score, quality_comments))
+            
+            # Sync to extracted_pages_fts for full-text search over LaTeX content
+            row = conn.execute(
+                "SELECT id FROM extracted_pages WHERE book_id = ? AND page_number = ?",
+                (book_id, page_number)
+            ).fetchone()
+            if row:
+                # Delete existing FTS entry if any, then insert fresh
+                conn.execute("DELETE FROM extracted_pages_fts WHERE rowid = ?", (row['id'],))
+                conn.execute(
+                    "INSERT INTO extracted_pages_fts (rowid, book_id, page_number, latex_content) VALUES (?, ?, ?, ?)",
+                    (row['id'], book_id, page_number, latex)
+                )
 
-    def evaluate_latex_quality(self, latex_content, original_text_preview):
-        """Uses Gemini to rate the quality of a LaTeX conversion."""
-        prompt = f"""Evaluate the quality of the following mathematical LaTeX conversion against the raw OCR text.
-Rate it on a scale from 0.0 to 1.0 (where 1.0 is perfect).
-Consider:
-- Mathematical accuracy
-- Completeness
-- Correct use of environments (amsmath, etc.)
-- Handling of special symbols
+    # evaluate_latex_quality removed in favor of converter.repair_latex
 
-RAW TEXT PREVIEW:
-{original_text_preview}
-
-LATEX CONTENT:
-{latex_content}
-
-Return a JSON object: {{"score": float, "comments": "brief explanation"}}
-"""
-        try:
-            return self.ai.generate_json(prompt)
-        except:
-            return {"score": 0.5, "comments": "Evaluation failed"}
-
-    def get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7):
-        """Main pipeline: Reuse existing high-quality LaTeX or trigger new conversion.
+    def backfill_latex_fts(self):
+        """One-time migration: populate extracted_pages_fts from existing .tex files on disk."""
+        with self.db.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT id, book_id, page_number, latex_path FROM extracted_pages"
+            ).fetchall()
         
-        Always returns content for each page:
-        - 'cache': high-quality LaTeX from previous conversion
-        - 'ai_conversion': fresh LaTeX conversion (cached if quality >= min_quality)
-        - 'text_fallback': raw text extraction (never cached) when AI fails
+        count = 0
+        for row in rows:
+            latex_path = row['latex_path']
+            if not latex_path:
+                continue
+            
+            # Resolve relative path
+            abs_path = PROJECT_ROOT / latex_path
+            if not abs_path.exists():
+                continue
+            
+            try:
+                latex = abs_path.read_text(encoding='utf-8')
+                with self.db.get_connection() as conn:
+                    # Check if already indexed
+                    existing = conn.execute(
+                        "SELECT rowid FROM extracted_pages_fts WHERE rowid = ?", (row['id'],)
+                    ).fetchone()
+                    if not existing:
+                        conn.execute(
+                            "INSERT INTO extracted_pages_fts (rowid, book_id, page_number, latex_content) VALUES (?, ?, ?, ?)",
+                            (row['id'], row['book_id'], row['page_number'], latex)
+                        )
+                        count += 1
+            except Exception as e:
+                logger.warning(f"Failed to backfill FTS for page {row['page_number']} of book {row['book_id']}: {e}")
         
-        Also creates KB proposals from any discovered theorems/definitions.
+        logger.info(f"Backfilled {count} pages into extracted_pages_fts")
+        return count
+
+    def get_context_window_latex(self, book_id, target_page, window_size_before=2, window_size_after=4):
+        """Retrieves and concatenates LaTeX from a window of pages for context."""
+        with self.db.get_connection() as conn:
+            row = conn.execute("SELECT page_count FROM books WHERE id = ?", (book_id,)).fetchone()
+            if not row: return ""
+            total_pages = row['page_count']
+
+        start = max(1, target_page - window_size_before)
+        end = min(total_pages, target_page + window_size_after)
+        window_pages = list(range(start, end + 1))
+
+        # Ensure all pages in window are digitized
+        results, error = self.get_or_convert_pages(book_id, window_pages, include_discoveries=False)
+        if error:
+            logger.error(f"Failed to digitize context window: {error}")
+            return ""
+
+        full_context = ""
+        for pr in results:
+            p_num = pr.get('page')
+            p_latex = pr.get('latex') or f"% [Page {p_num} LaTeX missing/failed]"
+            # Fix literal \n strings that AI sometimes returns
+            p_latex = p_latex.replace('\\n', '\n')
+            full_context += f"\n\n% --- PAGE {p_num} ---\n\n{p_latex}"
+        
+        return full_context
+
+    def extract_and_save_knowledge_terms(self, book_id, target_page, window_before=2, window_after=4):
+        """Performs contextual extraction for a specific page and saves to knowledge_terms."""
+        context_latex = self.get_context_window_latex(book_id, target_page, window_size_before=window_before, window_size_after=window_after)
+        if not context_latex:
+            return 0, "No context available"
+
+        # Fetch metadata to help AI with descriptive naming
+        with self.db.get_connection() as conn:
+            book = conn.execute("SELECT title, author FROM books WHERE id = ?", (book_id,)).fetchone()
+        
+        metadata = dict(book) if book else None
+        terms, error = converter.extract_terms_from_context(context_latex, target_page, metadata=metadata)
+        if error:
+            return 0, error
+
+        count = 0
+        for t in terms:
+            if self._save_knowledge_term(book_id, target_page, t):
+                count += 1
+        
+        return count, None
+
+    def extract_and_save_knowledge_terms_batch(self, book_id, pages_list, window_buffer=2, force=False):
         """
-        results = []
+        Performs contextual extraction for a batch of pages by grouping them into chunks 
+        (e.g., 5 pages) to optimize token usage and avoid redundant API calls.
+        Saves discovered terms to the knowledge_terms database.
+        E7: force flag allows re-extraction even if terms already exist.
+        """
+        if not pages_list:
+            return 0, "No pages provided"
+            
+        pages_list = sorted(pages_list)
+        total_count = 0
+        chunk_size = 5
         
+        # Fetch metadata to help AI with descriptive naming
+        with self.db.get_connection() as conn:
+            book = conn.execute("SELECT title, author FROM books WHERE id = ?", (book_id,)).fetchone()
+        metadata = dict(book) if book else None
+
+        for i in range(0, len(pages_list), chunk_size):
+            chunk = pages_list[i:i + chunk_size]
+            start_page = chunk[0]
+            end_page = chunk[-1]
+            
+            # E5: Skip re-extraction pre-check
+            if not force:
+                with self.db.get_connection() as conn:
+                    existing = conn.execute(
+                        "SELECT COUNT(*) FROM knowledge_terms WHERE book_id = ? AND page_start BETWEEN ? AND ?",
+                        (book_id, start_page, end_page)
+                    ).fetchone()[0]
+                if existing > 0:
+                    logger.info(f"Skipping term extraction for pages {start_page}-{end_page}: {existing} terms already exist (use force=True to override)")
+                    continue
+            
+            fetch_start = max(1, start_page - window_buffer)
+            fetch_end = end_page + window_buffer
+            
+            context_pages = list(range(fetch_start, fetch_end + 1))
+            
+            results, _ = self.get_or_convert_pages(book_id, context_pages, include_discoveries=False, abort_on_failure=False)
+            
+            context_latex = ""
+            for pr in results:
+                p_num = pr.get('page')
+                p_latex = pr.get('latex') or f"% [Page {p_num} LaTeX missing/failed]"
+                p_latex = p_latex.replace('\\n', '\n')
+                context_latex += f"\n\n% --- PAGE {p_num} ---\n\n{p_latex}"
+
+            if not context_latex.strip():
+                logger.warning(f"No LaTeX context found for batch {start_page}-{end_page}")
+                continue
+            
+            # Cooldown between extraction calls to prevent API overload
+            if i > 0:
+                time.sleep(2)
+                
+            terms, error = converter.extract_terms_batch(context_latex, start_page, end_page, metadata=metadata)
+            if error:
+                logger.error(f"Batch extraction failed for {start_page}-{end_page}: {error}")
+                continue
+                
+            for t in terms:
+                # The AI now returns 'page_start' but if missing, fallback to start_page
+                term_start = t.get('page_start', start_page)
+                if self._save_knowledge_term(book_id, term_start, t):
+                    total_count += 1
+                    
+        return total_count, None
+
+    def check_and_trigger_term_extraction(self, book_id):
+        """E6: Smart extraction scheduling — checks if contiguous cached pages 
+        exist that haven't been term-extracted yet, and triggers extraction if so."""
+        with self.db.get_connection() as conn:
+            # Find all cached pages with sufficient quality
+            rows = conn.execute(
+                "SELECT page_number FROM extracted_pages WHERE book_id = ? AND quality_score >= 0.7 ORDER BY page_number",
+                (book_id,)
+            ).fetchall()
+        
+        if not rows:
+            return 0, "No cached pages found"
+        
+        cached_pages = sorted(r['page_number'] for r in rows)
+        
+        # Find contiguous blocks of ≥5 pages
+        blocks = []
+        block_start = cached_pages[0]
+        prev = cached_pages[0]
+        for p in cached_pages[1:]:
+            if p == prev + 1:
+                prev = p
+            else:
+                if prev - block_start + 1 >= 5:
+                    blocks.append((block_start, prev))
+                block_start = p
+                prev = p
+        if prev - block_start + 1 >= 5:
+            blocks.append((block_start, prev))
+        
+        if not blocks:
+            return 0, "No contiguous blocks of 5+ pages found"
+        
+        total = 0
+        for bs, be in blocks:
+            # Check if terms already exist for this block
+            with self.db.get_connection() as conn:
+                existing = conn.execute(
+                    "SELECT COUNT(*) FROM knowledge_terms WHERE book_id = ? AND page_start BETWEEN ? AND ?",
+                    (book_id, bs, be)
+                ).fetchone()[0]
+            
+            if existing == 0:
+                logger.info(f"Auto-triggering term extraction for pages {bs}-{be} of book {book_id}")
+                count, _ = self.extract_and_save_knowledge_terms_batch(
+                    book_id, list(range(bs, be + 1))
+                )
+                total += count
+                break  # One block at a time to avoid overload
+        
+        return total, None
+
+    def _extract_snippet_from_cache(self, book_id, page_start, start_marker, end_marker=None):
+        """Extract LaTeX between markers from cached page content on disk."""
+        with self.db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT latex_path FROM extracted_pages WHERE book_id = ? AND page_number = ?",
+                (book_id, page_start)
+            ).fetchone()
+        if not row or not row['latex_path']:
+            return None
+        
+        abs_path = PROJECT_ROOT / row['latex_path']
+        if not abs_path.exists():
+            return None
+        
+        try:
+            latex = abs_path.read_text(encoding='utf-8')
+        except Exception:
+            return None
+        
+        from rapidfuzz import fuzz
+        
+        def find_best_match_index(text, marker, is_end=False):
+            if not marker: return -1
+            # First try exact match
+            idx = text.find(marker)
+            if idx != -1: return idx
+            
+            # Try lower
+            idx = text.lower().find(marker.lower())
+            if idx != -1: return idx
+            
+            # Try removing math $ symbols from text and marker
+            clean_text = text.replace('$', '')
+            clean_marker = marker.replace('$', '')
+            idx = clean_text.find(clean_marker)
+            if idx != -1:
+                # If found in clean text, approximate the index in original text
+                # This is a bit rough, but better than nothing
+                return text.find(marker[:5]) if len(marker)>5 else -1
+            
+            # Fallback to sliding window fuzzy search
+            window_size = len(marker) + 10
+            best_ratio = 0
+            best_idx = -1
+            for i in range(len(text) - len(marker)):
+                window = text[i:i+window_size]
+                ratio = fuzz.partial_ratio(marker.lower(), window.lower())
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_idx = i
+                    
+            if best_ratio > 85:
+                return best_idx
+            return -1
+
+        start_idx = find_best_match_index(latex, start_marker)
+        if start_idx == -1:
+            logger.warning(f"Start marker '{start_marker}' not found in page {page_start}")
+            return None
+        
+        if end_marker:
+            # Only search after the start index
+            search_text = latex[start_idx + len(start_marker):]
+            relative_end_idx = find_best_match_index(search_text, end_marker, is_end=True)
+            if relative_end_idx == -1:
+                # End marker not found — take rest of page
+                return latex[start_idx:]
+            return latex[start_idx : start_idx + len(start_marker) + relative_end_idx]
+        
+        return latex[start_idx:]
+
+    def _save_knowledge_term(self, book_id, page_start, term_data):
+        """Saves a single extracted term to the flat database table with deduplication.
+        Supports both old format (latex_snippet) and new format (start_marker + end_marker)."""
+        name = term_data.get('name')
+        t_type = term_data.get('type', 'theorem')
+        keywords = term_data.get('used_terms')
+        
+        # New marker-based format: extract snippet locally from cached page
+        latex = term_data.get('latex_snippet')  # backward compat with old format
+        if not latex:
+            start_marker = term_data.get('start_marker')
+            end_marker = term_data.get('end_marker')
+            if start_marker:
+                latex = self._extract_snippet_from_cache(book_id, page_start, start_marker, end_marker)
+                if not latex:
+                    latex = f"% Term: {name} (marker: {start_marker})"
+                    logger.warning(f"Could not extract snippet for '{name}' using marker '{start_marker}' — using placeholder")
+
+        if not name:
+            return False
+
+        # --- ORPHANED PROOF FILTER ---
+        if t_type and t_type.lower() == 'proof':
+            logger.warning(f"Discarding hallucinated standalone proof type: {name}")
+            return False
+            
+        if name and name.lower().startswith('proof of'):
+            logger.warning(f"Discarding term suspiciously named as a standalone proof: {name}")
+            return False
+        # -----------------------------
+
+        with self.db.get_connection() as conn:
+            try:
+                # Deduplication: Check exact name first
+                existing_exact = conn.execute("""
+                    SELECT id FROM knowledge_terms 
+                    WHERE book_id = ? AND page_start = ? AND LOWER(name) = ?
+                """, (book_id, page_start, name.lower())).fetchone()
+                
+                if existing_exact:
+                    return False
+
+                # Deduplication: Check fuzzy similarity to avoid duplicates
+                if latex and len(latex) > 50:
+                    from rapidfuzz import fuzz
+                    existing_terms = conn.execute("""
+                        SELECT id, latex_content FROM knowledge_terms 
+                        WHERE book_id = ? AND page_start BETWEEN ? AND ?
+                    """, (book_id, page_start - 1, page_start + 1)).fetchall()
+                    
+                    for row in existing_terms:
+                        if row['latex_content']:
+                            similarity = fuzz.ratio(latex[:200], row['latex_content'][:200])
+                            if similarity > 85:
+                                logger.info(f"Discarding duplicate term '{name}' ({similarity:.1f}% similar to ID {row['id']})")
+                                return False
+
+                cursor = conn.cursor()
+                
+                keywords_json = json.dumps(keywords) if keywords else ""
+                keywords_text = ", ".join(keywords) if isinstance(keywords, list) else (keywords or "")
+                
+                cursor.execute("""
+                    INSERT INTO knowledge_terms (book_id, page_start, name, term_type, latex_content, used_terms, status)
+                    VALUES (?, ?, ?, ?, ?, ?, 'approved')
+                """, (book_id, page_start, name, t_type, latex or "", keywords_json))
+                term_id = cursor.lastrowid
+                
+                # Sync FTS
+                conn.execute("INSERT INTO knowledge_terms_fts (rowid, name, used_terms, latex_content) VALUES (?, ?, ?, ?)",
+                             (term_id, name, keywords_text, latex or ""))
+                return True
+            except Exception as e:
+                logger.error(f"Failed to save knowledge term: {e}")
+                return False
+
+        
+    def get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7, include_discoveries=False, abort_on_failure=False):
+        """Standard portal for fetching page LaTeX. Checks cache, then triggers batched AI conversion."""
+        results = []
+        needed_pages = []
+        final_results = {} # Map page_num -> result_dict
+
         with self.db.get_connection() as conn:
             book = conn.execute("SELECT path, title FROM books WHERE id = ?", (book_id,)).fetchone()
         if not book: return None, "Book not found"
         
         abs_path = (LIBRARY_ROOT / book['path']).resolve()
-        import converter
 
+        # 1. Check Cache First
         for page_num in pages:
-            # 1. Try Cache
             cached = self.get_cached_page(book_id, page_num)
-            
-            if cached and not force_refresh:
-                if cached.get('quality_score', 0) >= min_quality:
-                    results.append({
-                        'page': page_num,
-                        'latex': cached.get('latex', ''),
-                        'markdown': cached.get('markdown', ''),
-                        'raw_text': None,
-                        'quality': cached.get('quality_score'),
-                        'source': 'cache'
-                    })
-                    continue
-
-            # 2. Convert with retry
-            result_data, error = None, None
-            for attempt in range(2):
-                logger.info(f"Converting Page {page_num} of Book {book_id} (attempt {attempt+1}/2, force={force_refresh})...")
-                result_data, error = converter.convert_page(str(abs_path), page_num)
-                if result_data is not None:
-                    break  # Success
-                if attempt == 0 and error:
-                    logger.warning(f"Conversion attempt 1 failed for page {page_num}: {error}. Retrying in 2s...")
-                    import time
-                    time.sleep(2)
-            
-            # 3. If conversion failed after retry, fall back to raw text
-            if error or result_data is None:
-                logger.warning(f"AI conversion failed for page {page_num} after 2 attempts. Falling back to text extraction.")
-                raw_text = converter.extract_raw_text(str(abs_path), page_num)
-                results.append({
+            if cached and not force_refresh and cached.get('quality_score', 0) >= min_quality:
+                final_results[page_num] = {
                     'page': page_num,
-                    'latex': None,
-                    'markdown': None,
-                    'raw_text': raw_text or f"[Text extraction also failed for page {page_num}]",
-                    'quality': 0.0,
-                    'source': 'text_fallback'
-                })
-                continue
-            
-            latex = result_data.get('latex', '')
-            markdown = result_data.get('markdown', '')
-            raw_preview = result_data.get('raw_text', '')[:1000]
-            discoveries = result_data.get('discoveries', [])
-            
-            # 4. Quality Check
-            quality = self.evaluate_latex_quality(latex, raw_preview)
-            q_score = quality.get('score', 0.5)
-            q_comments = quality.get('comments', '')
-            
-            # 5. Save to Cache ONLY if quality is decent
-            if q_score >= min_quality:
-                self.save_page_to_cache(book_id, page_num, latex, markdown, q_score, q_comments)
-                source_label = 'ai_conversion'
+                    'latex': cached.get('latex', ''),
+                    'markdown': cached.get('markdown', ''),
+                    'raw_text': None,
+                    'quality': cached.get('quality_score'),
+                    'source': 'cache'
+                }
             else:
-                logger.warning(f"Discarding low-quality conversion for Page {page_num} (Score: {q_score})")
-                source_label = 'ai_conversion_discarded'
-            
-            # 6. Process theorem/definition discoveries into KB proposals
-            if discoveries and q_score >= min_quality:
-                self._create_proposals_from_discoveries(discoveries, book_id, page_num)
-            
-            results.append({
-                'page': page_num,
-                'latex': latex if q_score >= min_quality else None,
-                'markdown': markdown if q_score >= min_quality else None,
-                'raw_text': result_data.get('raw_text', '') if q_score < min_quality else None,
-                'quality': q_score,
-                'source': source_label,
-                'comments': q_comments
-            })
-            
-        return results, None
+                needed_pages.append(page_num)
 
-    def _create_proposals_from_discoveries(self, discoveries, book_id, page_number):
-        """Creates KB proposals from theorem/definition discoveries found during LaTeX conversion.
+        # 2. Process needed pages in Batches (Adaptive sizing + padding)
+        batch_size = 10  # Start optimistic
         
-        Fuzzy-matches against existing concepts to suggest merge targets.
-        Skips if exact concept+book+page combo already exists in entries or proposals.
-        """
-        if not discoveries:
-            return
-        
-        try:
-            from rapidfuzz import fuzz
-        except ImportError:
-            logger.warning("rapidfuzz not installed, skipping proposal creation")
-            return
-        
+        # Get total page count for batch padding
         with self.db.get_connection() as conn:
-            # Load all existing concept names for fuzzy matching
-            existing_concepts = conn.execute("SELECT id, name FROM concepts").fetchall()
-            concept_map = {c['name'].lower(): c['id'] for c in existing_concepts}
-            concept_names = [(c['name'], c['id']) for c in existing_concepts]
+            pc_row = conn.execute("SELECT page_count FROM books WHERE id = ?", (book_id,)).fetchone()
+        total_pages = pc_row['page_count'] if pc_row else 0
+        
+        i = 0
+        while i < len(needed_pages):
+            batch = needed_pages[i:i + batch_size]
             
-            for disc in discoveries:
-                if not isinstance(disc, dict):
-                    continue
-                name = disc.get('name', '').strip()
-                kind = disc.get('kind', 'theorem').strip().lower()
-                snippet = disc.get('snippet', '').strip()
+            # E8: Batch Padding — fill unused capacity with adjacent uncached pages
+            if len(batch) < batch_size and total_pages > 0:
+                cached_set = set(final_results.keys())
+                needed_set = set(needed_pages)
+                # Extend forward from the end of the batch
+                for p in range(max(batch) + 1, min(max(batch) + batch_size, total_pages + 1)):
+                    if len(batch) >= batch_size:
+                        break
+                    if p not in cached_set and p not in needed_set and p not in batch:
+                        batch.append(p)
+                # Extend backward from the start of the batch
+                for p in range(min(batch) - 1, max(0, min(batch) - batch_size), -1):
+                    if len(batch) >= batch_size:
+                        break
+                    if p not in cached_set and p not in needed_set and p not in batch:
+                        batch.insert(0, p)
+                batch.sort()
+            
+            logger.info(f"Batch Converting Pages {batch} of Book {book_id} (size={batch_size}, force={force_refresh})...")
+            
+            batch_results, error = converter.convert_pages_batch(str(abs_path), batch)
+            
+            if error or not batch_results:
+                msg = f"Batch conversion failed for pages {batch}: {error}"
+                logger.error(msg)
                 
-                if not name or len(name) < 3:
-                    continue
+                # E1: Adaptive — halve batch size and retry this segment
+                if batch_size > 3:
+                    batch_size = max(3, batch_size // 2)
+                    logger.warning(f"Retrying with reduced batch size: {batch_size}")
+                    time.sleep(3)  # Cooldown before retry
+                    continue  # Don't advance i — retry same pages
                 
-                # Valid kinds
-                if kind not in {'definition', 'theorem', 'lemma', 'proposition', 'corollary', 'axiom'}:
-                    kind = 'theorem'
+                if abort_on_failure:
+                    return list(final_results.values()), msg
                 
-                # Skip if exact concept+book+page already registered in entries
-                existing_entry = conn.execute("""
-                    SELECT e.id FROM entries e 
-                    JOIN concepts c ON e.concept_id = c.id
-                    WHERE LOWER(c.name) = ? AND e.book_id = ? AND e.page_start = ?
-                """, (name.lower(), book_id, page_number)).fetchone()
-                if existing_entry:
-                    continue
+                # Final fallback to raw text
+                for p_num in batch:
+                    if p_num in set(pages):  # Only fallback for requested pages, not padding
+                        raw_text = converter.extract_raw_text(str(abs_path), p_num)
+                        final_results[p_num] = {
+                            'page': p_num,
+                            'latex': f"% Page {p_num} — AI conversion failed: {error}\n% Raw text fallback used.",
+                            'markdown': None,
+                            'raw_text': raw_text or "[Extraction failed]",
+                            'quality': 0.0,
+                            'source': 'text_fallback'
+                        }
+                i += len(needed_pages[i:i + batch_size])  # Advance past this segment
+                continue
+
+            # 3. Process each page result in the batch
+            for p_data in batch_results:
+                p_num = p_data.get('page_number')
+                latex = p_data.get('latex', '').replace('\\n', '\n')
+                raw_text = p_data.get('raw_text', '')
                 
-                # Skip if already proposed for this exact book+page
-                existing_proposal = conn.execute("""
-                    SELECT id FROM kb_proposals 
-                    WHERE LOWER(concept_name) = ? AND book_id = ? AND page_number = ? AND status != 'rejected'
-                """, (name.lower(), book_id, page_number)).fetchone()
-                if existing_proposal:
-                    continue
+                # Fast Local Quality Check
+                lint_errors = self.lint_latex(latex)
+                compiles, comp_error = self.verify_compilation(latex)
                 
-                # Fuzzy match against existing concepts
-                merge_target_id = None
-                if name.lower() in concept_map:
-                    # Exact match — suggest merge
-                    merge_target_id = concept_map[name.lower()]
+                status_comments = "Passed local checks."
+                
+                if lint_errors or not compiles:
+                    error_report = f"LINT: {', '.join(lint_errors)} | COMP: {comp_error}"
+                    logger.warning(f"Page {p_num} quality check failed: {error_report}. Triggering Active Repair...")
+                    
+                    # E2: Cooldown before repair to prevent 503 cascade
+                    time.sleep(2)
+                    
+                    # ACTIVE REPAIR LOOP (Round Two)
+                    repaired = converter.repair_latex(latex, raw_text, error_report)
+                    if repaired:
+                        logger.info(f"Page {p_num} repaired successfully.")
+                        latex = repaired
+                        status_comments = f"Repaired: {error_report}"
+                    else:
+                        logger.error(f"Page {p_num} repair failed.")
+                        status_comments = f"Repair failed: {error_report}"
+
+                # Final Cache Check: If it still doesn't compile after repair, we mark it low quality
+                final_compiles, _ = self.verify_compilation(latex)
+                q_score = 0.95 if final_compiles else 0.4
+                
+                if q_score >= min_quality:
+                    self.save_page_to_cache(book_id, p_num, latex, "", q_score, status_comments)
+                    source_label = 'ai_conversion'
                 else:
-                    # Fuzzy match
-                    best_score, best_id = 0, None
-                    for cname, cid in concept_names:
-                        score = fuzz.ratio(name.lower(), cname.lower())
-                        if score > best_score and score >= 85:
-                            best_score = score
-                            best_id = cid
-                    merge_target_id = best_id
-                
-                # Insert proposal
-                conn.execute("""
-                    INSERT INTO kb_proposals (concept_name, kind, snippet, book_id, page_number, merge_target_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (name, kind, snippet, book_id, page_number, merge_target_id))
-                logger.info(f"KB proposal created: '{name}' ({kind}) from book {book_id} p.{page_number}"
-                           + (f" [suggested merge with concept {merge_target_id}]" if merge_target_id else ""))
+                    source_label = 'ai_conversion_discarded'
+
+                final_results[p_num] = {
+                    'page': p_num,
+                    'latex': latex if q_score >= min_quality else None,
+                    'markdown': None,
+                    'raw_text': raw_text if q_score < min_quality else None,
+                    'quality': q_score,
+                    'source': source_label,
+                    'comments': status_comments
+                }
+            
+            i += len(needed_pages[i:i + batch_size])  # Advance past this segment
+
+        # 4. Assemble final ordered results
+        ordered_results = [final_results[p] for p in pages if p in final_results]
+        return ordered_results, None
+
 
     def create_note_from_pdf(self, book_id, pages):
-        """Converts PDF pages to structured notes, utilizing the cache and creating a Note record."""
+        """Converts PDF pages into a cohesive math note, using batch processing."""
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT path, title, author FROM books WHERE id = ?", (book_id,))
@@ -693,20 +1110,13 @@ Return a JSON object: {{"score": float, "comments": "brief explanation"}}
         
         for pr in page_results:
             page_num = pr.get('page')
+            page_latex = pr.get('latex') or pr.get('raw_text') or f"% [Page {page_num} extraction failed]"
+            
             if pr.get('error'):
                 combined_markdown += f"\n\n> [Error extracting Page {page_num}: {pr['error']}]\n\n"
                 continue
             
-            page_markdown = pr.get('markdown', '')
-            page_latex = pr.get('latex', '')
-            
-            # Fall back to raw_text if no LaTeX/markdown available
-            if not page_markdown and pr.get('raw_text'):
-                page_markdown = pr['raw_text']
-            if not page_latex and pr.get('raw_text'):
-                page_latex = f"% Raw text fallback\n{pr['raw_text']}"
-
-            combined_markdown += f"\n\n## Page {page_num}\n\n" + page_markdown
+            combined_markdown += f"\n\n## Page {page_num}\n\n```latex\n{page_latex}\n```"
             combined_latex += f"\n% --- Page {page_num} ---\n" + page_latex
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -741,7 +1151,7 @@ Return a JSON object: {{"score": float, "comments": "brief explanation"}}
             latex_path=tex_path,
             markdown_path=md_path,
             tags=f"extraction, {title}",
-            content_preview=full_markdown[:500]
+            content_preview=combined_markdown[:500]
         )
             
         return {'filename': f"{filename_base}.md", 'content': full_markdown, 'path': str(md_path)}, None
@@ -959,5 +1369,174 @@ Return a JSON object: {{"score": float, "comments": "brief explanation"}}
             
         return note_id
 
+    # ========================================
+    # Full Book Scan — Slow Crawl Engine
+    # ========================================
+
+    @staticmethod
+    def classify_page(text):
+        """Classify a page as 'content' or 'skip' from raw PDF text."""
+        text = (text or '').strip()
+        
+        if len(text) < 100:
+            return 'skip'
+        
+        lower = text.lower()
+        first_200 = lower[:200]
+        
+        # Front matter
+        front_markers = ['©', 'isbn', 'all rights reserved', 'library of congress',
+                         'printed in', 'table of contents']
+        if any(m in first_200 for m in front_markers):
+            return 'skip'
+        
+        # Back matter: page starts with a back-matter heading
+        back_markers = ['bibliography', 'references\n', 'index\n', 'index of notation',
+                        'list of symbols', 'notation index', 'symbol index']
+        if any(first_200.startswith(m) or f'\n{m}' in first_200 for m in back_markers):
+            return 'skip'
+        
+        # TOC-like pages: lots of dots and page numbers
+        dot_ratio = text.count('.') / max(len(text), 1)
+        digit_ratio = sum(c.isdigit() for c in text) / max(len(text), 1)
+        if dot_ratio > 0.1 and digit_ratio > 0.1:
+            return 'skip'
+        
+        return 'content'
+
+    @staticmethod
+    def is_term_extractable(latex):
+        """Check if converted LaTeX has actual mathematical content worth extracting."""
+        if not latex or len(latex) < 150:
+            return False
+        lower = latex.lower()
+        has_math = '$' in latex or '\\begin{' in latex
+        is_biblio = lower.count('\\bibitem') > 3 or lower.count('[') > 20
+        return has_math and not is_biblio
+
+    def run_book_scan(self, scan_id):
+        """Execute a full book scan: classify pages, convert, extract terms, throttled."""
+        import fitz
+        
+        with self.db.get_connection() as conn:
+            scan = conn.execute("SELECT * FROM book_scans WHERE id = ?", (scan_id,)).fetchone()
+            if not scan:
+                return
+            book = conn.execute("SELECT id, path, page_count FROM books WHERE id = ?", (scan['book_id'],)).fetchone()
+            if not book:
+                return
+        
+        book_id = book['id']
+        batch_size = scan['batch_size'] or 25
+        cooldown = scan['cooldown_seconds'] or 300
+        
+        try:
+            # Mark as running
+            with self.db.get_connection() as conn:
+                conn.execute("UPDATE book_scans SET status = 'running', started_at = unixepoch() WHERE id = ?", (scan_id,))
+            
+            # Step 1: Open PDF and classify pages
+            logger.info(f"Scan {scan_id}: Classifying pages for book {book_id}")
+            pdf_path = LIBRARY_ROOT / book['path']
+            if not pdf_path.exists():
+                raise FileNotFoundError(f"PDF not found: {pdf_path}")
+            
+            doc = fitz.open(str(pdf_path))
+            content_pages = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text()
+                if self.classify_page(text) == 'content':
+                    content_pages.append(page_num + 1)  # 1-indexed
+            doc.close()
+            
+            logger.info(f"Scan {scan_id}: {len(content_pages)} content pages out of {book['page_count']} total")
+            
+            with self.db.get_connection() as conn:
+                conn.execute(
+                    "UPDATE book_scans SET pages_content = ?, pages_total = ? WHERE id = ?",
+                    (json.dumps(content_pages), len(content_pages), scan_id)
+                )
+            
+            # Step 2: Process in chunks
+            total_terms = 0
+            for i in range(0, len(content_pages), batch_size):
+                # Check if cancelled
+                with self.db.get_connection() as conn:
+                    status = conn.execute("SELECT status FROM book_scans WHERE id = ?", (scan_id,)).fetchone()
+                    if status and status['status'] == 'cancelled':
+                        logger.info(f"Scan {scan_id}: Cancelled by user")
+                        return
+                
+                chunk = content_pages[i:i + batch_size]
+                logger.info(f"Scan {scan_id}: Processing chunk {i//batch_size + 1} — pages {chunk[0]}-{chunk[-1]} ({len(chunk)} pages)")
+                
+                # Convert pages (uses adaptive batching internally)
+                results, convert_error = self.get_or_convert_pages(book_id, chunk)
+                if convert_error:
+                    logger.warning(f"Scan {scan_id}: Conversion error in chunk: {convert_error}")
+                
+                # Filter pages that are term-extractable
+                extractable_pages = []
+                for r in results:
+                    if r.get('latex') and self.is_term_extractable(r['latex']):
+                        extractable_pages.append(r['page'])
+                
+                # Extract terms for extractable pages
+                if extractable_pages:
+                    terms_count, term_err = self.extract_and_save_knowledge_terms_batch(
+                        book_id, extractable_pages, window_buffer=2, force=True
+                    )
+                    if term_err:
+                        logger.warning(f"Scan {scan_id}: Term extraction error: {term_err}")
+                    total_terms += (terms_count or 0)
+                
+                # Update progress
+                pages_done = min(i + batch_size, len(content_pages))
+                with self.db.get_connection() as conn:
+                    conn.execute(
+                        "UPDATE book_scans SET pages_done = ?, terms_found = ? WHERE id = ?",
+                        (pages_done, total_terms, scan_id)
+                    )
+                
+                # Cooldown between chunks (unless this was the last chunk)
+                if i + batch_size < len(content_pages):
+                    logger.info(f"Scan {scan_id}: Cooling down for {cooldown}s...")
+                    time.sleep(cooldown)
+            
+            # Done
+            with self.db.get_connection() as conn:
+                conn.execute(
+                    "UPDATE book_scans SET status = 'completed', completed_at = unixepoch(), pages_done = pages_total WHERE id = ?",
+                    (scan_id,)
+                )
+            logger.info(f"Scan {scan_id}: Completed. {total_terms} terms extracted from {len(content_pages)} pages.")
+            
+        except Exception as e:
+            logger.error(f"Scan {scan_id}: Failed with error: {e}")
+            with self.db.get_connection() as conn:
+                conn.execute(
+                    "UPDATE book_scans SET status = 'failed', error_log = ? WHERE id = ?",
+                    (str(e), scan_id)
+                )
+
+    def scan_worker(self):
+        """Background daemon: picks queued scans and runs them one at a time."""
+        while True:
+            try:
+                with self.db.get_connection() as conn:
+                    scan = conn.execute(
+                        "SELECT id FROM book_scans WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1"
+                    ).fetchone()
+                
+                if scan:
+                    self.run_book_scan(scan['id'])
+                else:
+                    time.sleep(30)  # Check every 30 seconds
+            except Exception as e:
+                logger.error(f"Scan worker error: {e}")
+                time.sleep(60)
+
 # Global instance
 note_service = NoteService()
+
