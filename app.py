@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 
-from core.config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR
+from core.config import DB_FILE, LIBRARY_ROOT, NOTES_OUTPUT_DIR, CONVERTED_NOTES_DIR
 from core.database import db
 from api_v1 import api_v1
 from services.search import search_service

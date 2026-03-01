@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 from typing import List, Dict, Any
 from core.database import db
-from core.config import OBSIDIAN_INBOX
+from core.config import EXPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class AnalyticsService:
                 })
                 edge_count += 1
 
-        output_path = OBSIDIAN_INBOX / "Co-Author Network.canvas"
+        output_path = EXPORTS_DIR / "Co-Author Network.canvas"
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(canvas, f, indent=2)
             

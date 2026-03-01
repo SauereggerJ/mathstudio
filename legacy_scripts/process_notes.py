@@ -20,7 +20,7 @@ from googleapiclient.http import MediaIoBaseDownload
 
 # MathStudio Services & Config
 from core.config import (
-    PROJECT_ROOT, DB_FILE, NOTES_OUTPUT_DIR, OBSIDIAN_INBOX, 
+    PROJECT_ROOT, DB_FILE, NOTES_OUTPUT_DIR, 
     get_api_key, GEMINI_MODEL
 )
 from core.ai import ai

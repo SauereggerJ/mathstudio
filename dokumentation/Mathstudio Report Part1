@@ -293,8 +293,6 @@ Central configuration hub. Key paths:
 | `PROJECT_ROOT` | `mathstudio/` | Application root |
 | `LIBRARY_ROOT` | `mathstudio/../` (parent) | Root of all PDF/DjVu files |
 | `DB_FILE` | `mathstudio/library.db` | SQLite database |
-| `OBSIDIAN_INBOX` | `/srv/data/math/obsidian/.../00_Inbox` | Obsidian sync target |
-| `VAULT_DIR` | `/srv/data/math/obsidian/mathematik_obsidian` | Full vault path |
 | `CONVERTED_NOTES_DIR` | `mathstudio/converted_notes/` | PDF extraction output |
 | `NOTES_OUTPUT_DIR` | `mathstudio/notes_output/` | Handwritten note output |
 | `KNOWLEDGE_VAULT_ROOT` | `vault/10_Knowledge/` | Obsidian KB root |

@@ -12,7 +12,6 @@ if str(project_dir) not in sys.path:
 # Constants
 DB_FILE = project_dir / "library.db"
 LIBRARY_ROOT = project_dir.parent
-OBSIDIAN_INBOX = "/srv/data/math/obsidian/mathematik_obsidian/00_Inbox"
 NOTES_OUTPUT_DIR = project_dir / "notes_output"
 CONVERTED_NOTES_DIR = project_dir / "converted_notes"
 # For backward compatibility with some scripts that might expect parent_dir

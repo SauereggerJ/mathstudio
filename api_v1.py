@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 import json
 
-from core.config import DB_FILE, LIBRARY_ROOT, OBSIDIAN_INBOX, CONVERTED_NOTES_DIR
+from core.config import DB_FILE, LIBRARY_ROOT, CONVERTED_NOTES_DIR
 from core.database import db
 from services.search import search_service
 from services.library import library_service

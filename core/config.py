@@ -21,6 +21,7 @@ TEMPLATES_DIR = PROJECT_ROOT / "templates"
 TEMP_UPLOADS_DIR = PROJECT_ROOT / "temp_uploads"
 BIB_EXTRACTS_DIR = PROJECT_ROOT / "bib_extracts"
 COMPILED_NOTES_DIR = PROJECT_ROOT / "compiled_notes"
+EXPORTS_DIR = PROJECT_ROOT / "exports"
 DUPLICATES_DIR = LIBRARY_ROOT / "_Admin" / "Duplicates"
 UNSORTED_DIR = LIBRARY_ROOT / "99_General_and_Diverse" / "Unsorted"
 
@@ -32,12 +33,12 @@ KNOWLEDGE_TEMPLATES_DIR = PROJECT_ROOT / "templates" / "knowledge"
 
 IGNORED_FOLDERS = {
     'mathstudio', '_Admin', 'gemini', '.gemini', '.git', '.venv', 
-    'notes_output', 'archive', 'lost+found', '__pycache__', 'compiled_notes'
+    'notes_output', 'archive', 'lost+found', '__pycache__', 'compiled_notes', 'exports'
 }
 
 # Ensure directories exist
 for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_DIR,
-          COMPILED_NOTES_DIR,
+          COMPILED_NOTES_DIR, EXPORTS_DIR,
           KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR,
           KNOWLEDGE_GENERATED_DIR / "Definitions",
           KNOWLEDGE_GENERATED_DIR / "Theorems",
