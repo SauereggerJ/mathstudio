@@ -38,6 +38,57 @@ class SearchService:
         )
         return self.ai.generate_text(prompt) or query
 
+    def vectorize_book(self, book_id: int) -> bool:
+        """Generates and stores a semantic embedding for a book using enriched metadata."""
+        try:
+            with self.db.get_connection() as conn:
+                book = conn.execute(
+                    "SELECT id, title, author, summary, msc_class, index_text FROM books WHERE id = ?", 
+                    (book_id,)
+                ).fetchone()
+                
+                if not book:
+                    return False
+
+                # Build semantic text blob
+                parts = []
+                if book['title']: parts.append(f"Title: {book['title']}")
+                if book['author']: parts.append(f"Author: {book['author']}")
+                if book['msc_class']: parts.append(f"MSC Classification: {book['msc_class']}")
+                if book['summary']: parts.append(f"Summary: {book['summary']}")
+                
+                # Fetch chapters (TOC)
+                chapters = conn.execute(
+                    "SELECT title FROM chapters WHERE book_id = ? ORDER BY page ASC LIMIT 50", 
+                    (book_id,)
+                ).fetchall()
+                if chapters:
+                    parts.append("Chapters:")
+                    parts.extend([f"- {c['title']}" for c in chapters])
+                    
+                if book['index_text']:
+                    parts.append(f"Index Keywords: {book['index_text'][:1000]}")
+                    
+                full_text = "\n".join(parts)[:9500]
+
+                # Generate embedding
+                result = self.ai.client.models.embed_content(
+                    model=EMBEDDING_MODEL, # Should ensure this is gemini-embedding-001 in config
+                    contents=[full_text],
+                    config={"task_type": "RETRIEVAL_DOCUMENT", "title": "Math Book Entry", "output_dimensionality": 768}
+                )
+                
+                if result and result.embeddings:
+                    vector = result.embeddings[0].values
+                    vector_blob = np.array(vector, dtype=np.float32).tobytes()
+                    conn.execute("UPDATE books SET embedding = ? WHERE id = ?", (vector_blob, book_id))
+                    return True
+                    
+            return False
+        except Exception as e:
+            print(f"[SearchService] Vectorization Error for book {book_id}: {e}", file=sys.stderr)
+            return False
+
     def search_books_fts(self, query, limit=50, field='all'):
         """Performs a Full Text Search using the books_fts table."""
         # Remove quotes and special characters

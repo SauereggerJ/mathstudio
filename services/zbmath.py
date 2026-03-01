@@ -369,13 +369,14 @@ class ZBMathService:
     def enrich_book(self, book_id: int) -> Dict[str, Any]:
         """Main entry point for verifiying and enriching a book with zbMATH data."""
         with self.db.get_connection() as conn:
-            book = conn.execute("SELECT id, title, author, doi, zbl_id FROM books WHERE id = ?", (book_id,)).fetchone()
+            book = conn.execute("SELECT id, title, author, doi, zbl_id, language FROM books WHERE id = ?", (book_id,)).fetchone()
         
         if not book:
             return {"success": False, "error": "Book not found"}
 
         doi = book['doi']
         zbl_id = book['zbl_id']
+        language = (book['language'] or "").lower()
 
         # 1. Resolve Zbl ID if missing but DOI exists
         if not zbl_id and doi:
@@ -412,6 +413,10 @@ class ZBMathService:
         zb_title = zb_data.get('title', '')
         similarity = fuzz.partial_ratio(local_title.lower(), zb_title.lower()) / 100.0
         
+        # HOUSEKEEPING: Detect if current title is German
+        german_indicators = ["und", "der", "die", "das", "für", "lehrbuch", "grundzüge", "einführung", "vorlesungen"]
+        is_german = language == "german" or any(word in local_title.lower().split() for word in german_indicators)
+
         status = 'verified' if similarity > 0.85 else 'conflict'
         if local_title.lower() in ("unknown", "untitled", ""):
             status = 'verified' # Always trust zbMATH if we have nothing
@@ -422,18 +427,24 @@ class ZBMathService:
         zb_author_str = ", ".join(zb_data.get('authors', []))
 
         with self.db.get_connection() as conn:
+            # We only overwrite the title if it was unknown OR if it's NOT a German book (to avoid English overwrites)
+            # If it's a German book, we keep our (hopefully German) title.
+            title_to_set = zb_title
+            if is_german and local_title.lower() not in ("unknown", "untitled", ""):
+                title_to_set = local_title
+
             conn.execute("""
                 UPDATE books SET 
                     zbl_id = ?,
                     msc_class = ?,
                     author = CASE WHEN author IS NULL OR author = 'Unknown' THEN ? ELSE author END,
-                    title = CASE WHEN title IS NULL OR title = 'Unknown' THEN ? ELSE title END,
+                    title = ?,
                     zb_review = ?,
                     metadata_status = ?,
                     trust_score = ?,
                     last_metadata_refresh = unixepoch()
                 WHERE id = ?
-            """, (zbl_id, msc, zb_author_str, zb_title, zb_data.get('review_markdown', ''), status, similarity, book_id))
+            """, (zbl_id, msc, zb_author_str, title_to_set, zb_data.get('review_markdown', ''), status, similarity, book_id))
 
         return {
             "success": True, 

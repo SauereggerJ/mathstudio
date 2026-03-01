@@ -66,6 +66,11 @@ class UniversalProcessor:
             
             folders = self._get_library_folders()
             uploaded = self.ai.upload_file(meta_slice)
+            
+            # Short cooldown after upload to let Google's backend stabilize the file
+            if uploaded:
+                time.sleep(3)
+                
             initial_json = self._initial_holistic_pass(uploaded, folders, native_toc)
             
             if uploaded: self.ai.delete_file(uploaded.name)
@@ -107,7 +112,8 @@ class UniversalProcessor:
             "SUMMARY: Write a sophisticated, one-to-two sentence academic summary capturing the pedagogical approach and key themes.\n"
             "DESCRIPTION: Provide a detailed professional review (2-3 paragraphs) for a research database.\n"
             "ROUTING: Select the best existing folder from the list below. Be CONSERVATIVE: prefer placing special cases into a broader existing category (e.g. '04_Algebra' for a book on Group Theory) rather than creating new folders. Only suggest a new sub-path (Format: 'ExistingFolder/NewSub') if the topic is distinct and warrants its own directory.\n"
-            "Return a strictly valid JSON object: {\"metadata\": {\"title\", \"author\", \"publisher\", \"year\", \"isbn\", \"doi\", \"msc_class\", \"target_path\", \"summary\", \"description\", \"audience\", \"has_exercises\", \"has_solutions\"}, \"toc\": [{\"title\", \"page\", \"level\"}], \"index_terms\": [], \"page_offset\": 0}\n\n"
+            "TITLE: If the book is in German, ensure the German title is returned as the primary title. Do not translate it to English.\n"
+            "Return a strictly valid JSON object: {\"metadata\": {\"title\", \"author\", \"publisher\", \"year\", \"isbn\", \"doi\", \"msc_class\", \"target_path\", \"summary\", \"description\", \"audience\", \"has_exercises\", \"has_solutions\", \"language\"}, \"toc\": [{\"title\", \"page\", \"level\"}], \"index_terms\": [], \"page_offset\": 0}\n\n"
             f"BASELINE TOC FROM PDF METADATA:\n{native_toc_str}\n\n"
             f"EXISTING FOLDERS:\n{folder_list}"
         )
@@ -156,13 +162,13 @@ class UniversalProcessor:
             conn.execute("""
                 UPDATE books SET title=?, author=?, publisher=?, year=?, isbn=?, doi=?, 
                 msc_class=?, summary=?, description=?, audience=?, has_exercises=?, 
-                has_solutions=?, index_text=?, page_offset=?, last_metadata_refresh=unixepoch() WHERE id=?
+                has_solutions=?, index_text=?, page_offset=?, language=?, last_metadata_refresh=unixepoch() WHERE id=?
             """, (
                 meta.get('title'), author_str, meta.get('publisher'), meta.get('year'),
                 meta.get('isbn'), meta.get('doi'), meta.get('msc_class'), meta.get('summary'),
                 meta.get('description'), meta.get('audience'),
                 1 if meta.get('has_exercises') else 0, 1 if meta.get('has_solutions') else 0,
-                index_text, final_data.get('page_offset', 0), book_id
+                index_text, final_data.get('page_offset', 0), meta.get('language'), book_id
             ))
             conn.execute("DELETE FROM chapters WHERE book_id = ?", (book_id,))
             for item in toc:

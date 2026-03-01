@@ -71,7 +71,8 @@ class DatabaseManager:
                     page_offset INTEGER DEFAULT 0,
                     metadata_status TEXT DEFAULT 'raw', -- raw, verified, conflict
                     trust_score REAL DEFAULT 0.0,
-                    zb_review TEXT
+                    zb_review TEXT,
+                    language TEXT
                 ) STRICT
             ''')
 
@@ -82,7 +83,8 @@ class DatabaseManager:
                 ("zbl_id", "TEXT"),
                 ("metadata_status", "TEXT DEFAULT 'raw'"),
                 ("trust_score", "REAL DEFAULT 0.0"),
-                ("zb_review", "TEXT")
+                ("zb_review", "TEXT"),
+                ("language", "TEXT")
             ]:
                 try:
                     conn.execute(f"ALTER TABLE books ADD COLUMN {col} {col_type}")

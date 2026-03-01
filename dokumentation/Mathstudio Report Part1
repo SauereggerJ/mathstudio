@@ -298,7 +298,7 @@ Central configuration hub. Key paths:
 | `NOTES_OUTPUT_DIR` | `mathstudio/notes_output/` | Handwritten note output |
 | `KNOWLEDGE_VAULT_ROOT` | `vault/10_Knowledge/` | Obsidian KB root |
 | `GEMINI_MODEL` | `gemini-2.5-flash-lite...` | Balanced Speed/Brain for Extraction |
-| `EMBEDDING_MODEL` | `models/text-embedding-004` | Vector embedding model |
+| `EMBEDDING_MODEL` | `models/gemini-embedding-001` | Vector embedding model |
 | `IGNORED_FOLDERS` | `{'mathstudio', '.git', ...}` | Folders excluded from scanning |
 
 ### 5.2 `core/database.py` — DatabaseManager

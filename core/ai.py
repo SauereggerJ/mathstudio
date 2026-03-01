@@ -40,10 +40,10 @@ class AIService:
         except Exception as e:
             logger.error(f"Failed to delete file from Gemini: {e}")
 
-    def generate_json(self, contents, retry_count=3, schema=None):
+    def generate_json(self, contents, retry_count=5, schema=None):
         """Generates a structured JSON response. 'contents' can be a string or SDK types.
         If schema is provided, it is passed to the API as response_schema for structured output."""
-        backoff = 5
+        backoff = 10
         # Normalize to Content object if string
         if isinstance(contents, str):
             contents = types.Content(role="user", parts=[types.Part.from_text(text=contents)])
@@ -137,17 +137,27 @@ class AIService:
                     return None
         return None
 
-    def generate_text(self, prompt):
-        """Generates plain text response."""
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            return response.text
-        except Exception as e:
-            print(f"[AI Error] {e}", file=sys.stderr)
-            return None
+    def generate_text(self, prompt, retry_count=3):
+        """Generates plain text response with basic retry logic."""
+        backoff = 10
+        for attempt in range(retry_count):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt
+                )
+                return response.text
+            except Exception as e:
+                err_str = str(e)
+                if ('429' in err_str or '503' in err_str) and attempt < retry_count - 1:
+                    logger.warning(f"[AI Text] Rate/capacity limit hit (attempt {attempt+1}), backing off {backoff}s...")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                print(f"[AI Error] {e}", file=sys.stderr)
+                if attempt == retry_count - 1:
+                    return None
+        return None
 
 # Global instance
 ai = AIService()

@@ -139,6 +139,14 @@ class LibraryService:
     def check_sanity(self, fix=False):
         """Checks for broken paths and duplicate entries with ranking logic."""
         results = {"broken": [], "duplicates": []}
+        
+        def rank_candidate(c):
+            score = 0
+            if "99_General_and_Diverse/Unsorted" in c['path']:
+                score += 1000
+            score += len(c['path'])
+            return score
+
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, path, title FROM books")
@@ -164,13 +172,6 @@ class LibraryService:
                 cursor.execute("SELECT id, path, title FROM books WHERE file_hash = ?", (file_hash,))
                 candidates = [dict(r) for r in cursor.fetchall()]
                 
-                def rank_candidate(c):
-                    score = 0
-                    if "99_General_and_Diverse/Unsorted" in c['path']:
-                        score += 1000
-                    score += len(c['path'])
-                    return score
-
                 candidates.sort(key=rank_candidate)
                 best = candidates[0]
                 to_delete = candidates[1:]
@@ -182,6 +183,42 @@ class LibraryService:
                         phys_path = LIBRARY_ROOT / item['path']
                         if phys_path.exists():
                             os.remove(phys_path)
+                        cursor.execute("DELETE FROM books WHERE id = ?", (item['id'],))
+                        cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (item['id'],))
+
+            # Metadata Duplicate Check (ISBN)
+            cursor.execute("SELECT isbn, COUNT(*) as count FROM books WHERE isbn IS NOT NULL AND isbn != '' GROUP BY isbn HAVING count > 1")
+            isbn_dups = cursor.fetchall()
+            for row in isbn_dups:
+                isbn = row['isbn']
+                cursor.execute("SELECT id, path, title FROM books WHERE isbn = ?", (isbn,))
+                candidates = [dict(r) for r in cursor.fetchall()]
+                candidates.sort(key=rank_candidate)
+                best = candidates[0]
+                to_delete = candidates[1:]
+                results["duplicates"].append({"isbn": isbn, "best": best, "redundant": to_delete})
+                if fix:
+                    for item in to_delete:
+                        phys_path = LIBRARY_ROOT / item['path']
+                        if phys_path.exists(): os.remove(phys_path)
+                        cursor.execute("DELETE FROM books WHERE id = ?", (item['id'],))
+                        cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (item['id'],))
+
+            # Metadata Duplicate Check (DOI)
+            cursor.execute("SELECT doi, COUNT(*) as count FROM books WHERE doi IS NOT NULL AND doi != '' AND doi != 'Unknown' GROUP BY doi HAVING count > 1")
+            doi_dups = cursor.fetchall()
+            for row in doi_dups:
+                doi = row['doi']
+                cursor.execute("SELECT id, path, title FROM books WHERE doi = ?", (doi,))
+                candidates = [dict(r) for r in cursor.fetchall()]
+                candidates.sort(key=rank_candidate)
+                best = candidates[0]
+                to_delete = candidates[1:]
+                results["duplicates"].append({"doi": doi, "best": best, "redundant": to_delete})
+                if fix:
+                    for item in to_delete:
+                        phys_path = LIBRARY_ROOT / item['path']
+                        if phys_path.exists(): os.remove(phys_path)
                         cursor.execute("DELETE FROM books WHERE id = ?", (item['id'],))
                         cursor.execute("DELETE FROM books_fts WHERE rowid = ?", (item['id'],))
                 
@@ -236,6 +273,56 @@ class LibraryService:
             return pdf_path, None
             
         return None, "Unsupported file type"
+
+    def find_language_mismatches(self, limit=50):
+        """Identifies books that likely have a language mismatch (e.g. German content, English title)."""
+        german_indicators = ["und", "der", "die", "das", "für", "einleitung", "lehrbuch"]
+        english_indicators = ["and", "the", "for", "introduction", "textbook"]
+        
+        mismatches = []
+        with self.db.get_connection() as conn:
+            # Look for books where the title is English but the review or summary contains German
+            rows = conn.execute("""
+                SELECT id, title, author, path, summary, zb_review, language 
+                FROM books 
+                WHERE title IS NOT NULL AND (zb_review IS NOT NULL OR summary IS NOT NULL)
+                AND language IS NULL
+            """).fetchall()
+            
+            for row in rows:
+                content = (row['zb_review'] or "") + " " + (row['summary'] or "")
+                title = row['title'].lower()
+                
+                content_is_german = any(word in content.lower().split() for word in german_indicators)
+                title_is_english = any(word in title.split() for word in english_indicators)
+                
+                if content_is_german and title_is_english:
+                    mismatches.append(dict(row))
+                    if len(mismatches) >= limit: break
+                    
+        return mismatches
+
+    def fix_language_mismatch(self, book_id, preferred_title=None):
+        """Attempts to restore the original German title for a book."""
+        with self.db.get_connection() as conn:
+            book = conn.execute("SELECT id, title, filename, path FROM books WHERE id = ?", (book_id,)).fetchone()
+            if not book: return False
+            
+            new_title = preferred_title
+            if not new_title:
+                # Try to extract from filename if it looks descriptive
+                # e.g. "Author - German Title.pdf"
+                fn = book['filename']
+                if ' - ' in fn:
+                    parts = fn.split(' - ')
+                    potential = parts[1].rsplit('.', 1)[0].strip()
+                    if len(potential) > 5:
+                        new_title = potential
+            
+            if new_title and new_title != book['title']:
+                self.update_metadata(book_id, {'title': new_title, 'language': 'german'})
+                return True
+        return False
 
 # Global instance
 library_service = LibraryService()

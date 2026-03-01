@@ -10,6 +10,7 @@ from core.config import LIBRARY_ROOT, UNSORTED_DIR
 from services.library import library_service
 from services.universal_processor import universal_processor
 from services.zbmath import zbmath_service
+from services.search import search_service
 
 class IngestorService:
     def __init__(self):
@@ -23,8 +24,10 @@ class IngestorService:
         # Deep Enrichment
         try:
             zbmath_service.enrich_book(book_id)
+            # Vectorize after enrichment
+            search_service.vectorize_book(book_id)
         except Exception as e:
-            print(f"zbMATH Enrichment Warning: {e}")
+            print(f"Post-Enrichment Warning (zbMATH/Vector): {e}")
         return result
 
     def preview_metadata_update(self, book_id, ai_care=True):
@@ -71,8 +74,10 @@ class IngestorService:
         # 3b. Deep Enrichment (zbMATH)
         try:
             zbmath_service.enrich_book(book_id)
+            # Vectorize after enrichment to capture full metadata
+            search_service.vectorize_book(book_id)
         except Exception as e:
-            print(f"zbMATH Enrichment Failed (Non-critical): {e}")
+            print(f"Post-Enrichment Warning (zbMATH/Vector): {e}")
 
         # 4. Final Routing based on Enriched Metadata
         with self.db.get_connection() as conn:
