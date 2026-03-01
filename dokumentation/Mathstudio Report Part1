@@ -87,11 +87,12 @@ graph TB
         ARXIV["arXiv API"]
     end
 
-    subgraph "Storage"
+    subgraph "Storage & Search Infrastructure"
         SQLITE[(library.db)]
         FILES["PDF/DjVu Files<br/>(Organized by MSC)"]
-        OBSIDIAN["Obsidian Vault<br/>(mathematik_obsidian)"]
         NOTES["notes_output/<br/>converted_notes/"]
+        ES[(Elasticsearch 8.12)]
+        MWS[(MathWebSearch)]
     end
 
     WEB --> APP
@@ -104,9 +105,11 @@ graph TB
     AI --> GEMINI
     ZB --> ZBAPI & CROSS & OALEX
     META --> ARXIV & CROSS
-    NOTE --> NOTES & OBSIDIAN
-    KB --> OBSIDIAN
+    NOTE --> NOTES
+    KB --> DB
     IDX --> FILES
+    SEARCH --> ES
+    SEARCH --> MWS
 ```
 
 ### Network Topology & Environment
@@ -296,8 +299,11 @@ Central configuration hub. Key paths:
 | `CONVERTED_NOTES_DIR` | `mathstudio/converted_notes/` | PDF extraction output |
 | `NOTES_OUTPUT_DIR` | `mathstudio/notes_output/` | Handwritten note output |
 | `KNOWLEDGE_VAULT_ROOT` | `vault/10_Knowledge/` | Obsidian KB root |
+| `EXPORTS_DIR` | `mathstudio/exports/` | Data exports (e.g. Canvas files) |
 | `GEMINI_MODEL` | `gemini-2.5-flash-lite...` | Balanced Speed/Brain for Extraction |
 | `EMBEDDING_MODEL` | `models/gemini-embedding-001` | Vector embedding model |
+| `ELASTICSEARCH_URL` | `http://elasticsearch:9200` | Elasticsearch node (Docker) |
+| `MWS_URL` | `http://mathwebsearch:8080` | MathWebSearch node (Docker) |
 | `IGNORED_FOLDERS` | `{'mathstudio', '.git', ...}` | Folders excluded from scanning |
 
 ### 5.2 `core/database.py` — DatabaseManager

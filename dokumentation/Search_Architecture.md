@@ -15,6 +15,8 @@ MathStudio employs a **Hybrid Search Engine** that combines traditional informat
 - **`mcp_server/server.py`**: Provides specialized tools for LLM agents to interact with the search engine.
 - **SQLite FTS5**: Powers high-performance full-text search with BM25 ranking.
 - **Gemini Embedding Model**: Generates 768-dimensional semantic vectors for books and queries.
+- **Elasticsearch (Docker)**: Deployed for future scalable semantic and advanced search capabilities.
+- **MathWebSearch (Docker)**: Deployed to enable formula-based querying via Content MathML.
 
 ---
 

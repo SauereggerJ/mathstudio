@@ -51,6 +51,10 @@ for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_
 GEMINI_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 
+# Search Infrastructure
+ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "http://localhost:9200")
+MWS_URL = os.environ.get("MWS_URL", "http://localhost:8080")
+
 def get_api_key():
     try:
         import json

@@ -1188,7 +1188,17 @@ class NoteService:
         with open(md_path, 'w', encoding='utf-8') as f: f.write(full_markdown)
         # Also save TeX version for compilation
         with open(tex_path, 'w', encoding='utf-8') as f: 
-            f.write("\\documentclass{article}\\usepackage{amsmath}\\begin{document}\n")
+            f.write("\\documentclass{article}\n")
+            f.write("\\usepackage[utf8]{inputenc}\n")
+            f.write("\\usepackage{amsmath,amssymb,amsfonts,amsthm}\n")
+            f.write("\\newtheorem{theorem}{Theorem}[section]\n")
+            f.write("\\newtheorem{lemma}[theorem]{Lemma}\n")
+            f.write("\\newtheorem{proposition}[theorem]{Proposition}\n")
+            f.write("\\newtheorem{corollary}[theorem]{Corollary}\n")
+            f.write("\\newtheorem{definition}[theorem]{Definition}\n")
+            f.write("\\newtheorem{remark}[theorem]{Remark}\n")
+            f.write("\\newtheorem{example}[theorem]{Example}\n")
+            f.write("\\begin{document}\n")
             f.write(combined_latex)
             f.write("\n\\end{document}")
             
@@ -1300,7 +1310,16 @@ class NoteService:
         latex_source = transcription.get('latex_source', '')
         with open(tex_path, 'w', encoding='utf-8') as f:
             if "\\documentclass" not in latex_source:
-                f.write("\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath,amssymb,amsfonts}\n")
+                f.write("\\documentclass{article}\n")
+                f.write("\\usepackage[utf8]{inputenc}\n")
+                f.write("\\usepackage{amsmath,amssymb,amsfonts,amsthm}\n")
+                f.write("\\newtheorem{theorem}{Theorem}[section]\n")
+                f.write("\\newtheorem{lemma}[theorem]{Lemma}\n")
+                f.write("\\newtheorem{proposition}[theorem]{Proposition}\n")
+                f.write("\\newtheorem{corollary}[theorem]{Corollary}\n")
+                f.write("\\newtheorem{definition}[theorem]{Definition}\n")
+                f.write("\\newtheorem{remark}[theorem]{Remark}\n")
+                f.write("\\newtheorem{example}[theorem]{Example}\n")
                 f.write(f"\\title{{{title}}}\n\\begin{document}\n\\maketitle\n")
                 f.write(latex_source)
                 f.write("\n\\end{document}")
@@ -1393,7 +1412,17 @@ class NoteService:
             with open(tex_path, 'w', encoding='utf-8') as f:
                 # Wrap in minimal document if not provided
                 if "\\documentclass" not in latex_content:
-                    f.write("\\documentclass{article}\n\\usepackage{amsmath,amssymb,amsfonts}\n\\begin{document}\n")
+                    f.write("\\documentclass{article}\n")
+                    f.write("\\usepackage[utf8]{inputenc}\n")
+                    f.write("\\usepackage{amsmath,amssymb,amsfonts,amsthm}\n")
+                    f.write("\\newtheorem{theorem}{Theorem}[section]\n")
+                    f.write("\\newtheorem{lemma}[theorem]{Lemma}\n")
+                    f.write("\\newtheorem{proposition}[theorem]{Proposition}\n")
+                    f.write("\\newtheorem{corollary}[theorem]{Corollary}\n")
+                    f.write("\\newtheorem{definition}[theorem]{Definition}\n")
+                    f.write("\\newtheorem{remark}[theorem]{Remark}\n")
+                    f.write("\\newtheorem{example}[theorem]{Example}\n")
+                    f.write(f"\\title{{{title}}}\n\\begin{document}\n\\maketitle\n")
                     f.write(latex_content)
                     f.write("\n\\end{document}")
                 else:

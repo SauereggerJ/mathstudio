@@ -25,3 +25,4 @@ python-dateutil
 tenacity
 beautifulsoup4
 flask-cors
+elasticsearch>=8.12.0

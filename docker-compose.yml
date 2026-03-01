@@ -7,19 +7,51 @@ services:
     restart: unless-stopped
     ports:
       - "5002:5001"
-    
     working_dir: /library/mathstudio
-    
     volumes:
       - ../:/library
-      
+      - /srv/data/math/obsidian/mathematik_obsidian:/obsidian
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
-
+      # Neue Umgebungsvariablen für die interne Kommunikation
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MWS_URL=http://mathwebsearch:8080
     deploy:
       resources:
         limits:
           memory: 4G
         reservations:
           memory: 2G
+    networks:
+      - search_net
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    container_name: mathstudio_elastic
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - ~/mathstudio_search_data/es_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    networks:
+      - search_net
+
+  mathwebsearch:
+    image: mathwebsearch/mathwebsearch:latest
+    container_name: mathstudio_mws
+    ports:
+      - "8085:8080"
+    volumes:
+      - ~/mathstudio_search_data/mws_data:/var/mws/data
+    restart: unless-stopped
+    networks:
+      - search_net
+
+networks:
+  search_net:
+    driver: bridge

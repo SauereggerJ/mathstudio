@@ -63,31 +63,6 @@
                 <i class="fas fa-chevron-right text-indigo-300 group-hover:translate-x-1 transition-transform"></i>
             </a>
 
-            <a href="/knowledge/drafts" class="group w-full flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-emerald-600 text-white rounded-lg flex items-center justify-center mr-4">
-                        <i class="fas fa-vial"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900">KB Drafts</span>
-                        <span class="text-xs text-slate-500">Review and commit AI-extracted knowledge.</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-emerald-300 group-hover:translate-x-1 transition-transform"></i>
-            </a>
-
-            <button onclick="runBatch(100)" class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-bolt"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900">Trigger zbMATH Batch (100)</span>
-                        <span class="text-xs text-slate-500">Continue background metadata enrichment.</span>
-                    </div>
-                </div>
-            </button>
-
             <button onclick="runAction('/api/v1/admin/indexer', {force: false}, 'FTS Rebuild triggered...')" 
                 class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-500 hover:shadow-lg transition-all text-left">
                 <div class="flex items-center">
@@ -100,20 +75,6 @@
                     </div>
                 </div>
             </button>
-
-            <div class="pt-6">
-                <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Problem Zones</h4>
-                <div class="grid grid-cols-2 gap-4">
-                    <a href="/search?q=metadata_status:conflict" class="p-4 bg-amber-50 rounded-xl border border-amber-100 block hover:bg-amber-100 transition-colors">
-                        <span class="block text-xl font-black text-amber-700" id="sub-conflict">--</span>
-                        <span class="text-[10px] font-bold text-amber-600 uppercase">Conflicts</span>
-                    </a>
-                    <div class="p-4 bg-rose-50 rounded-xl border border-rose-100 block">
-                        <span class="block text-xl font-black text-rose-700" id="sub-bad-boys">--</span>
-                        <span class="text-[10px] font-bold text-rose-600 uppercase">Bad Boys (ID -1)</span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -137,19 +98,6 @@
         </div>
     </div>
 </div>
-
-<!-- Conflict Resolution Center -->
-<div class="mb-12">
-    <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
-        <i class="fas fa-balance-scale mr-3"></i> Conflict Resolution Center
-    </h3>
-    <div id="conflict-list" class="space-y-4">
-        <div class="text-center p-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
-            <i class="fas fa-check-circle text-4xl mb-4 text-emerald-100"></i>
-            <p>Loading conflicts...</p>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -157,72 +105,12 @@
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
         loadEnrichmentLogs();
-        loadConflicts();
         setInterval(loadEnrichmentLogs, 5000);
     });
 
-    async function loadConflicts() {
-        try {
-            const res = await fetch('/api/v1/admin/conflicts');
-            const data = await res.json();
-            const list = document.getElementById('conflict-list');
-            
-            if (data.length === 0) {
-                list.innerHTML = `
-                    <div class="text-center p-12 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-600">
-                        <i class="fas fa-trophy text-4xl mb-4"></i>
-                        <p class="font-bold">Zero Conflicts! All metadata is harmonized.</p>
-                    </div>`;
-                return;
-            }
-
-            list.innerHTML = data.map(c => `
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-7 gap-0">
-                    <div class="md:col-span-3 p-6 border-r border-slate-50">
-                        <div class="flex items-start justify-between mb-2">
-                            <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest block">Local Extraction</span>
-                            <a href="/open/${c.path}" target="_blank" class="text-blue-500 hover:text-blue-700 transition-colors">
-                                <i class="fas fa-file-pdf text-sm"></i>
-                            </a>
-                        </div>
-                        <h4 class="font-bold text-slate-900 leading-snug">${c.local_title}</h4>
-                        <p class="text-xs text-slate-500 mt-1">${c.local_author || 'Unknown Author'}</p>
-                    </div>
-                    <div class="bg-slate-50 flex items-center justify-center p-4">
-                        <i class="fas fa-exchange-alt text-slate-300"></i>
-                    </div>
-                    <div class="md:col-span-2 p-6 bg-emerald-50/30">
-                        <span class="text-[10px] font-black text-emerald-500 uppercase tracking-widest block mb-2">zbMATH Data (Zbl ${c.zbl_id})</span>
-                        <h4 class="font-bold text-emerald-900 leading-snug text-sm">${c.zb_title}</h4>
-                        <p class="text-[10px] text-emerald-700 mt-1">${c.zb_authors}</p>
-                    </div>
-                    <div class="p-6 flex flex-col justify-center gap-2">
-                        <button onclick="resolve(${c.id}, 'accept')" class="w-full py-2 bg-emerald-600 text-white text-xs font-black rounded-lg hover:bg-emerald-700 transition-colors">USE ZBMATH</button>
-                        <button onclick="resolve(${c.id}, 'reject')" class="w-full py-2 border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 transition-colors">REJECT LINK</button>
-                    </div>
-                </div>
-            `).join('');
-        } catch (e) { console.error(e); }
-    }
-
-    async function resolve(bookId, action) {
-        try {
-            const res = await fetch('/api/v1/admin/conflicts/resolve', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ book_id: bookId, action: action })
-            });
-            const data = await res.json();
-            if (data.success) {
-                loadConflicts();
-                loadStats();
-            }
-        } catch (e) { alert("Action failed"); }
-    }
-
     async function loadStats() {
         try {
-            const res = await fetch('/api/v1/admin/stats');
+            const res = await fetch('/api_v1/admin/stats');
             const data = await res.json();
             
             document.getElementById('stat-total').textContent = (data.total_books || 0).toLocaleString();
@@ -231,12 +119,6 @@
             document.getElementById('stat-conflict').textContent = (dist.conflict || 0).toLocaleString();
             document.getElementById('stat-raw').textContent = (dist.raw || 0).toLocaleString();
             document.getElementById('stat-ignored').textContent = (dist.ignored || 0).toLocaleString();
-            
-            document.getElementById('sub-conflict').textContent = dist.conflict || 0;
-            // Fetch Bad Boys count specifically
-            const badRes = await fetch('/api/v1/search?q=last_metadata_refresh:-1&limit=1');
-            const badData = await badRes.json();
-            document.getElementById('sub-bad-boys').textContent = badData.total_count || 0;
 
         } catch (e) { console.error(e); }
     }
@@ -262,20 +144,6 @@
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
         } catch (e) { console.error(e); }
-    }
-
-    async function runBatch(limit) {
-        if(!confirm(`Start enrichment batch for ${limit} books?`)) return;
-        try {
-            const res = await fetch('/api/v1/admin/enrich/batch', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ limit: limit })
-            });
-            const data = await res.json();
-            alert(`Batch started: ${data.total} candidates identified.`);
-            loadStats();
-        } catch(e) { alert("Failed to start batch"); }
     }
 
     async function runAction(url, body, msg) {
