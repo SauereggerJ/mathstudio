@@ -276,53 +276,98 @@ class LibraryService:
 
     def find_language_mismatches(self, limit=50):
         """Identifies books that likely have a language mismatch (e.g. German content, English title)."""
-        german_indicators = ["und", "der", "die", "das", "für", "einleitung", "lehrbuch"]
-        english_indicators = ["and", "the", "for", "introduction", "textbook"]
+        german_indicators = ["und", "der", "die", "das", "für", "einleitung", "lehrbuch", "vorlesungen", "bände", "band"]
+        english_indicators = ["and", "the", "for", "introduction", "textbook", "lectures", "volume", "transl."]
         
         mismatches = []
         with self.db.get_connection() as conn:
-            # Look for books where the title is English but the review or summary contains German
+            # Look for books where the language is not set yet
             rows = conn.execute("""
-                SELECT id, title, author, path, summary, zb_review, language 
+                SELECT id, title, author, path, filename, summary, zb_review, language 
                 FROM books 
-                WHERE title IS NOT NULL AND (zb_review IS NOT NULL OR summary IS NOT NULL)
-                AND language IS NULL
+                WHERE language IS NULL
             """).fetchall()
             
             for row in rows:
+                title = (row['title'] or "").lower()
+                path = (row['path'] or "").lower()
                 content = (row['zb_review'] or "") + " " + (row['summary'] or "")
-                title = row['title'].lower()
                 
+                # Check path/filename for "German" or "Deutsch"
+                path_is_german = "german" in path or "deutsch" in path or any(word in path for word in ["analysis 1 -", "analysis 2 -", "analysis 3 -"])
+                if "(english)" in path or "english" in path:
+                    path_is_german = False
+
                 content_is_german = any(word in content.lower().split() for word in german_indicators)
-                title_is_english = any(word in title.split() for word in english_indicators)
+                title_is_english = any(word in title.split() for word in english_indicators) or "analysis" in title
                 
-                if content_is_german and title_is_english:
-                    mismatches.append(dict(row))
-                    if len(mismatches) >= limit: break
+                # If it's in a path that doesn't say "English" and has German content/indicators
+                if (path_is_german or content_is_german) and title_is_english:
+                    # Double check it's not explicitly an English translation
+                    if "(english)" not in path and "transl. from the german" in title:
+                        mismatches.append(dict(row))
+                        if len(mismatches) >= limit: break
+                    elif "(english)" not in path and not any(x in title for x in ["english", "translated"]):
+                         mismatches.append(dict(row))
+                         if len(mismatches) >= limit: break
                     
         return mismatches
 
     def fix_language_mismatch(self, book_id, preferred_title=None):
         """Attempts to restore the original German title for a book."""
         with self.db.get_connection() as conn:
-            book = conn.execute("SELECT id, title, filename, path FROM books WHERE id = ?", (book_id,)).fetchone()
+            book = conn.execute("SELECT id, title, filename, author FROM books WHERE id = ?", (book_id,)).fetchone()
             if not book: return False
             
             new_title = preferred_title
             if not new_title:
-                # Try to extract from filename if it looks descriptive
-                # e.g. "Author - German Title.pdf"
                 fn = book['filename']
                 if ' - ' in fn:
                     parts = fn.split(' - ')
-                    potential = parts[1].rsplit('.', 1)[0].strip()
-                    if len(potential) > 5:
-                        new_title = potential
+                    stem = parts[1].rsplit('.', 1)[0].strip() if len(parts) > 1 else ""
+                    prefix = parts[0].strip()
+                    
+                    # If the first part contains "Analysis", "Algebra", etc., it's likely the title
+                    title_indicators = ["analysis", "algebra", "mathematik", "geometrie", "stochastik", "physik"]
+                    if any(ind in prefix.lower() for ind in title_indicators):
+                        new_title = prefix
+                    else:
+                        new_title = stem
             
-            if new_title and new_title != book['title']:
+            if new_title and new_title != book['title'] and len(new_title) > 3:
                 self.update_metadata(book_id, {'title': new_title, 'language': 'german'})
                 return True
         return False
+
+    def detect_book_language(self, book_id: int) -> str:
+        """Determines the book language by sampling two pages and using AI."""
+        with self.db.get_connection() as conn:
+            book = conn.execute("SELECT path FROM books WHERE id = ?", (book_id,)).fetchone()
+        if not book: return "unknown"
+        
+        abs_path = LIBRARY_ROOT / book['path']
+        if not abs_path.exists(): return "unknown"
+        
+        try:
+            import fitz
+            doc = fitz.open(abs_path)
+            # Sample page 5 and 15 (avoiding front matter and blank pages)
+            sample_text = ""
+            for p in [min(5, len(doc)-1), min(15, len(doc)-1)]:
+                sample_text += doc[p].get_text()[:1000] + "\n"
+            doc.close()
+            
+            if not sample_text.strip(): return "unknown"
+            
+            prompt = f"Identify the language of this mathematical text. Return ONLY 'german', 'english', or 'other'.\n\nText:\n{sample_text[:2000]}"
+            lang = self.ai.generate_text(prompt).strip().lower()
+            if lang in ['german', 'english']:
+                with self.db.get_connection() as conn:
+                    conn.execute("UPDATE books SET language = ? WHERE id = ?", (lang, book_id))
+                return lang
+            return "other"
+        except Exception:
+            return "unknown"
 
 # Global instance
 library_service = LibraryService()

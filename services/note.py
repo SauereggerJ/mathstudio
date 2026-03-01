@@ -6,6 +6,7 @@ import io
 import time
 import subprocess
 import logging
+import re
 from pathlib import Path
 from typing import List, Tuple
 from PIL import Image
@@ -14,7 +15,7 @@ from google.genai import types
 import converter
 from core.database import db
 from core.ai import ai
-from core.config import LIBRARY_ROOT, CONVERTED_NOTES_DIR, OBSIDIAN_INBOX, NOTES_OUTPUT_DIR, EMBEDDING_MODEL, PROJECT_ROOT
+from core.config import LIBRARY_ROOT, CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, EMBEDDING_MODEL, PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,27 @@ class NoteService:
         except Exception as e:
             print(f"[NoteService] Image optimization failed: {e}")
             return image_bytes
-        except Exception as e:
-            print(f"[NoteService] Image optimization failed: {e}")
-            return image_bytes
+
+    def is_toc_artifact(self, latex: str) -> bool:
+        """Heuristic to detect if a LaTeX snippet is actually a Table of Contents entry."""
+        if not latex: return False
+        # 1. Look for sequences of dots (classic TOC breadcrumbs)
+        if "....." in latex or ". . . . ." in latex:
+            return True
+        # 2. Look for high density of dots combined with numbers at end of lines
+        lines = latex.split('\n')
+        toc_lines = 0
+        for line in lines:
+            line = line.strip()
+            if not line: continue
+            # If line ends with a number and has many dots
+            if re.search(r'\d+$', line) and line.count('.') > 5:
+                toc_lines += 1
+        
+        if len(lines) > 0 and (toc_lines / len(lines)) > 0.3:
+            return True
+            
+        return False
 
     def transcribe_note(self, image_data):
         """Uses Gemini Vision to transcribe handwritten notes to LaTeX/Markdown."""
@@ -717,29 +736,41 @@ class NoteService:
                 term_start = t.get('page_start', start_page)
                 if self._save_knowledge_term(book_id, term_start, t):
                     total_count += 1
+            
+            # Mark pages in this chunk as harvested
+            with self.db.get_connection() as conn:
+                placeholders = ','.join(['?'] * len(chunk))
+                conn.execute(f"""
+                    UPDATE extracted_pages SET harvested_at = unixepoch()
+                    WHERE book_id = ? AND page_number IN ({placeholders})
+                """, [book_id] + chunk)
                     
         return total_count, None
 
     def check_and_trigger_term_extraction(self, book_id):
         """E6: Smart extraction scheduling — checks if contiguous cached pages 
-        exist that haven't been term-extracted yet, and triggers extraction if so."""
+        exist that haven't been term-extracted yet (harvested_at IS NULL), 
+        and triggers extraction if so."""
         with self.db.get_connection() as conn:
-            # Find all cached pages with sufficient quality
-            rows = conn.execute(
-                "SELECT page_number FROM extracted_pages WHERE book_id = ? AND quality_score >= 0.7 ORDER BY page_number",
-                (book_id,)
-            ).fetchall()
+            # Find all cached pages with sufficient quality that HAVEN'T been harvested
+            rows = conn.execute("""
+                SELECT page_number FROM extracted_pages 
+                WHERE book_id = ? AND quality_score >= 0.7 AND harvested_at IS NULL
+                ORDER BY page_number
+            """, (book_id,)).fetchall()
         
         if not rows:
-            return 0, "No cached pages found"
+            return 0, "No pending cached pages found"
         
-        cached_pages = sorted(r['page_number'] for r in rows)
+        pending_pages = sorted(r['page_number'] for r in rows)
         
-        # Find contiguous blocks of ≥5 pages
+        # Find contiguous blocks of ≥5 pages (to make chunking efficient)
         blocks = []
-        block_start = cached_pages[0]
-        prev = cached_pages[0]
-        for p in cached_pages[1:]:
+        if not pending_pages: return 0, "No pending pages"
+        
+        block_start = pending_pages[0]
+        prev = pending_pages[0]
+        for p in pending_pages[1:]:
             if p == prev + 1:
                 prev = p
             else:
@@ -751,24 +782,22 @@ class NoteService:
             blocks.append((block_start, prev))
         
         if not blocks:
-            return 0, "No contiguous blocks of 5+ pages found"
+            # If no 5-page blocks, check if there's any pending at all and maybe take a smaller set
+            if len(pending_pages) > 0:
+                blocks.append((pending_pages[0], pending_pages[-1]))
+            else:
+                return 0, "No contiguous blocks found"
         
         total = 0
         for bs, be in blocks:
-            # Check if terms already exist for this block
-            with self.db.get_connection() as conn:
-                existing = conn.execute(
-                    "SELECT COUNT(*) FROM knowledge_terms WHERE book_id = ? AND page_start BETWEEN ? AND ?",
-                    (book_id, bs, be)
-                ).fetchone()[0]
-            
-            if existing == 0:
-                logger.info(f"Auto-triggering term extraction for pages {bs}-{be} of book {book_id}")
-                count, _ = self.extract_and_save_knowledge_terms_batch(
-                    book_id, list(range(bs, be + 1))
-                )
-                total += count
-                break  # One block at a time to avoid overload
+            logger.info(f"Auto-triggering term extraction for pages {bs}-{be} of book {book_id}")
+            # We take up to 25 pages at a time to not blow up the chunking
+            target_list = [p for p in pending_pages if bs <= p <= min(be, bs + 25)]
+            count, _ = self.extract_and_save_knowledge_terms_batch(
+                book_id, target_list, force=True # force=True because we KNOW they are pending via harvested_at
+            )
+            total += count
+            break  # One block at a time to avoid overload
         
         return total, None
 
@@ -872,6 +901,11 @@ class NoteService:
         if name and name.lower().startswith('proof of'):
             logger.warning(f"Discarding term suspiciously named as a standalone proof: {name}")
             return False
+            
+        # --- TOC ARTIFACT FILTER ---
+        if latex and self.is_toc_artifact(latex):
+            logger.warning(f"Discarding hallucinated TOC artifact: {name}")
+            return False
         # -----------------------------
 
         with self.db.get_connection() as conn:
@@ -918,6 +952,47 @@ class NoteService:
             except Exception as e:
                 logger.error(f"Failed to save knowledge term: {e}")
                 return False
+
+    def backfill_all_term_latex(self, limit=100):
+        """Identifies terms with missing LaTeX (placeholders) and attempts to restore them from cache."""
+        with self.db.get_connection() as conn:
+            # Find terms where latex_content starts with the marker placeholder
+            rows = conn.execute("""
+                SELECT id, book_id, page_start, name, latex_content, used_terms 
+                FROM knowledge_terms 
+                WHERE latex_content LIKE '%(marker: %' 
+                LIMIT ?
+            """, (limit,)).fetchall()
+        
+        repaired = 0
+        for row in rows:
+            term_id = row['id']
+            # Extract marker from placeholder: "% Term: Name (marker: START_MARKER)"
+            placeholder = row['latex_content']
+            match = re.search(r'\(marker: (.*?)\)', placeholder)
+            if not match: continue
+            
+            start_marker = match.group(1)
+            # We don't have the end_marker stored in the placeholder, so we'll just take the rest of the page
+            new_latex = self._extract_snippet_from_cache(row['book_id'], row['page_start'], start_marker)
+            
+            if new_latex and not new_latex.startswith('% Term:'):
+                with self.db.get_connection() as conn:
+                    conn.execute("UPDATE knowledge_terms SET latex_content = ? WHERE id = ?", (new_latex, term_id))
+                    # Sync FTS
+                    keywords_json = row['used_terms']
+                    try:
+                        import json as _json
+                        kws = _json.loads(keywords_json)
+                        keywords_text = ", ".join(kws) if isinstance(kws, list) else str(kws)
+                    except:
+                        keywords_text = str(keywords_json)
+                        
+                    conn.execute("UPDATE knowledge_terms_fts SET latex_content = ? WHERE rowid = ?", (new_latex, term_id))
+                repaired += 1
+                logger.info(f"Repaired term {term_id}: '{row['name']}'")
+                
+        return repaired
 
         
     def get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7, abort_on_failure=False):
@@ -1116,9 +1191,6 @@ class NoteService:
             f.write("\\documentclass{article}\\usepackage{amsmath}\\begin{document}\n")
             f.write(combined_latex)
             f.write("\n\\end{document}")
-            
-        if OBSIDIAN_INBOX.exists():
-            shutil.copy2(md_path, OBSIDIAN_INBOX / f"{filename_base}.md")
             
         # Create DB record
         self.add_note(
@@ -1338,13 +1410,6 @@ class NoteService:
             content_preview=markdown_content[:500]
         )
         
-        # Sync to Obsidian Inbox if it exists
-        if OBSIDIAN_INBOX.exists():
-            try:
-                import shutil
-                shutil.copy2(md_path, OBSIDIAN_INBOX / f"{filename_base}.md")
-            except: pass
-            
         return note_id
 
     # ========================================

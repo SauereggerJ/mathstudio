@@ -186,11 +186,25 @@ class DatabaseManager:
                     page_number INTEGER NOT NULL,
                     latex_path TEXT,
                     markdown_path TEXT,
+                    quality_score REAL DEFAULT 0.0,
+                    quality_comments TEXT,
+                    harvested_at INTEGER,
                     created_at INTEGER DEFAULT (unixepoch()),
                     UNIQUE(book_id, page_number),
                     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
                 ) STRICT
             ''')
+
+            # 6.1 Migration for extracted_pages
+            for col, col_type in [
+                ("quality_score", "REAL DEFAULT 0.0"),
+                ("quality_comments", "TEXT"),
+                ("harvested_at", "INTEGER")
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE extracted_pages ADD COLUMN {col} {col_type}")
+                except sqlite3.OperationalError:
+                    pass
 
             # 7. zbMATH Cache (The Lazy Mirror) - Using SQLite STRICT and JSONB
             cursor.execute('''

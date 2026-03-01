@@ -12,7 +12,6 @@ services:
     
     volumes:
       - ../:/library
-      - /srv/data/math/obsidian/mathematik_obsidian:/obsidian
       
     environment:
       - FLASK_ENV=production

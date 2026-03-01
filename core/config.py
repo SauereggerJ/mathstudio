@@ -11,8 +11,6 @@ LIBRARY_ROOT = PROJECT_ROOT.parent
 DB_FILE = PROJECT_ROOT / "library.db"
 
 # External Paths
-OBSIDIAN_INBOX = Path("/srv/data/math/obsidian/mathematik_obsidian/00_Inbox")
-VAULT_DIR = Path("/srv/data/math/obsidian/mathematik_obsidian")
 WORKSPACE_DIR = Path("/srv/data/math/workspace")
 
 # Project Subdirectories

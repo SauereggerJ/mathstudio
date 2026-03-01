@@ -308,7 +308,7 @@
                     <div class="flex gap-3">
                         <input type="text" id="notePage" inputmode="tel"
                             class="block w-full p-3 text-sm border-emerald-200 rounded-xl"
-                            placeholder="Page(s) e.g. 10-15, 20">
+                            placeholder="PDF Page(s) e.g. 10-15, 20">
                         <button onclick="createNote()"
                             class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Synthesize</button>
                     </div>
@@ -328,7 +328,7 @@
                 <div class="bg-violet-50 p-6 rounded-2xl border border-violet-100" id="scan-section">
                     <h3 class="text-lg font-bold text-violet-800 mb-2">Full Book Scan</h3>
                     <p class="text-xs text-violet-600 mb-4">Convert all content pages to LaTeX & extract mathematical
-                        terms. Processes 25 pages at a time with 5-minute cooldowns.</p>
+                        terms using absolute PDF page indices. Processes 25 pages at a time with 5-minute cooldowns.</p>
 
                     <div id="scan-idle">
                         <button onclick="startScan()" id="scanBtn"

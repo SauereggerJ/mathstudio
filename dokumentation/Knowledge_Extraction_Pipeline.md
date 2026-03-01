@@ -1,90 +1,61 @@
-# Knowledge Extraction Pipeline Technical Report
+# Knowledge Extraction Master Blueprint
 
-This document details the technical architecture, Python implementation, and call sequences of the MathStudio PDF-to-LaTeX and Knowledge Extraction pipeline.
-
----
-
-## 1. System Components & Method Signatures
-
-### 1.1 Orchestration Layer (`app.py`, `api_v1.py`)
-Responsible for job queueing and background worker initialization.
-
--   **`app.py: _run_scan_worker()`**
-    -   Starts the background thread that polls for new scan jobs.
--   **`api_v1.py: enqueue_book_scan(book_id)`**
-    -   API Endpoint: `POST /api/v1/books/<int:book_id>/scan`
-    -   Creates a record in the `book_scans` table to trigger the background process.
--   **`api_v1.py: pdf_to_note_tool()`**
-    -   API Endpoint: `POST /api/v1/tools/pdf-to-note`
-    -   The "Lab" entry point for manual, synchronous extraction of a page range.
-
-### 1.2 Service Layer (`services/note.py`)
-The "Brain" of the operation, managing the high-level logic, caching, and deduplication.
-
--   **`scan_worker(self)`**
-    -   An infinite loop that picks the oldest `queued` job from the DB.
--   **`run_book_scan(self, scan_id)`**
-    -   Executes the full-book workflow: classification, batch conversion, and term harvesting.
--   **`get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7, abort_on_failure=False)`**
-    -   The central portal for digitized LaTeX. Orchestrates cache lookup vs. AI batch conversion.
--   **`extract_and_save_knowledge_terms_batch(self, book_id, pages_list, window_buffer=2, force=False)`**
-    -   Chunks a list of pages and calls the AI to harvest definitions/theorems.
--   **`_save_knowledge_term(self, book_id, page_start, term_data)`**
-    -   Handles fuzzy deduplication (via RapidFuzz) and SQLite persistence.
-
-### 1.3 AI Interface Layer (`converter.py`)
-Specialized low-level functions that interact directly with the Gemini API.
-
--   **`convert_pages_batch(book_path: str, pages: list[int])`**
-    -   Uses "Gate Logic" to decide between native PDF or Raster extraction. Uploads a batch of pages to Gemini.
--   **`extract_terms_batch(concatenated_latex, start_page, end_page, metadata=None)`**
-    -   Analyses a block of LaTeX to identify formal mathematical terms and their descriptors.
--   **`repair_latex(latex_content: str, original_text_preview: str, error_msg: str) -> str | None`**
-    -   The "Active Repair Loop" that fixes malformed LaTeX based on linting/compilation errors.
+This document defines the strict data model and quality standards for the MathStudio digitization pipeline.
 
 ---
 
-## 2. Call Sequence (Full Book Scan)
-
-The following sequence illustrates how a "Full Book Scan" flows through the system:
-
-1.  **`app.py`** starts a daemon thread calling **`NoteService.scan_worker()`**.
-2.  **`scan_worker()`** finds a queued job and calls **`NoteService.run_book_scan(scan_id)`**.
-3.  **`run_book_scan()`** classifies pages and groups them into chunks.
-4.  For each chunk, it calls **`NoteService.get_or_convert_pages()`**.
-5.  **`get_or_convert_pages()`** calls **`converter.convert_pages_batch()`**.
-6.  **`converter.convert_pages_batch()`** uploads files to Gemini and returns structured LaTeX.
-7.  **`get_or_convert_pages()`** performs linting/compilation checks. If errors occur, it calls **`converter.repair_latex()`**.
-8.  Once LaTeX is cached, **`run_book_scan()`** calls **`NoteService.extract_and_save_knowledge_terms_batch()`**.
-9.  **`extract_and_save_knowledge_terms_batch()`** calls **`converter.extract_terms_batch()`** to find markers.
-10. **`NoteService._save_knowledge_term()`** is called for each discovery to finalize the DB entry.
+## 1. The "Absolute PDF Page" House Rule
+All components of the system must communicate using **1-indexed absolute PDF page numbers**. 
+- **Physical Reality**: If a book has 20 pages of Roman numeral preface, the first page of "Chapter 1" is PDF Page 21. 
+- **Storage**: We store it as `page_21.tex`.
+- **Reference**: The database links all terms to `page_21`.
+- **Translation**: `page_offset` is used *only* to help the user find a PDF page if they only know the printed number.
 
 ---
 
-## 3. Alternative & Obsolete Methods
+## 2. Data Association Model
 
-### 3.1 Obsolete (Removed)
--   **`converter.convert_page(path, page_num)`**: Formerly used for single-page conversion. Removed in favor of batching to reduce API overhead and preserve context.
--   **`NoteService._create_proposals_from_discoveries()`**: Legacy method that pushed discoveries into the old `kb_proposals` table. Replaced by the Flat Term Index system.
+### 2.1 The Registry (`extracted_pages`)
+Every time a page is digitized, it is registered. This allows the system to know which parts of a book are "complete."
+- **Path**: `converted_notes/{book_id}/page_{N}.tex`
+- **Metadata**: Stores the `quality_score` and `harvested_at` (to track if terms were extracted).
 
-### 3.2 Similar but Distinct Usage
--   **`NoteService.transcribe_note(image_data)`**:
-    -   **Usage**: Used for handwritten notes (E-Ink scans) rather than textbook PDFs.
-    -   **Difference**: It generates both Markdown and LaTeX in a single pass without the marker-based extraction needed for books.
--   **`NoteService.create_note_from_pdf(book_id, pages)`**:
-    -   **Usage**: High-level UI action to "turn these pages into a standalone research note".
-    -   **Difference**: It aggregates the LaTeX into a single `.md` and `.tex` document for the user to edit, rather than indexing atomic terms in the KB.
--   **`NoteService.backfill_latex_fts()`**:
-    -   **Usage**: Management utility.
-    -   **Difference**: Populates the search index from existing files on disk without calling any AI components.
+### 2.2 The Fact Index (`knowledge_terms`)
+Atomic mathematical entities discovered on pages.
+- **Link**: Associated with the Registry via `(book_id, page_start)`.
+- **Content**: Stores a standalone `latex_content` snippet so the term can be read without opening the full page.
+- **Markers**: Uses `start_marker` and `end_marker` (text strings) to identify the segment within the Registry file.
 
 ---
 
-## 4. Current Pipeline Statistics (March 2026)
+## 3. Validation Guardrails (Checks & Rechecks)
 
-| Metric | Value |
-|--------|-------|
-| **Total Knowledge Terms** | **1,248** |
-| Terms with Full LaTeX | 1,003 (80.4%) |
-| Terms with Placeholders/Markers | 245 (19.6%) |
-| **Searchable Pages (FTS)** | **~2,500 cached LaTeX pages** |
+To ensure the Knowledge Base doesn't become "wonky," every extraction must pass four gates:
+
+### Gate 1: Structural Integrity (Linting)
+- **Mechanism**: Fast Regex scan.
+- **Check**: Mismatched LaTeX environments (`\begin` vs `\end`) or curly braces.
+- **Action**: Failure triggers an immediate AI Repair pass.
+
+### Gate 2: Mathematical Validity (Compilation)
+- **Mechanism**: `subprocess.run(['pdflatex', ...])`
+- **Check**: Compiles a snippet in a temporary buffer.
+- **Action**: Rejects snippets that would break a PDF viewer.
+
+### Gate 3: The Active Repair Loop
+- **Mechanism**: Reflection pass via Gemini.
+- **Check**: If Gate 1 or 2 fails, the AI analyzes the **compiler error log** and the **raw text** to regenerate the LaTeX.
+- **Action**: If repair fails, the system falls back to raw OCR text to prevent data loss, but marks the quality as 0.0.
+
+### Gate 4: Semantic Deduplication
+- **Mechanism**: RapidFuzz (String Similarity).
+- **Check**: Compares new terms against existing terms in a ±1 page window.
+- **Action**: If >85% similar, the discovery is discarded as a duplicate.
+
+---
+
+## 4. Technical Strategy: Markers vs. Line Numbers
+MathStudio uses **Textual Markers** for segmenting pages.
+- **Why?** LaTeX line numbers change if a header is added or spacing is adjusted.
+- **Reliability**: A marker like "Theorem 4.2" is unique and persistent.
+- **Fuzzy Matching**: We use fuzzy logic to find markers, ensuring that "Definition 1" still matches even if the OCR read it as "Definiton 1."
