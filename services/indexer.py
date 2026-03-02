@@ -103,6 +103,26 @@ class IndexerService:
             
             # Register as deep indexed
             cursor.execute("INSERT OR REPLACE INTO deep_indexed_books (book_id) VALUES (?)", (book_id,))
+
+            # Push to Elasticsearch (Bulk)
+            try:
+                from elasticsearch import helpers
+                from core.search_engine import es_client
+                actions = [
+                    {
+                        "_index": "mathstudio_pages",
+                        "_id": f"book_{book_id}_p{p[1]}",
+                        "_source": {
+                            "book_id": p[0],
+                            "page_number": p[1],
+                            "content": p[2]
+                        }
+                    }
+                    for p in pages_data
+                ]
+                helpers.bulk(es_client, actions)
+            except Exception as e:
+                print(f"  [ES] Failed to bulk index pages for book {book_id}: {e}")
             
         return True, f"Deep indexed {len(pages_data)} pages"
     def scan_library(self, force=False):

@@ -47,7 +47,7 @@ services:
     ports:
       - "8085:8080"
     volumes:
-      - ~/mathstudio_search_data/mws_data:/var/mws/data
+      - ~/mathstudio_search_data/mws_data:/data
     restart: unless-stopped
     networks:
       - search_net

@@ -6,7 +6,7 @@
 <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
         <h1 class="text-3xl font-black text-slate-900 tracking-tight">Library Admin</h1>
-        <p class="text-slate-500 font-medium">Monitoring enrichment progress and system health.</p>
+        <p class="text-slate-500 font-medium">System overview and research pipeline status.</p>
     </div>
     <div class="flex gap-2">
         <button onclick="loadStats()" class="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm font-bold text-sm">
@@ -16,73 +16,67 @@
 </div>
 
 <!-- Progress Overview -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-blue-500">
+<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-12">
+    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-blue-500">
         <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Library Size</div>
-        <div class="text-3xl font-black text-blue-600 mb-1" id="stat-total">--</div>
-        <p class="text-xs font-bold text-slate-500 uppercase">Total Volumes</p>
+        <div class="text-2xl font-black text-blue-600 mb-1" id="stat-total">--</div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase">Total Volumes</p>
     </div>
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-emerald-500">
-        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Enrichment Success</div>
-        <div class="text-3xl font-black text-emerald-600 mb-1" id="stat-verified">--</div>
-        <p class="text-xs font-bold text-slate-500 uppercase">Verified Books</p>
+    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-indigo-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">AI LaTeX Scans</div>
+        <div class="text-2xl font-black text-indigo-600 mb-1" id="stat-latexed">--</div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase">Fully Processed</p>
     </div>
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-amber-500">
-        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Metadata Conflicts</div>
-        <div class="text-3xl font-black text-amber-600 mb-1" id="stat-conflict">--</div>
-        <p class="text-xs font-bold text-slate-500 uppercase">Pending Review</p>
+    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-emerald-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Enriched</div>
+        <div class="text-2xl font-black text-emerald-600 mb-1" id="stat-enriched">--</div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase">zbMATH Linked</p>
     </div>
-    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-slate-300">
-        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Raw / Ignored</div>
-        <div class="flex items-baseline gap-2">
-            <div class="text-3xl font-black text-slate-400" id="stat-raw">--</div>
-            <div class="text-sm font-bold text-slate-300">/</div>
-            <div class="text-lg font-bold text-slate-300" id="stat-ignored">--</div>
-        </div>
-        <p class="text-xs font-bold text-slate-500 uppercase">To be processed / Skipped</p>
+    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-purple-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Deep Indexed</div>
+        <div class="text-2xl font-black text-purple-600 mb-1" id="stat-indexed">--</div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase">Searchable Pages</p>
+    </div>
+    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-amber-500">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Knowledge</div>
+        <div class="text-2xl font-black text-amber-600 mb-1" id="stat-terms">--</div>
+        <p class="text-[10px] font-bold text-slate-500 uppercase">Extracted Terms</p>
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
-    <!-- Maintenance Actions -->
-    <div>
-        <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
-            <i class="fas fa-tools mr-3"></i> System Operations
-        </h3>
-        <div class="space-y-4">
-            <a href="/analytics" class="group w-full flex items-center justify-between p-4 bg-indigo-50 border border-indigo-100 rounded-2xl hover:border-indigo-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center mr-4">
-                        <i class="fas fa-chart-pie"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900">Analytics Dashboard</span>
-                        <span class="text-xs text-slate-500">Visual networks and research trends.</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-indigo-300 group-hover:translate-x-1 transition-transform"></i>
-            </a>
+<div class="mb-6 border-b border-slate-200">
+    <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="adminTabs" data-tabs-toggle="#adminTabsContent" role="tablist">
+        <li class="mr-2" role="presentation">
+            <button class="inline-block p-4 border-b-2 rounded-t-lg" id="latexed-tab" data-tabs-target="#latexed" type="button" role="tab" aria-controls="latexed" aria-selected="true">LaTeXed Books</button>
+        </li>
+        <li class="mr-2" role="presentation">
+            <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="telemetry-tab" data-tabs-target="#telemetry" type="button" role="tab" aria-controls="telemetry" aria-selected="false">System Telemetry</button>
+        </li>
+    </ul>
+</div>
 
-            <button onclick="runAction('/api/v1/admin/indexer', {force: false}, 'FTS Rebuild triggered...')" 
-                class="group w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-500 hover:shadow-lg transition-all text-left">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mr-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <div>
-                        <span class="block font-bold text-slate-900">Rebuild Search Index</span>
-                        <span class="text-xs text-slate-500">Sync all metadata changes to FTS engine.</span>
-                    </div>
-                </div>
-            </button>
+<div id="adminTabsContent">
+    <!-- TAB: LATEXED BOOKS -->
+    <div class="hidden p-4 rounded-lg bg-gray-50" id="latexed" role="tabpanel" aria-labelledby="latexed-tab">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <table class="w-full text-sm text-left text-slate-500">
+                <thead class="text-xs text-slate-700 uppercase bg-slate-50 font-black">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">Book Title</th>
+                        <th scope="col" class="px-6 py-3">Author</th>
+                        <th scope="col" class="px-6 py-3 text-center">Terms Found</th>
+                        <th scope="col" class="px-6 py-3">Completed At</th>
+                    </tr>
+                </thead>
+                <tbody id="latexed-list">
+                    <!-- Data will be injected here -->
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <!-- Live Telemetry -->
-    <div>
-        <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center">
-            <i class="fas fa-terminal mr-3"></i> Enrichment Telemetry
-        </h3>
+    <!-- TAB: TELEMETRY -->
+    <div class="hidden p-4 rounded-lg bg-gray-50" id="telemetry" role="tabpanel" aria-labelledby="telemetry-tab">
         <div class="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
             <div class="flex justify-between items-center px-4 py-2 bg-slate-800 border-b border-slate-700">
                 <div class="flex gap-1.5">
@@ -90,9 +84,9 @@
                     <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                     <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
                 </div>
-                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter">enrichment_full_run.log</span>
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter">mcp.log</span>
             </div>
-            <div id="console" class="h-[400px] p-4 font-mono text-[10px] overflow-y-auto space-y-1 text-slate-300 leading-tight">
+            <div id="console" class="h-[500px] p-4 font-mono text-[10px] overflow-y-auto space-y-1 text-slate-300 leading-tight">
                 <div class="opacity-50">Initializing log stream...</div>
             </div>
         </div>
@@ -104,28 +98,68 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
-        loadEnrichmentLogs();
-        setInterval(loadEnrichmentLogs, 5000);
+        loadLatexedBooks();
+        loadLogs();
+        setInterval(loadStats, 30000);
+        setInterval(loadLogs, 5000);
     });
 
     async function loadStats() {
         try {
-            const res = await fetch('/api_v1/admin/stats');
+            console.log("Fetching stats...");
+            const res = await fetch('/api/v1/admin/stats');
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const data = await res.json();
+            console.log("Stats received:", data);
             
             document.getElementById('stat-total').textContent = (data.total_books || 0).toLocaleString();
-            const dist = data.status_distribution || {};
-            document.getElementById('stat-verified').textContent = (dist.verified || 0).toLocaleString();
-            document.getElementById('stat-conflict').textContent = (dist.conflict || 0).toLocaleString();
-            document.getElementById('stat-raw').textContent = (dist.raw || 0).toLocaleString();
-            document.getElementById('stat-ignored').textContent = (dist.ignored || 0).toLocaleString();
+            document.getElementById('stat-enriched').textContent = (data.enriched_books || 0).toLocaleString();
+            document.getElementById('stat-indexed').textContent = (data.indexed_books || 0).toLocaleString();
+            document.getElementById('stat-latexed').textContent = (data.latexed_books || 0).toLocaleString();
+            document.getElementById('stat-terms').textContent = (data.knowledge_terms || 0).toLocaleString();
 
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("Failed to load stats:", e); 
+        }
     }
 
-    async function loadEnrichmentLogs() {
+    async function loadLatexedBooks() {
         try {
-            const res = await fetch('/api/v1/admin/logs?file=enrichment_full_run.log');
+            console.log("Fetching latexed books...");
+            const res = await fetch('/api/v1/admin/latexed-books');
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            const data = await res.json();
+            console.log("Latexed books received:", data);
+            
+            const list = document.getElementById('latexed-list');
+            if (!Array.isArray(data)) {
+                list.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-rose-500">Error: Invalid data format</td></tr>';
+                return;
+            }
+            
+            if (data.length === 0) {
+                list.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center italic text-slate-400">No books have been LaTeXed yet.</td></tr>';
+                return;
+            }
+
+            list.innerHTML = data.map(book => `
+                <tr class="bg-white border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4 font-bold text-slate-900">
+                        <a href="/book/${book.id}" class="hover:text-blue-600">${book.title}</a>
+                    </td>
+                    <td class="px-6 py-4 italic">${book.author || 'Unknown'}</td>
+                    <td class="px-6 py-4 text-center font-mono text-indigo-600 font-bold">${book.terms_found || 0}</td>
+                    <td class="px-6 py-4 text-xs">${new Date(book.completed_at * 1000).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        } catch (e) { 
+            console.error("Failed to load latexed books:", e); 
+        }
+    }
+
+    async function loadLogs() {
+        try {
+            const res = await fetch('/api/v1/admin/logs?file=mcp.log');
             const data = await res.json();
             if (data.logs) {
                 const consoleDiv = document.getElementById('console');
@@ -133,10 +167,9 @@
                 consoleDiv.innerHTML = '';
                 lines.forEach(line => {
                     const div = document.createElement('div');
-                    if (line.includes('‼')) div.className = 'text-rose-400 font-bold';
-                    else if (line.includes('✓')) div.className = 'text-emerald-400';
-                    else if (line.includes('✗')) div.className = 'text-slate-500';
-                    else if (line.includes('Processing')) div.className = 'text-blue-300';
+                    if (line.includes('ERROR')) div.className = 'text-rose-400 font-bold';
+                    else if (line.includes('DONE')) div.className = 'text-emerald-400';
+                    else if (line.includes('TOOL CALL')) div.className = 'text-blue-300';
                     else div.className = 'opacity-60';
                     div.textContent = line;
                     consoleDiv.appendChild(div);
@@ -144,20 +177,6 @@
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
         } catch (e) { console.error(e); }
-    }
-
-    async function runAction(url, body, msg) {
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (data.success) alert("Operation successful");
-            else alert("Error: " + (data.error || "Unknown"));
-            loadStats();
-        } catch (e) { alert("Network error"); }
     }
 </script>
 {% endblock %}

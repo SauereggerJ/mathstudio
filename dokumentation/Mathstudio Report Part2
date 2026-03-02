@@ -288,57 +288,7 @@ Android E-Ink app searches library via REST API → displays search results with
 
 ---
 
-## 12. Errors, Bugs & Technical Debt
-
-### 12.1 Critical Bugs
-
-| # | Location | Issue | Impact |
-|---|----------|-------|--------|
-| 1 | `converter.py:73` | `page.get_text()` called after `doc.close()` on line 34 | **RuntimeError** — `page` object invalid after document is closed |
-| 2 | `mcp_server/server.py:1546` | `args.pop("book_id")` mutates the arguments dict | May cause issues if args are reused; should use `args.get()` |
-| 3 | `mcp_server/server.py:1133` | `args.pop("note_id")` same mutation issue | Same as above |
-| 4 | `services/note.py:287` | `os.path.exists(note['markdown_path'])` — path may be relative after `update_note_metadata` but absolute in `get_note` | **Path resolution inconsistency** — FTS re-sync may fail to read markdown for content |
-| 5 | `api_v1.py` bib_scan_tool | Returns `render_template('bib_results.html')` for POST | MCP server receives HTML instead of JSON — breaks LLM tooling |
-
-### 12.2 Recently Resolved Issues (Feb 2026 Fixes)
-
-| Area | Issue Fixed |
-|------|-------------|
-| **MCP** | `TypeError` in `get_book_pages_latex` when the `/pages/latex` endpoint returned `None` instead of a string. |
-| **MCP** | Removed `add_theorem_location` manually bypassing the KB Proposals queue. Now strictly routes via `get_book_pages_latex` auto-discovery. |
-| **UI** | Knowledge Browser was displaying the top 800 chars of the page instead of prioritizing the explicitly verified `statement` snippet for KB entries. |
-| **Viewer** | `/view-pdf` endpoint crashed when attempting to open EPUB books. Added UI guards to disable the button for non-PDF/DjVu files and purged EPUBs from the system. |
-
-### 12.3 Potential Errors
-
-| # | Location | Issue |
-|---|----------|-------|
-| 6 | `services/search.py:82` | `sqlite3.OperationalError` imported but never explicitly: uses bare `except` clause with `sqlite3` not imported in file |
-| 7 | `services/knowledge.py:620` | `book_path` queried but never used for rendering; `canonical` can be `None` if no entries exist, causing `canonical.get('book_id')` to fail |
-| 8 | `services/note.py:500-502` | `evaluate_latex_quality` catches all exceptions and returns `{score: 0.5}` — silently masks real errors, quality becomes unreliable |
-| 9 | `services/universal_processor.py:62` | `ranges["bibliography"][-10:]` can fail if bibliography range is empty → index on empty list is fine, but `combined_pages` may have no back-matter pages |
-| 10 | `core/ai.py` | No retry/backoff on Gemini API rate limits — rapid sequential calls may fail |
-
-### 12.3 Technical Debt
-
-| # | Area | Issue |
-|---|------|-------|
-| 11 | **Dual config** | Both `config.py` (root) and `core/config.py` exist with overlapping constants |
-| 12 | **Singleton pattern** | Services instantiate at import time, making testing difficult and creating circular import risks |
-| 13 | **No connection pooling** | Each `get_connection()` opens a new SQLite connection; no reuse |
-| 14 | **Bare except clauses** | ~20+ instances of `except: pass` or `except: continue` across services — errors silently swallowed |
-| 15 | **FTS sync fragility** | FTS tables manually synchronized in ~6 different places; no centralized sync mechanism |
-| 16 | **Hardcoded paths** | Obsidian inbox paths hardcoded to `/srv/data/math/obsidian/...` |
-| 17 | **No auth** | API has zero authentication; any network client has full access |
-| 18 | **MCP as HTTP proxy** | MCP server makes HTTP calls to localhost; adds latency and requires Flask to be running |
-| 19 | **Vector search in Python** | Cosine similarity computed with NumPy in application code; doesn't scale beyond ~5K books |
-| 20 | **Duplicate PyMuPDF** | `requirements.txt` lists `pymupdf` twice |
-| 21 | **Missing import** | `search.py` references `sqlite3.OperationalError` but `sqlite3` is not imported |
-| 22 | **Inconsistent error returns** | Some API endpoints return `{'error': ...}`, others return `{'success': false, 'error': ...}` |
-
----
-
-## 13. Future Development Plan
+## 12. Future Development Plan
 
 ### Phase 1: Robustness & Contextual Quality (Priority)
 
@@ -360,7 +310,6 @@ Android E-Ink app searches library via REST API → displays search results with
 
 ### Phase 2: Robustness & Quality
 
-- **Fix critical bugs** (see §12.1): `converter.py` page reference after doc close, MCP `args.pop()` mutations, bib_scan HTML response
 - **Centralize FTS sync**: Single `FTSSyncService` with `sync_book()`, `sync_note()`, `sync_concept()` methods
 - **Add proper error handling**: Replace all bare `except: pass` with specific exception types and logging
 - **Add authentication**: API key or JWT authentication for the REST API

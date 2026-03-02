@@ -1,22 +1,26 @@
 import re
 import numpy as np
 import sys
+import json
+import requests
+import subprocess
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 from core.database import db
 from core.ai import ai
-from core.config import EMBEDDING_MODEL
+from core.config import EMBEDDING_MODEL, ELASTICSEARCH_URL, MWS_URL
+from core.search_engine import es_client
 
 class SearchService:
     def __init__(self):
         self.db = db
         self.ai = ai
+        self.es = es_client
 
     @lru_cache(maxsize=100)
     def get_embedding(self, text):
         """Fetches embedding from Gemini API. Cached."""
         try:
-            # Note: Using the new SDK via core.ai client
             result = self.ai.client.models.embed_content(
                 model=EMBEDDING_MODEL,
                 contents=[text[:10000]],
@@ -38,247 +42,203 @@ class SearchService:
         )
         return self.ai.generate_text(prompt) or query
 
-    def vectorize_book(self, book_id: int) -> bool:
-        """Generates and stores a semantic embedding for a book using enriched metadata."""
+    def convert_to_mathml(self, latex_str):
+        """Converts LaTeX to Content MathML for MWS."""
         try:
-            with self.db.get_connection() as conn:
-                book = conn.execute(
-                    "SELECT id, title, author, summary, msc_class, index_text FROM books WHERE id = ?", 
-                    (book_id,)
-                ).fetchone()
-                
-                if not book:
-                    return False
+            result = subprocess.run(
+                ["latexmlmath", "--cmml=-", "-"],
+                input=latex_str,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10
+            )
+            return result.stdout.strip()
+        except:
+            return None
 
-                # Build semantic text blob
-                parts = []
-                if book['title']: parts.append(f"Title: {book['title']}")
-                if book['author']: parts.append(f"Author: {book['author']}")
-                if book['msc_class']: parts.append(f"MSC Classification: {book['msc_class']}")
-                if book['summary']: parts.append(f"Summary: {book['summary']}")
-                
-                # Fetch chapters (TOC)
-                chapters = conn.execute(
-                    "SELECT title FROM chapters WHERE book_id = ? ORDER BY page ASC LIMIT 50", 
-                    (book_id,)
-                ).fetchall()
-                if chapters:
-                    parts.append("Chapters:")
-                    parts.extend([f"- {c['title']}" for c in chapters])
-                    
-                if book['index_text']:
-                    parts.append(f"Index Keywords: {book['index_text'][:1000]}")
-                    
-                full_text = "\n".join(parts)[:9500]
-
-                # Generate embedding
-                result = self.ai.client.models.embed_content(
-                    model=EMBEDDING_MODEL, # Should ensure this is gemini-embedding-001 in config
-                    contents=[full_text],
-                    config={"task_type": "RETRIEVAL_DOCUMENT", "title": "Math Book Entry", "output_dimensionality": 768}
-                )
-                
-                if result and result.embeddings:
-                    vector = result.embeddings[0].values
-                    vector_blob = np.array(vector, dtype=np.float32).tobytes()
-                    conn.execute("UPDATE books SET embedding = ? WHERE id = ?", (vector_blob, book_id))
-                    return True
-                    
-            return False
+    def search_mws(self, latex_query):
+        """Queries MathWebSearch for mathematical structures with strict attribute stripping."""
+        from bs4 import BeautifulSoup
+        
+        mathml_raw = self.convert_to_mathml(latex_query)
+        if not mathml_raw:
+            return []
+            
+        # 1. Sanitize MathML: Strip ALL attributes from every tag for maximum matching compatibility
+        soup = BeautifulSoup(mathml_raw, "xml")
+        for tag in soup.find_all(True):
+            tag.attrs = {}
+        
+        # Get the cleaned math tag
+        math_tag = soup.find('math')
+        if not math_tag:
+            return []
+        
+        # Re-enforce MathML namespace on the clean tag
+        math_tag['xmlns'] = "http://www.w3.org/1998/Math/MathML"
+        mathml_clean = str(math_tag)
+            
+        # 2. Unify Namespace: Use canonical http://www.mathweb.org/mws/ns
+        payload = f"""<?xml version="1.0" encoding="UTF-8"?>
+<mws:query xmlns:mws="http://www.mathweb.org/mws/ns">
+    <mws:expr>
+        {mathml_clean}
+    </mws:expr>
+</mws:query>"""
+        
+        try:
+            r = requests.post(
+                f"{MWS_URL}/search", 
+                data=payload.encode('utf-8'), 
+                headers={'Content-Type': 'application/xml'}, 
+                timeout=5
+            )
+            if r.status_code == 200:
+                # Extract term IDs from MWS answer set
+                # Format could be <mws:answ uri="term_123">
+                ids = re.findall(r'uri="term_(\d+)"', r.text)
+                return [int(tid) for tid in ids]
         except Exception as e:
-            print(f"[SearchService] Vectorization Error for book {book_id}: {e}", file=sys.stderr)
-            return False
+            print(f"[SearchService] MWS Search Error: {e}", file=sys.stderr)
+        return []
 
-    def search_books_fts(self, query, limit=50, field='all'):
-        """Performs a Full Text Search using the books_fts table."""
-        # Remove quotes and special characters
-        tokens = re.findall(r'\w+', query.lower())
+    def search_books_hybrid(self, query_text, query_vec=None, mws_term_ids=None, limit=50, field='all'):
+        """Performs a hybrid Elasticsearch query combining vectors and text."""
         
-        if not tokens:
-            return []
+        # 1. Text multi_match with boosts
+        # title^4, index_text^3, toc^2, zb_review^1
+        text_fields = ["title^4", "index_text^3", "toc^2", "summary", "description", "zb_review"]
+        if field == 'title': text_fields = ["title"]
+        elif field == 'author': text_fields = ["author"]
+        elif field == 'index': text_fields = ["index_text"]
 
-        # Join tokens with OR for broad recall, especially for AI expanded queries
-        # FTS5 ranking will still prioritize documents containing more tokens.
-        clean_query = " OR ".join(tokens)
+        must_clauses = []
+        if query_text:
+            must_clauses.append({
+                "multi_match": {
+                    "query": query_text,
+                    "fields": text_fields,
+                    "type": "best_fields"
+                }
+            })
+
+        # 2. Vector kNN (if vector available)
+        knn = None
+        if query_vec:
+            knn = {
+                "field": "embedding",
+                "query_vector": list(query_vec),
+                "k": limit,
+                "num_candidates": 100,
+                "boost": 0.6 # Adjust vector influence
+            }
+
+        # 3. MWS Filtering / Boosting
+        # If MWS returned terms, we can boost books containing these terms
+        if mws_term_ids:
+            # Note: mathstudio_books does not directly store term IDs, 
+            # but we could search mathstudio_terms and aggregate book_ids.
+            # For simplicity, we'll focus on the core metadata search here.
+            pass
+
+        body = {
+            "query": {
+                "bool": {
+                    "must": must_clauses
+                }
+            },
+            "size": limit
+        }
         
-        # Construct the FTS query
-        if field == 'title': 
-            fts_query = f'title : ({clean_query})'
-        elif field == 'author': 
-            fts_query = f'author : ({clean_query})'
-        elif field == 'index': 
-            fts_query = f'index_content : ({clean_query})'
-        else:
-            # Broad search: title OR author OR content
-            fts_query = f'title : ({clean_query}) OR author : ({clean_query}) OR content : ({clean_query})'
+        if knn:
+            body["knn"] = knn
 
-        snippet_col = 3 if field == 'index' else -1
-
-        sql = f"""
-            SELECT b.id, b.title, b.author, b.path, 
-                   snippet(books_fts, {snippet_col}, '<b>', '</b>', '...', 15) as snippet,
-                   b.year, b.publisher, rank, b.summary, b.index_text
-            FROM books_fts f 
-            JOIN books b ON f.rowid = b.id 
-            WHERE books_fts MATCH ? 
-            ORDER BY rank 
-            LIMIT ?
-        """
-        
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute(sql, (fts_query, limit))
-                return [dict(row) for row in cursor.fetchall()]
-            except sqlite3.OperationalError:
-                # Fallback to a simple term match if OR logic fails for some reason
-                simple_query = " ".join(tokens)
-                cursor.execute(sql, (simple_query, limit))
-                return [dict(row) for row in cursor.fetchall()]
-
-    def search_books_metadata(self, query, limit=50, field='all'):
-        """SQL LIKE fallback when FTS/vector are disabled or return nothing."""
-        clauses = []
-        params = []
-        q = f"%{query}%"
-
-        if field == 'title':
-            clauses.append("b.title LIKE ?")
-            params.append(q)
-        elif field == 'author':
-            clauses.append("b.author LIKE ?")
-            params.append(q)
-        else:
-            clauses.append("(b.title LIKE ? OR b.author LIKE ? OR b.summary LIKE ? OR b.msc_class LIKE ?)")
-            params.extend([q, q, q, q])
-
-        sql = f"""
-            SELECT b.id, b.title, b.author, b.path, '' as snippet,
-                   b.year, b.publisher, b.summary, b.index_text,
-                   b.msc_class
-            FROM books b
-            WHERE {' AND '.join(clauses)}
-            ORDER BY b.title
-            LIMIT ?
-        """
-        params.append(limit)
-
-        with self.db.get_connection() as conn:
-            return [dict(row) for row in conn.execute(sql, params).fetchall()]
-
-    def browse_by_field(self, author=None, msc=None, year=None, keyword=None, limit=100):
-        """Exact-match metadata browse. Returns books matching the filter."""
-        clauses = []
-        params = []
-
-        if author:
-            clauses.append("b.author LIKE ?")
-            params.append(f"%{author}%")
-        if msc:
-            clauses.append("(b.msc_class LIKE ? OR b.msc_class LIKE ? OR b.msc_class LIKE ?)")
-            params.extend([f"{msc}%", f"%, {msc}%", f"%,{msc}%"])
-        if year:
-            clauses.append("b.year = ?")
-            params.append(str(year))
-
-        if keyword:
-            sql = f"""
-                SELECT DISTINCT b.id, b.title, b.author, b.path, '' as snippet,
-                       b.year, b.publisher, b.summary, b.index_text,
-                       b.msc_class
-                FROM books b
-                LEFT JOIN zbmath_cache z ON b.zbl_id = z.zbl_id
-                WHERE z.keywords LIKE ?
-                {('AND ' + ' AND '.join(clauses)) if clauses else ''}
-                ORDER BY b.title
-                LIMIT ?
-            """
-            params = [f"%{keyword}%"] + params + [limit]
-        else:
-            if not clauses:
-                return []
-            sql = f"""
-                SELECT DISTINCT b.id, b.title, b.author, b.path, '' as snippet,
-                       b.year, b.publisher, b.summary, b.index_text,
-                       b.msc_class
-                FROM books b
-                WHERE {' AND '.join(clauses)}
-                ORDER BY b.title
-                LIMIT ?
-            """
-            params.append(limit)
-
-        with self.db.get_connection() as conn:
-            return [dict(row) for row in conn.execute(sql, params).fetchall()]
-
-    def search_books_semantic(self, query_vec, top_k=50):
-        """Performs semantic search using vector embeddings."""
-        if not query_vec:
-            return []
-            
-        query_vec = np.array(query_vec, dtype=np.float32)
-        
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, embedding FROM books WHERE embedding IS NOT NULL")
-            rows = cursor.fetchall()
-            
-            if not rows: return []
-            
-            ids, vectors = [], []
-            for r in rows:
-                if not r['embedding']: continue
-                vec = np.frombuffer(r['embedding'], dtype=np.float32)
-                if len(vec) != len(query_vec): continue
-                ids.append(r['id'])
-                vectors.append(vec)
-                
-            if not vectors: return []
-
-            matrix = np.array(vectors)
-            norm_q = np.linalg.norm(query_vec)
-            norm_m = np.linalg.norm(matrix, axis=1)
-            norm_m[norm_m == 0] = 1e-10
-            if norm_q == 0: norm_q = 1e-10
-            
-            scores = np.dot(matrix, query_vec) / (norm_m * norm_q)
-            
-            if len(scores) < top_k:
-                top_indices = np.argsort(scores)[::-1]
-            else:
-                top_indices = np.argpartition(scores, -top_k)[-top_k:]
-                top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
-                
-            top_ids = [ids[i] for i in top_indices]
-            id_score_map = {ids[i]: float(scores[i]) for i in top_indices}
-            
-            if not top_ids: return []
-
-            placeholders = ','.join(['?'] * len(top_ids))
-            sql = f"""
-                SELECT id, title, author, path, isbn, publisher, year, summary, index_text 
-                FROM books WHERE id IN ({placeholders})
-            """
-            cursor.execute(sql, top_ids)
+        try:
+            res = self.es.search(index="mathstudio_books", body=body)
             results = []
-            for r in cursor.fetchall():
-                bid = r['id']
+            for hit in res['hits']['hits']:
+                source = hit['_source']
                 results.append({
-                    'type': 'book', 
-                    'id': bid, 
-                    'title': r['title'], 
-                    'author': r['author'],
-                    'path': r['path'], 
-                    'isbn': r['isbn'], 
-                    'publisher': r['publisher'],
-                    'year': r['year'], 
-                    'score': id_score_map[bid], 
-                    'summary': r['summary'],
-                    'index_text': r['index_text']
+                    'type': 'book',
+                    'id': source['id'],
+                    'title': source['title'],
+                    'author': source['author'],
+                    'path': f"{source.get('msc_class', '00')}/{source['title']}.pdf", # Placeholder path reconstruction
+                    'score': hit['_score'],
+                    'summary': source.get('summary', ''),
+                    'index_text': source.get('index_text', ''),
+                    'found_by': 'hybrid'
                 })
             
-            results.sort(key=lambda x: x['score'], reverse=True)
+            # Enrich with real paths from SQLite
+            if results:
+                book_ids = [r['id'] for r in results]
+                placeholders = ','.join(['?'] * len(book_ids))
+                with self.db.get_connection() as conn:
+                    rows = conn.execute(f"SELECT id, path, year, publisher, isbn FROM books WHERE id IN ({placeholders})", book_ids).fetchall()
+                    path_map = {row['id']: dict(row) for row in rows}
+                    for r in results:
+                        if r['id'] in path_map:
+                            meta = path_map[r['id']]
+                            r['path'] = meta['path']
+                            r['year'] = meta['year']
+                            r['publisher'] = meta['publisher']
+                            r['isbn'] = meta['isbn']
             return results
+        except Exception as e:
+            print(f"[SearchService] ES Hybrid Search Error: {e}", file=sys.stderr)
+            return []
+
+    def get_similar_books(self, book_id, limit=5):
+        """Finds books with similar embeddings and returns 4-tuples for template unpacking."""
+        try:
+            # 1. Fetch the source book's embedding from ES
+            res = self.es.get(index="mathstudio_books", id=str(book_id))
+            source_vec = res['_source'].get('embedding')
+            if not source_vec:
+                return []
+
+            # 2. Perform kNN search
+            knn_query = {
+                "knn": {
+                    "field": "embedding",
+                    "query_vector": source_vec,
+                    "k": limit + 1,
+                    "num_candidates": 50
+                },
+                "_source": ["id", "title", "author"]
+            }
+            res = self.es.search(index="mathstudio_books", body=knn_query)
+            
+            candidate_ids = []
+            for hit in res['hits']['hits']:
+                if int(hit['_id']) == book_id: continue
+                candidate_ids.append(int(hit['_id']))
+            
+            if not candidate_ids:
+                return []
+
+            # 3. Enrich with paths from SQLite and return as tuples
+            placeholders = ','.join(['?'] * len(candidate_ids))
+            with self.db.get_connection() as conn:
+                rows = conn.execute(
+                    f"SELECT id, title, author, path FROM books WHERE id IN ({placeholders})", 
+                    candidate_ids
+                ).fetchall()
+                
+                # Order by original similarity (ES hits order)
+                row_map = {row['id']: (row['id'], row['title'], row['author'], row['path']) for row in rows}
+                return [row_map[bid] for bid in candidate_ids if bid in row_map][:limit]
+
+        except Exception as e:
+            print(f"[SearchService] Similar Books Error: {e}", file=sys.stderr)
+            return []
+
+    def get_book_matches(self, book_id, query, limit=20):
+        """Legacy helper for granular matches within a book, now using ES pages."""
+        results, _ = self.search_within_book(book_id, query, limit=limit)
+        return results
 
     def extract_index_pages(self, index_text, query):
         if not index_text or not query: return None
@@ -302,7 +262,6 @@ class SearchService:
 
     def rerank_results(self, query, candidates, limit=10):
         if not candidates: return []
-        
         prompt = (
             f"You are a strict mathematics librarian. Rank the following book candidates for the search query: '{query}'.\n"
             "Exclude irrelevant books. Focus on mathematical depth and relevance.\n\n"
@@ -310,8 +269,7 @@ class SearchService:
         )
         for c in candidates:
             text = f"Title: {c['title']} | Author: {c['author']}"
-            if c.get('snippet'): text += f" | Snippet: {c['snippet']}"
-            elif c.get('summary'): text += f" | Summary: {c['summary'][:200]}"
+            if c.get('summary'): text += f" | Summary: {c['summary'][:200]}"
             prompt += f"[ID {c['id']}] {text}\n"
         
         prompt += "\nReturn ONLY a JSON list of objects for the top 10 results, e.g. [{\"id\": 15, \"reason\": \"Detailed treatment of topic X\"}, {\"id\": 2, \"reason\": \"Standard reference for Y\"}]."
@@ -329,7 +287,6 @@ class SearchService:
                 item['ai_reason'] = entry.get('reason', '')
                 reranked.append(item)
         
-        # Add remaining candidates that weren't picked by AI
         picked_ids = {r['id'] for r in reranked}
         for c in candidates:
             if c['id'] not in picked_ids:
@@ -337,155 +294,65 @@ class SearchService:
         
         return reranked[:limit]
 
-    def get_book_matches(self, book_id, query):
-        """Returns highlighted snippets for a specific book."""
-        clean_query = query.replace('"', '""')
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                # FTS5 highlight: 2 is content, 3 is index_content
-                cursor.execute("""
-                    SELECT highlight(books_fts, 2, '<b>', '</b>'), 
-                           highlight(books_fts, 3, '<b>', '</b>') 
-                    FROM books_fts WHERE rowid = ? AND books_fts MATCH ?
-                """, (book_id, clean_query))
-                row = cursor.fetchone()
-                if not row: return []
-                
-                hl_content = row[0] or ""
-                hl_index = row[1] or ""
-                
-                results = []
-                page_pattern = re.compile(r'\[\[PAGE_(\d+)\]\]')
-                
-                if "<b>" in hl_content:
-                    current_pos = 0
-                    while len(results) < 50:
-                        idx = hl_content.find("<b>", current_pos)
-                        if idx == -1: break
-                        
-                        preceding = hl_content[max(0, idx - 10000):idx]
-                        page_num = 1
-                        pm = list(page_pattern.finditer(preceding))
-                        if pm: page_num = int(pm[-1].group(1))
-                        
-                        close_idx = hl_content.find("</b>", idx)
-                        match_end = close_idx + 4 if close_idx != -1 else idx + 3
-                        
-                        fragment = hl_content[max(0, idx - 100):min(len(hl_content), match_end + 100)]
-                        clean_fragment = re.sub(r'\[\[PAGE_\d+\]\]', '', fragment)
-                        
-                        results.append({'snippet': clean_fragment, 'page': page_num})
-                        current_pos = match_end
-
-                if len(results) < 5 and "<b>" in hl_index:
-                    current_pos = 0
-                    while len(results) < 50:
-                        idx = hl_index.find("<b>", current_pos)
-                        if idx == -1: break
-                        close_idx = hl_index.find("</b>", idx)
-                        match_end = close_idx + 4 if close_idx != -1 else idx + 3
-                        fragment = hl_index[max(0, idx - 60):min(len(hl_index), match_end + 60)]
-                        results.append({'snippet': fragment, 'page': 'Index'})
-                        current_pos = match_end
-                        
-                return results
-            except Exception as e:
-                print(f"[SearchService] Match processing error: {e}")
-                return []
-
     def get_chapters(self, book_id):
-        """Returns structured Table of Contents."""
+        """Returns structured Table of Contents from SQLite."""
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT toc_json FROM books WHERE id = ?", (book_id,))
-            row = cursor.fetchone()
-            
-            if row and row['toc_json']:
-                try:
-                    toc_data = json.loads(row['toc_json'])
-                    formatted = []
-                    for item in toc_data:
-                        if isinstance(item, dict):
-                            formatted.append((
-                                item.get('title', 'Untitled'),
-                                item.get('level', 0),
-                                item.get('pdf_page') or item.get('page'),
-                                item.get('msc'),
-                                item.get('topics')
-                            ))
-                        elif isinstance(item, list) and len(item) >= 2:
-                            formatted.append((item[1], item[0]-1, item[2] if len(item)>2 else None, None, None))
-                    if formatted: return formatted
-                except: pass
-
-            cursor.execute("SELECT title, level, page, '' AS msc_code, '' AS topics FROM chapters WHERE book_id = ? ORDER BY id ASC", (book_id,))
+            cursor.execute("SELECT title, level, page, msc_code, topics FROM chapters WHERE book_id = ? ORDER BY id ASC", (book_id,))
             return [tuple(r) for r in cursor.fetchall()]
 
-    def get_similar_books(self, book_id, limit=5):
-        """Finds books with similar embeddings."""
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT embedding FROM books WHERE id = ?", (book_id,))
-            res = cursor.fetchone()
-            if not res or not res['embedding']: return []
-            
-            target_vec = np.frombuffer(res['embedding'], dtype=np.float32)
-            cursor.execute("SELECT id, title, author, path, embedding FROM books WHERE id != ? AND embedding IS NOT NULL", (book_id,))
-            rows = cursor.fetchall()
-            
-            if not rows: return []
-            
-            candidates = []
-            for r in rows:
-                vec = np.frombuffer(r['embedding'], dtype=np.float32)
-                if len(vec) == len(target_vec):
-                    score = np.dot(vec, target_vec) / (np.linalg.norm(vec) * np.linalg.norm(target_vec))
-                    candidates.append((r['id'], r['title'], r['author'], r['path'], float(score)))
-            
-            candidates.sort(key=lambda x: x[4], reverse=True)
-            return [c[:4] for c in candidates[:limit]]
-
     def search_within_book(self, book_id, query, limit=50):
-        """Searches for a query within a specific book."""
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                # Check if deep-indexed
-                cursor.execute("SELECT book_id FROM deep_indexed_books WHERE book_id = ?", (book_id,))
-                is_deep = cursor.fetchone()
-                
-                if is_deep:
-                    clean_query = query.replace('"', '""')
-                    sql = """
-                        SELECT page_number, 
-                               snippet(pages_fts, 2, '<b>', '</b>', '...', 30) as snippet
-                        FROM pages_fts
-                        WHERE book_id = ? AND pages_fts MATCH ?
-                        ORDER BY rank
-                        LIMIT ?
-                    """
-                    cursor.execute(sql, (book_id, f'"{clean_query}"', limit))
-                    rows = cursor.fetchall()
-                    return [{'page': r['page_number'], 'snippet': r['snippet']} for r in rows], True
-                else:
-                    matches = self.get_book_matches(book_id, query)
-                    return matches, False
-            except Exception as e:
-                print(f"[SearchService] Search Within Book Error: {e}")
-                return [], False
+        """Searches for a query within a specific book using Elasticsearch."""
+        body = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"book_id": book_id}},
+                        {"match": {"content": query}}
+                    ]
+                }
+            },
+            "highlight": {
+                "fields": {
+                    "content": {}
+                },
+                "pre_tags": ["<b>"],
+                "post_tags": ["</b>"]
+            },
+            "size": limit
+        }
+        try:
+            res = self.es.search(index="mathstudio_pages", body=body)
+            rows = []
+            for hit in res['hits']['hits']:
+                snippet = hit.get('highlight', {}).get('content', [""])[0]
+                rows.append({
+                    'page': hit['_source']['page_number'],
+                    'snippet': snippet
+                })
+            return rows, True
+        except Exception as e:
+            print(f"[SearchService] Search Within Book Error: {e}", file=sys.stderr)
+            return [], False
 
     def search(self, query, limit=20, offset=0, use_fts=True, use_vector=True, use_translate=False, use_rerank=False, field='all'):
-        """Main search orchestration."""
+        """Main search orchestration using Federated Search (ES + MWS)."""
         search_query = query
         expanded_query = None
         query_vec = None
+        mws_term_ids = []
         
-        # 1. Pre-processing (Expansion & Embedding)
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        # 1. Pre-processing & Math Pass
+        with ThreadPoolExecutor(max_workers=3) as executor:
             exp_future = executor.submit(self.expand_query, query) if use_translate else None
             
-            if use_vector and not use_translate:
+            # Detect LaTeX ($...$ or \(...\))
+            if "$" in query or "\\(" in query:
+                mws_future = executor.submit(self.search_mws, query)
+            else:
+                mws_future = None
+
+            if use_vector:
                 emb_future = executor.submit(self.get_embedding, query)
             else:
                 emb_future = None
@@ -493,76 +360,44 @@ class SearchService:
             if exp_future:
                 expanded_query = exp_future.result()
                 search_query = expanded_query
-                if use_vector:
-                    query_vec = self.get_embedding(search_query)
-            elif emb_future:
+            
+            if mws_future:
+                mws_term_ids = mws_future.result()
+                
+            if emb_future:
                 query_vec = emb_future.result()
 
-        candidates = {}
+        # 2. Hybrid Search Pass (ES)
+        results = self.search_books_hybrid(
+            query_text=search_query, 
+            query_vec=query_vec, 
+            mws_term_ids=mws_term_ids, 
+            limit=100, 
+            field=field
+        )
 
-        # 2. Vector Search
-        if use_vector and query_vec:
-            vec_results = self.search_books_semantic(query_vec)
-            for res in vec_results:
-                if res['score'] < 0.25: continue
-                key = f"B_{res['id']}"
-                candidates[key] = res
-                candidates[key]['found_by'] = 'vector'
-
-        # 3. FTS Search
-        if use_fts:
-            fts_results = self.search_books_fts(search_query, limit=100, field=field)
-            for i, row in enumerate(fts_results):
-                bid = row['id']
-                key = f"B_{bid}"
-                fts_score = 1.0 - (i / 100.0)
-                
-                if key in candidates:
-                    candidates[key]['score'] = (candidates[key]['score'] * 0.6) + (fts_score * 0.4)
-                    candidates[key]['found_by'] = 'both'
-                    candidates[key]['snippet'] = row['snippet']
-                else:
-                    candidates[key] = {
-                        **row,
-                        'type': 'book',
-                        'score': fts_score,
-                        'found_by': 'text'
-                    }
-
-        # 4. Index Lookup & Scoring
-        for key, c in candidates.items():
+        # 3. Index Lookup & Scoring
+        for c in results:
             if c.get('index_text'):
                 idx_match = self.extract_index_pages(c['index_text'], query)
                 if idx_match:
                     c['index_matches'] = idx_match
                     c['score'] += 0.5
 
-        # 5. Metadata fallback (when FTS+vector returned nothing)
-        if not candidates:
-            meta_results = self.search_books_metadata(search_query, limit=100, field=field)
-            for row in meta_results:
-                bid = row['id']
-                key = f"B_{bid}"
-                candidates[key] = {
-                    **row,
-                    'type': 'book',
-                    'score': 0.5,
-                    'found_by': 'metadata'
-                }
-
-        # 6. Finalize results
-        final_list = sorted(candidates.values(), key=lambda x: x['score'], reverse=True)
+        # 4. Finalize results
+        final_list = sorted(results, key=lambda x: x['score'], reverse=True)
         total_count = len(final_list)
         paged_results = final_list[offset : offset + limit]
 
-        # 6. AI Reranking
+        # 5. AI Reranking
         if use_rerank and paged_results:
             paged_results = self.rerank_results(query, paged_results, limit=limit)
 
         return {
             'results': paged_results,
             'total_count': total_count,
-            'expanded_query': expanded_query if expanded_query != query else None
+            'expanded_query': expanded_query if expanded_query != query else None,
+            'mws_hits': len(mws_term_ids) if mws_term_ids else 0
         }
 
 # Global instance

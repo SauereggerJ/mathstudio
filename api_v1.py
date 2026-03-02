@@ -973,30 +973,34 @@ def admin_stats():
     try:
         with db.get_connection() as conn:
             total = conn.execute("SELECT count(*) FROM books").fetchone()[0]
-            doi_count = conn.execute("SELECT count(*) FROM books WHERE doi IS NOT NULL AND doi != '' AND doi != 'Unknown' AND doi != 'N/A'").fetchone()[0]
-            zbl_count = conn.execute("SELECT count(*) FROM books WHERE zbl_id IS NOT NULL AND zbl_id != ''").fetchone()[0]
-            
-            # Metadata Status breakdown
-            status_counts = conn.execute("SELECT metadata_status, count(*) FROM books GROUP BY metadata_status").fetchall()
-            status_map = {row[0] or 'raw': row[1] for row in status_counts}
-
-            categories = conn.execute("SELECT directory as name, count(*) as count FROM books GROUP BY directory ORDER BY count DESC").fetchall()
-            publishers = conn.execute("SELECT publisher as name, count(*) as count FROM books WHERE publisher IS NOT NULL AND publisher != '' GROUP BY publisher ORDER BY count DESC LIMIT 5").fetchall()
-            newest = conn.execute("SELECT id, title FROM books ORDER BY id DESC LIMIT 5").fetchall()
-
-            # Estimate size
-            total_size_bytes = conn.execute("SELECT sum(size_bytes) FROM books").fetchone()[0] or 0
+            enriched = conn.execute("SELECT count(*) FROM books WHERE zbl_id IS NOT NULL AND zbl_id != ''").fetchone()[0]
+            indexed = conn.execute("SELECT count(*) FROM deep_indexed_books").fetchone()[0]
+            latexed = conn.execute("SELECT count(*) FROM book_scans WHERE status = 'completed'").fetchone()[0]
+            terms = conn.execute("SELECT count(*) FROM knowledge_terms").fetchone()[0]
             
         return jsonify({
             'total_books': total,
-            'doi_count': doi_count,
-            'zbl_count': zbl_count,
-            'status_distribution': status_map,
-            'total_size_gb': round(total_size_bytes / (1024**3), 2),
-            'categories': [dict(c) for c in categories],
-            'publishers': [dict(p) for p in publishers],
-            'newest': [dict(n) for n in newest]
+            'enriched_books': enriched,
+            'indexed_books': indexed,
+            'latexed_books': latexed,
+            'knowledge_terms': terms
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/latexed-books', methods=['GET'])
+def list_latexed_books():
+    """Returns a list of books that have completed full LaTeX scans."""
+    try:
+        with db.get_connection() as conn:
+            rows = conn.execute("""
+                SELECT b.id, b.title, b.author, s.completed_at, s.terms_found
+                FROM books b
+                JOIN book_scans s ON b.id = s.book_id
+                WHERE s.status = 'completed'
+                ORDER BY s.completed_at DESC
+            """).fetchall()
+        return jsonify([dict(r) for r in rows])
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

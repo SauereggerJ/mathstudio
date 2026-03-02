@@ -945,9 +945,16 @@ class NoteService:
                 """, (book_id, page_start, name, t_type, latex or "", keywords_json))
                 term_id = cursor.lastrowid
                 
-                # Sync FTS
+                # Sync FTS (Legacy)
                 conn.execute("INSERT INTO knowledge_terms_fts (rowid, name, used_terms, latex_content) VALUES (?, ?, ?, ?)",
                              (term_id, name, keywords_text, latex or ""))
+                
+                # Sync to Federated Search (ES + MWS)
+                try:
+                    from .knowledge import knowledge_service
+                    knowledge_service.sync_term_to_federated(term_id)
+                except Exception as e:
+                    logger.error(f"Failed to sync new term {term_id} to federated search: {e}")
                 return True
             except Exception as e:
                 logger.error(f"Failed to save knowledge term: {e}")
@@ -1548,6 +1555,34 @@ class NoteService:
                 if convert_error:
                     logger.warning(f"Scan {scan_id}: Conversion error in chunk: {convert_error}")
                 
+                # Push digitized pages to Elasticsearch
+                if results:
+                    try:
+                        from elasticsearch import helpers
+                        from core.search_engine import es_client
+                        actions = []
+                        for r in results:
+                            if r.get('latex'):
+                                # We strip some common LaTeX noise for better text search if needed, 
+                                # but usually ES handles it fine.
+                                actions.append({
+                                    "_index": "mathstudio_pages",
+                                    "_op_type": "index", # Overwrite if exists (approximate match by book_id + page)
+                                    # Since mathstudio_pages documents don't have deterministic IDs in my current helper,
+                                    # we might get duplicates if we don't use a consistent ID.
+                                    # Let's use book_{id}_p{page} as ID for pages to prevent duplicates.
+                                    "_id": f"book_{book_id}_p{r['page']}",
+                                    "_source": {
+                                        "book_id": book_id,
+                                        "page_number": r['page'],
+                                        "content": r['latex']
+                                    }
+                                })
+                        if actions:
+                            helpers.bulk(es_client, actions)
+                    except Exception as e:
+                        logger.error(f"Scan {scan_id}: Failed to sync pages to Elasticsearch: {e}")
+
                 # Filter pages that are term-extractable
                 extractable_pages = []
                 for r in results:

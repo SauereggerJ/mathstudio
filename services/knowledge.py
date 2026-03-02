@@ -43,8 +43,60 @@ class KnowledgeService:
             """, (term_id,)).fetchone()
         return dict(row) if row else None
 
+    def sync_term_to_federated(self, term_id: int) -> bool:
+        """Pushes a term to Elasticsearch and MathWebSearch."""
+        try:
+            from core.search_engine import index_term
+            import subprocess
+            from bs4 import BeautifulSoup
+            import os
+
+            with self.db.get_connection() as conn:
+                term = conn.execute("SELECT * FROM knowledge_terms WHERE id = ?", (term_id,)).fetchone()
+                if not term:
+                    return False
+                
+                # 1. Sync to ES
+                es_doc = {
+                    "id": term['id'],
+                    "book_id": term['book_id'],
+                    "page_start": term['page_start'],
+                    "name": term['name'],
+                    "term_type": term['term_type'],
+                    "latex_content": term['latex_content'],
+                    "used_terms": term['used_terms'],
+                    "status": term['status']
+                }
+                index_term(es_doc)
+
+                # 2. Append to MWS Harvest File
+                if term['latex_content']:
+                    result = subprocess.run(
+                        ["latexmlmath", "--cmml=-", "-"],
+                        input=term['latex_content'],
+                        capture_output=True, text=True, check=True, timeout=10
+                    )
+                    soup = BeautifulSoup(result.stdout, "lxml-xml")
+                    math_tag = soup.find('math')
+                    if math_tag:
+                        math_tag.attrs = {"xmlns": "http://www.w3.org/1998/Math/MathML"}
+                        harvest_entry = f'    <mws:expr url="term_{term_id}">\n        {str(math_tag)}\n    </mws:expr>\n'
+                        harvest_path = "/library/mathstudio/mathstudio.harvest"
+                        if os.path.exists(harvest_path):
+                            with open(harvest_path, "r+") as f:
+                                content = f.read()
+                                if "</mws:harvest>" in content:
+                                    new_content = content.replace("</mws:harvest>", harvest_entry + "</mws:harvest>")
+                                    f.seek(0)
+                                    f.write(new_content)
+                                    f.truncate()
+            return True
+        except Exception as e:
+            logger.error(f"[KnowledgeService] Sync Error for term {term_id}: {e}")
+            return False
+
     def update_term_status(self, term_id: int, status: str) -> bool:
-        """Updates the status of a term (e.g., 'draft' -> 'approved')."""
+        """Updates the status of a term and syncs to search engines if approved."""
         if status not in ('draft', 'approved'):
             return False
         with self.db.get_connection() as conn:
@@ -52,7 +104,12 @@ class KnowledgeService:
                 "UPDATE knowledge_terms SET status = ?, updated_at = unixepoch() WHERE id = ?",
                 (status, term_id)
             )
-            return cursor.rowcount > 0
+            success = cursor.rowcount > 0
+            
+        if success and status == 'approved':
+            self.sync_term_to_federated(term_id)
+
+        return success
 
     def delete_term(self, term_id: int) -> bool:
         """Deletes a term and its FTS index entry."""
@@ -66,29 +123,74 @@ class KnowledgeService:
     # ──────────────────────────────────────────────
 
     def search_terms(self, query: str, kind: str = None, status: str = 'approved', limit: int = 50) -> List[Dict]:
-        """FTS search over knowledge terms."""
-        with self.db.get_connection() as conn:
-            sql = """
-                SELECT t.id, t.name, t.term_type, t.page_start, t.used_terms, t.status,
-                       b.title as book_title, b.author as book_author
-                FROM knowledge_terms_fts f
-                JOIN knowledge_terms t ON f.rowid = t.id
-                JOIN books b ON t.book_id = b.id
-                WHERE knowledge_terms_fts MATCH ?
-            """
-            params = [query]
-            if status:
-                sql += " AND t.status = ?"
-                params.append(status)
-            if kind:
-                sql += " AND t.term_type = ?"
-                params.append(kind)
+        """Federated search over knowledge terms using ES and MWS."""
+        from services.search import search_service
+        from core.search_engine import es_client
+        
+        mws_ids = []
+        # 1. Math Pass
+        if "$" in query or "\\(" in query:
+            mws_ids = search_service.search_mws(query)
+
+        # 2. Elasticsearch Pass
+        body = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"multi_match": {"query": query, "fields": ["name^3", "latex_content", "used_terms"]}}
+                    ],
+                    "filter": []
+                }
+            },
+            "size": limit
+        }
+        
+        if status:
+            body["query"]["bool"]["filter"].append({"term": {"status": status}})
+        if kind:
+            body["query"]["bool"]["filter"].append({"term": {"term_type": kind}})
             
-            sql += " ORDER BY rank LIMIT ?"
-            params.append(limit)
+        # Boost MWS results if any
+        if mws_ids:
+            body["query"]["bool"]["should"] = [
+                {"ids": {"values": [str(i) for i in mws_ids], "boost": 10.0}}
+            ]
+
+        try:
+            res = es_client.search(index="mathstudio_terms", body=body)
+            hits = res['hits']['hits']
             
-            rows = conn.execute(sql, params).fetchall()
-            return [dict(r) for r in rows]
+            # 3. Finalize and Enrich with Book Info from SQLite
+            results = []
+            for hit in hits:
+                term = hit['_source']
+                results.append({
+                    "id": term['id'],
+                    "name": term['name'],
+                    "term_type": term['term_type'],
+                    "page_start": term['page_start'],
+                    "used_terms": term['used_terms'],
+                    "status": term['status'],
+                    "score": hit['_score'],
+                    "book_id": term['book_id']
+                })
+            
+            if results:
+                book_ids = list(set(r['book_id'] for r in results))
+                placeholders = ','.join(['?'] * len(book_ids))
+                with self.db.get_connection() as conn:
+                    books = conn.execute(f"SELECT id, title, author FROM books WHERE id IN ({placeholders})", book_ids).fetchall()
+                    book_map = {b['id']: b for b in books}
+                    for r in results:
+                        b_info = book_map.get(r['book_id'])
+                        if b_info:
+                            r['book_title'] = b_info['title']
+                            r['book_author'] = b_info['author']
+            
+            return results
+        except Exception as e:
+            logger.error(f"KB Federated Search Error: {e}")
+            return []
 
     def browse_terms(self, letter: str = None, sort: str = 'alpha',
                      kind: str = None, status: str = 'approved', 

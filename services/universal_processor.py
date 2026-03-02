@@ -170,6 +170,46 @@ class UniversalProcessor:
                 1 if meta.get('has_exercises') else 0, 1 if meta.get('has_solutions') else 0,
                 index_text, final_data.get('page_offset', 0), meta.get('language'), book_id
             ))
+            
+            # --- Push to Elasticsearch ---
+            try:
+                from core.search_engine import index_book
+                import numpy as np
+                
+                # Fetch full state from DB for indexing
+                book = conn.execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
+                if book:
+                    # Fetch TOC text
+                    chapters = conn.execute("SELECT title FROM chapters WHERE book_id = ? ORDER BY page ASC", (book_id,)).fetchall()
+                    toc_text = "\n".join([c['title'] for c in chapters])
+                    
+                    vector = None
+                    if book['embedding']:
+                        vector = list(np.frombuffer(book['embedding'], dtype=np.float32))
+
+                    es_doc = {
+                        "id": book['id'],
+                        "title": book['title'],
+                        "author": book['author'],
+                        "summary": book['summary'],
+                        "description": book['description'],
+                        "msc_class": book['msc_class'],
+                        "tags": book['tags'],
+                        "zbl_id": book['zbl_id'],
+                        "doi": book['doi'],
+                        "isbn": book['isbn'],
+                        "year": book['year'],
+                        "publisher": book['publisher'],
+                        "toc": toc_text,
+                        "index_text": book['index_text'],
+                        "zb_review": book['zb_review'],
+                        "embedding": vector
+                    }
+                    index_book(es_doc)
+            except Exception as e:
+                logging.error(f"Failed to sync book {book_id} to ES: {e}")
+            # -----------------------------
+
             conn.execute("DELETE FROM chapters WHERE book_id = ?", (book_id,))
             for item in toc:
                 try:
