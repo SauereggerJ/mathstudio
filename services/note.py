@@ -19,6 +19,53 @@ from core.config import LIBRARY_ROOT, CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, EMB
 
 logger = logging.getLogger(__name__)
 
+class SectionalNoteService:
+    def __init__(self, db):
+        self.db = db
+
+    def start_draft(self, session_id, title):
+        with self.db.get_connection() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO note_drafts (session_id, title, sections_json)
+                VALUES (?, ?, ?)
+            """, (session_id, title, json.dumps([])))
+        return True
+
+    def append_section(self, session_id, section_content):
+        with self.db.get_connection() as conn:
+            row = conn.execute("SELECT sections_json FROM note_drafts WHERE session_id = ?", (session_id,)).fetchone()
+            if not row: return False
+            sections = json.loads(row[0])
+            sections.append(section_content)
+            conn.execute("UPDATE note_drafts SET sections_json = ? WHERE session_id = ?", (json.dumps(sections), session_id))
+        return True
+
+    def finalize_draft(self, session_id, note_service_instance):
+        with self.db.get_connection() as conn:
+            row = conn.execute("SELECT title, sections_json FROM note_drafts WHERE session_id = ?", (session_id,)).fetchone()
+            if not row: return None
+            
+            title = row['title']
+            sections = json.loads(row['sections_json'])
+            
+        # Combine sections
+        full_content = "\n\n".join(sections)
+        
+        # In this new era, we generate ONE source (LaTeX) and ensure MD is derived or identical
+        # For now, we'll use the existing create_note logic but with unified content
+        note_id = note_service_instance.create_note(
+            title=title,
+            markdown_content=full_content,
+            latex_content=full_content, # Unified
+            tags="agentic-research"
+        )
+        
+        # Cleanup
+        with self.db.get_connection() as conn:
+            conn.execute("DELETE FROM note_drafts WHERE session_id = ?", (session_id,))
+            
+        return note_id
+
 class NoteService:
     def __init__(self):
         self.db = db
@@ -44,8 +91,8 @@ class NoteService:
     def is_toc_artifact(self, latex: str) -> bool:
         """Heuristic to detect if a LaTeX snippet is actually a Table of Contents entry."""
         if not latex: return False
-        # 1. Look for sequences of dots (classic TOC breadcrumbs)
-        if "....." in latex or ". . . . ." in latex:
+        # 1. Look for sequences of dots or \dotfill (classic TOC breadcrumbs)
+        if "....." in latex or ". . . . ." in latex or "\\dotfill" in latex or "\\hspace" in latex:
             return True
         # 2. Look for high density of dots combined with numbers at end of lines
         lines = latex.split('\n')
@@ -53,14 +100,26 @@ class NoteService:
         for line in lines:
             line = line.strip()
             if not line: continue
-            # If line ends with a number and has many dots
-            if re.search(r'\d+$', line) and line.count('.') > 5:
+            # If line ends with a number and has many dots or \dotfill
+            if (re.search(r'\d+$', line) or line.endswith('.')) and (line.count('.') > 5 or "\\dotfill" in line):
                 toc_lines += 1
         
         if len(lines) > 0 and (toc_lines / len(lines)) > 0.3:
             return True
-            
         return False
+
+    def is_ai_meta_discussion(self, latex: str) -> bool:
+        """Detects if a LaTeX snippet contains internal AI repair or reflection text."""
+        if not latex: return False
+        markers = [
+            "(Note:", "I will use", "Failed LaTeX", "Repaired (c)", "Original Text",
+            "I'll try to match", "the original text", "I will fix", "repair attempt"
+        ]
+        count = 0
+        for marker in markers:
+            if marker.lower() in latex.lower():
+                count += 1
+        return count >= 2 or "(Note:" in latex  # (Note: is a very strong indicator)
 
     def transcribe_note(self, image_data):
         """Uses Gemini Vision to transcribe handwritten notes to LaTeX/Markdown."""
@@ -750,14 +809,29 @@ class NoteService:
     def check_and_trigger_term_extraction(self, book_id):
         """E6: Smart extraction scheduling — checks if contiguous cached pages 
         exist that haven't been term-extracted yet (harvested_at IS NULL), 
-        and triggers extraction if so."""
+        and triggers extraction if so. Respects book content bounds."""
         with self.db.get_connection() as conn:
+            book = conn.execute("""
+                SELECT content_start_page, content_end_page FROM books WHERE id = ?
+            """, (book_id,)).fetchone()
+            
             # Find all cached pages with sufficient quality that HAVEN'T been harvested
-            rows = conn.execute("""
+            query = """
                 SELECT page_number FROM extracted_pages 
                 WHERE book_id = ? AND quality_score >= 0.7 AND harvested_at IS NULL
-                ORDER BY page_number
-            """, (book_id,)).fetchall()
+            """
+            params = [book_id]
+            
+            if book:
+                if book['content_start_page']:
+                    query += " AND page_number >= ?"
+                    params.append(book['content_start_page'])
+                if book['content_end_page']:
+                    query += " AND page_number <= ?"
+                    params.append(book['content_end_page'])
+            
+            query += " ORDER BY page_number"
+            rows = conn.execute(query, params).fetchall()
         
         if not rows:
             return 0, "No pending cached pages found"
@@ -832,20 +906,35 @@ class NoteService:
             idx = text.lower().find(marker.lower())
             if idx != -1: return idx
             
-            # Try removing math $ symbols from text and marker
-            clean_text = text.replace('$', '')
-            clean_marker = marker.replace('$', '')
-            idx = clean_text.find(clean_marker)
-            if idx != -1:
-                # If found in clean text, approximate the index in original text
-                # This is a bit rough, but better than nothing
-                return text.find(marker[:5]) if len(marker)>5 else -1
+            # Try removing common LaTeX formatting like \textbf{}, \textit{}, etc.
+            import re
+            clean_text = re.sub(r'\\[a-z]+\{([^}]*)\}', r'\1', text)
+            clean_marker = re.sub(r'\\[a-z]+\{([^}]*)\}', r'\1', marker)
             
-            # Fallback to sliding window fuzzy search
-            window_size = len(marker) + 10
+            # Normalize spacing and math $ symbols
+            def normalize(s):
+                s = s.replace('$', '').replace('\\', '').replace('{', '').replace('}', '')
+                return re.sub(r'\s+', ' ', s).strip().lower()
+                
+            norm_text = normalize(text)
+            norm_marker = normalize(marker)
+            
+            idx = norm_text.find(norm_marker)
+            if idx != -1:
+                # Approximate the index back in original text by searching for the first 8 non-space chars
+                first_chars = re.sub(r'\s+', '', norm_marker)[:8]
+                if not first_chars: return -1
+                
+                # Search for these chars in the original text, ignoring non-alphanumeric
+                for i in range(len(text) - 8):
+                    if re.sub(r'[^a-zA-Z0-9]', '', text[i:i+30]).lower().startswith(first_chars):
+                        return i
+            
+            # Fallback to sliding window fuzzy search with a larger window for LaTeX noise
+            window_size = len(marker) + 40
             best_ratio = 0
             best_idx = -1
-            for i in range(len(text) - len(marker)):
+            for i in range(0, len(text) - len(marker), 5): # Step by 5 for speed
                 window = text[i:i+window_size]
                 ratio = fuzz.partial_ratio(marker.lower(), window.lower())
                 if ratio > best_ratio:
@@ -862,13 +951,39 @@ class NoteService:
             return None
         
         if end_marker:
-            # Only search after the start index
-            search_text = latex[start_idx + len(start_marker):]
-            relative_end_idx = find_best_match_index(search_text, end_marker, is_end=True)
-            if relative_end_idx == -1:
-                # End marker not found — take rest of page
-                return latex[start_idx:]
-            return latex[start_idx : start_idx + len(start_marker) + relative_end_idx]
+            # Search for end marker on current and subsequent pages (up to 2 pages forward)
+            def get_page_latex(p_num):
+                with self.db.get_connection() as conn:
+                    row = conn.execute(
+                        "SELECT latex_path FROM extracted_pages WHERE book_id = ? AND page_number = ?",
+                        (book_id, p_num)
+                    ).fetchone()
+                if not row or not row['latex_path']: return None
+                abs_path = PROJECT_ROOT / row['latex_path']
+                if not abs_path.exists(): return None
+                try: return abs_path.read_text(encoding='utf-8')
+                except Exception: return None
+
+            accumulated_latex = latex
+            for p_offset in range(0, 3): # Check p, p+1, p+2
+                p_num = page_start + p_offset
+                p_latex = get_page_latex(p_num) if p_offset > 0 else latex
+                if not p_latex: break
+                
+                if p_offset > 0:
+                    accumulated_latex += f"\n\n% --- PAGE {p_num} ---\n\n" + p_latex
+                    search_text = p_latex
+                else:
+                    search_text = p_latex[start_idx + len(start_marker):]
+                
+                rel_end_idx = find_best_match_index(search_text, end_marker, is_end=True)
+                if rel_end_idx != -1:
+                    if p_offset == 0:
+                        return latex[start_idx : start_idx + len(start_marker) + rel_end_idx]
+                    else:
+                        base_len = len(accumulated_latex) - len(p_latex)
+                        return accumulated_latex[:base_len + rel_end_idx]
+            return accumulated_latex
         
         return latex[start_idx:]
 
@@ -889,6 +1004,7 @@ class NoteService:
             if not latex:
                 latex = f"% Term: {name} (marker: {start_marker})"
                 logger.warning(f"Could not extract snippet for '{name}' using marker '{start_marker}' — using placeholder")
+                self.log_processing_error(book_id, page_start, 'marker_not_found', f"Term: {name} | Marker: {start_marker}")
 
         if not name:
             return False
@@ -905,6 +1021,11 @@ class NoteService:
         # --- TOC ARTIFACT FILTER ---
         if latex and self.is_toc_artifact(latex):
             logger.warning(f"Discarding hallucinated TOC artifact: {name}")
+            return False
+
+        # --- AI META-DISCUSSION FILTER ---
+        if latex and self.is_ai_meta_discussion(latex):
+            logger.warning(f"Discarding term with AI meta-discussion: {name}")
             return False
         # -----------------------------
 
@@ -1002,6 +1123,14 @@ class NoteService:
         return repaired
 
         
+    def log_processing_error(self, book_id, page_num, error_type, details):
+        """Records a failure in the processing_errors table for later auditing."""
+        with self.db.get_connection() as conn:
+            conn.execute("""
+                INSERT INTO processing_errors (book_id, page_number, error_type, details)
+                VALUES (?, ?, ?, ?)
+            """, (book_id, page_num, error_type, str(details)))
+
     def get_or_convert_pages(self, book_id, pages, force_refresh=False, min_quality=0.7, abort_on_failure=False):
         """Standard portal for fetching page LaTeX. Checks cache, then triggers batched AI conversion."""
         results = []
@@ -1120,6 +1249,7 @@ class NoteService:
                     else:
                         logger.error(f"Page {p_num} repair failed.")
                         status_comments = f"Repair failed: {error_report}"
+                        self.log_processing_error(book_id, p_num, 'latex_compilation', error_report)
 
                 # Final Cache Check: If it still doesn't compile after repair, we mark it low quality
                 final_compiles, _ = self.verify_compilation(latex)
@@ -1429,9 +1559,9 @@ class NoteService:
                     f.write("\\newtheorem{definition}[theorem]{Definition}\n")
                     f.write("\\newtheorem{remark}[theorem]{Remark}\n")
                     f.write("\\newtheorem{example}[theorem]{Example}\n")
-                    f.write(f"\\title{{{title}}}\n\\begin{document}\n\\maketitle\n")
+                    f.write(f"\\title{{{title}}}\n\\begin{{document}}\n\\maketitle\n")
                     f.write(latex_content)
-                    f.write("\n\\end{document}")
+                    f.write("\n\\end{{document}}")
                 else:
                     f.write(latex_content)
         
@@ -1646,4 +1776,5 @@ class NoteService:
 
 # Global instance
 note_service = NoteService()
+sectional_note_service = SectionalNoteService(db)
 

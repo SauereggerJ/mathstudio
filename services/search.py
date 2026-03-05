@@ -58,32 +58,47 @@ class SearchService:
             return None
 
     def search_mws(self, latex_query):
-        """Queries MathWebSearch for mathematical structures with strict attribute stripping."""
+        """Queries MathWebSearch for mathematical structures with support for variables (?a, ?b, etc.)."""
         from bs4 import BeautifulSoup
         
-        mathml_raw = self.convert_to_mathml(latex_query)
+        # 1. Map ?a, ?b... to markers that latexmlmath treats as atomic <ci> tokens
+        placeholders = re.findall(r'\?([a-z])', latex_query)
+        processed_latex = latex_query
+        for p in placeholders:
+            # \mathrm keeps the string together as a single token in Content MathML
+            processed_latex = processed_latex.replace(f"?{p}", f"\\mathrm{{MWSVAR{p}}}")
+
+        mathml_raw = self.convert_to_mathml(processed_latex)
         if not mathml_raw:
             return []
             
-        # 1. Sanitize MathML: Strip ALL attributes from every tag for maximum matching compatibility
         soup = BeautifulSoup(mathml_raw, "xml")
-        for tag in soup.find_all(True):
-            tag.attrs = {}
         
-        # Get the cleaned math tag
+        # 2. Sanitize and Inject Variables
+        for tag in soup.find_all(True):
+            is_placeholder = False
+            if tag.name == 'ci' and 'MWSVAR' in tag.text:
+                var_name = tag.text.strip().replace('MWSVAR', '')
+                tag.name = 'mws:qvar'
+                tag.string = ''
+                tag.attrs = {'name': var_name}
+                is_placeholder = True
+            
+            if not is_placeholder:
+                # Strip all attributes from non-placeholder tags
+                tag.attrs = {}
+        
         math_tag = soup.find('math')
         if not math_tag:
             return []
         
-        # Re-enforce MathML namespace on the clean tag
-        math_tag['xmlns'] = "http://www.w3.org/1998/Math/MathML"
-        mathml_clean = str(math_tag)
+        # MWS expects the CONTENT of the math tag directly inside mws:expr
+        inner_mathml = "".join([str(c) for c in math_tag.contents]).strip()
             
-        # 2. Unify Namespace: Use canonical http://www.mathweb.org/mws/ns
         payload = f"""<?xml version="1.0" encoding="UTF-8"?>
 <mws:query xmlns:mws="http://www.mathweb.org/mws/ns">
-    <mws:expr>
-        {mathml_clean}
+    <mws:expr xmlns="http://www.w3.org/1998/Math/MathML">
+        {inner_mathml}
     </mws:expr>
 </mws:query>"""
         

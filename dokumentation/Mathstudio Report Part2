@@ -329,6 +329,11 @@ Android E-Ink app searches library via REST API → displays search results with
 - **Proof verification**: Cross-reference proofs across multiple sources for confidence scoring
 - **LaTeX compilation of KB**: Generate a "personal textbook" PDF from selected KB concepts
 - **Obsidian plugin**: Two-way sync between KB database and Obsidian vault (currently one-way: DB→vault)
+- **Visual Illustration Harvesting**: 
+    - **Detection**: Ask Gemini Vision for bounding boxes of diagrams, geometric plots, and commutative diagrams.
+    - **Extraction**: Perform high-resolution surgical crops using PyMuPDF (fitz) based on AI coordinates.
+    - **Relational Linking**: Associate images with specific `knowledge_terms` and pages.
+    - **Visual UI**: Display diagrams side-by-side with LaTeX content in the KB browser.
 
 ### Phase 5: Ecosystem Expansion
 

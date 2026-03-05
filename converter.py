@@ -41,7 +41,10 @@ TERM_EXTRACTION_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
-                    "type": {"type": "string"},
+                    "type": {
+                        "type": "string", 
+                        "enum": ["definition", "theorem", "lemma", "proposition", "corollary", "example", "exercise", "axiom", "notation", "remark"]
+                    },
                     "page_start": {"type": "integer"},
                     "used_terms": {"type": "array", "items": {"type": "string"}},
                     "start_marker": {"type": "string"},
@@ -218,17 +221,23 @@ def convert_pages_batch(book_path: str, pages: list[int]):
         # Build prompt: Request flattened schema, ONLY LATEX, NO DISCOVERIES
         prompt = (
             "You are an expert mathematical typesetter and LaTeX transcription specialist.\n"
-            f"Transcribe the following {len(page_files)} textbook pages into clean, compilable LaTeX.\n\n"
+            f"Transcribe the following {len(page_files)} textbook pages into clean, COMPILABLE LaTeX.\n\n"
+            "=== STRICT ANTI-CRASH RULES ===\n"
+            "1. NO TIKZ: Never use \\begin{tikzpicture} or any diagram packages. If a figure or diagram is present, replace it with: % [DIAGRAM OMITTED]\n"
+            "2. NO \\tag IN DISPLAY MATH: Never use \\tag{...} inside $$ ... $$. Use \\begin{equation} ... \\end{equation} for numbered equations.\n"
+            "3. DELIMITER BALANCE: Every \\left MUST have a corresponding \\right. Every $ MUST have a closing $.\n"
+            "4. VARIABLE PROTECTION: Ensure every single mathematical variable (e.g., x, f, n) is wrapped in $...$.\n"
+            "5. NO METADATA: Ignore DOIs, ISBNs, and copyright footers. Do NOT transcribe them. They often contain underscores (_) that cause errors.\n"
+            "6. NO CUSTOM MACROS: Use only standard amsmath/amssymb commands.\n"
+            "7. PRESERVE TEXT: Every word in the original text is separated by a space. You MUST preserve these spaces and the exact prose.\n\n"
             "=== REQUIREMENTS ===\n"
-            "- Use amsmath, amssymb, amsthm for all mathematical notation.\n"
-            "- Preserve ALL prose text EXACTLY.\n"
-            "- IGNORE page numbers, running headers, and footers.\n"
-            "- Every word in the original text is separated by a space. You MUST preserve these spaces.\n\n"
+            "- Use amsmath, amssymb, amsthm.\n"
+            "- IGNORE page numbers, running headers, and footers.\n\n"
             "=== OUTPUT FORMAT ===\n"
             "Return a strictly valid JSON object with a 'pages' array where each object has:\n"
             "- 'page_number': (integer)\n"
             "- 'latex': (string)\n\n"
-            "IMPORTANT: Return ONLY the JSON object. Use actual newlines (\\n) in the LaTeX string."
+            "IMPORTANT: Return ONLY the JSON object. Accuracy and compilability are the highest priorities."
         )
         parts.append(types.Part.from_text(text=prompt))
 
@@ -278,27 +287,31 @@ def extract_terms_batch(concatenated_latex, start_page, end_page, metadata=None)
         context_str = f"BOOK CONTEXT: Title: {metadata.get('title')}, Author: {metadata.get('author')}\n\n"
 
     prompt = (
-        "You are a mathematical knowledge extraction agent. You are provided with a multi-page LaTeX document from a math book.\n"
+        "You are a mathematical knowledge extraction agent. You are provided with a multi-page LaTeX document extracted from a PDF.\n"
         f"{context_str}"
-        f"TASK: Identify every formal term (Definition, Theorem, Lemma, Proposition, Corollary, Example, Exercise) that STARTS between Page {start_page} and Page {end_page} inclusive.\n\n"
+        "CRITICAL RULE: USE ONLY THE PROVIDED LATEX TEXT BELOW. DO NOT use your internal training data or memory of this book to invent terms. "
+        "The page numbers provided (e.g. 'PAGE 141') refer to the PDF index, NOT the printed page numbers in the book. "
+        "If the provided LaTeX text does not contain a specific theorem or definition, DO NOT REPORT IT, even if you know it exists elsewhere in this book.\n\n"
+        f"TASK: Identify formal, valuable mathematical terms (Definition, Theorem, Lemma, Proposition, Corollary, Example, Exercise, Axiom, Notation, Remark) that BEGIN between PDF PAGE {start_page} and PDF PAGE {end_page} inclusive.\n\n"
         "RULES:\n"
-        f"1. ONLY extract terms that explicitly begin their statement within Page {start_page} to {end_page}.\n"
-        "   - ABSOLUTE PAGES: Use the absolute PDF page indices provided in the text (e.g. 'PAGE 141').\n"
-        f"   - CRITICAL: If a Proof starts or continues in this range, but its parent started BEFORE Page {start_page}, DO NOT EXTRACT IT.\n"
-        "2. For each term, provide ONLY metadata — do NOT include the full LaTeX content:\n"
-        "   - 'name': A HIGHLY DESCRIPTIVE, SEMANTIC CONCEPT NAME followed by the formal label in parentheses. Example: 'Dominated Convergence Theorem (Theorem 2.25)'. NEVER use a generic label like 'Theorem 3' as the entire name.\n"
-        "   - 'type': One of: definition, theorem, lemma, proposition, corollary, example, exercise, remark, note. (NEVER use 'proof').\n"
-        "   - 'page_start': (integer) The absolute PDF page index (1-indexed) where this term begins.\n"
-        "   - 'used_terms': Technical mathematical keywords and notation used in the term.\n"
-        "   - 'start_marker': A short text string (5-30 chars) that uniquely identifies WHERE this term begins in the LaTeX. Use the formal label like '2.25 Theorem' or 'Definition 3.1' or the first few distinctive words.\n"
-        "   - 'end_marker': (optional) A short text string identifying where the NEXT term or section begins.\n"
-        "3. Return a JSON object with key 'terms' containing an array.\n"
-        "4. If no terms start in the range, return: {\"terms\": []}\n\n"
-        "LATEX CONTENT:\n"
-        f"{concatenated_latex}\n\n"
-        "IMPORTANT: Return ONLY the JSON object. Do NOT include any LaTeX content in your response."
+        "1. QUALITY OVER QUANTITY: Only extract terms that are explicitly present in the LaTeX text provided.\n"
+        "   - DO NOT extract: Chapter/Section titles, Table of Contents, simple sentences, or random headers.\n"
+        "   - DO NOT imagine terms if none exist. If the page contains only text or titles, return an empty array: {\"terms\": []}.\n"
+        f"2. RANGE: Only extract terms that explicitly begin their statement within PDF PAGE {start_page} to {end_page}.\n"
+        "   - NO ORPHANS: If a Proof or Remark continues in this range, but its parent started BEFORE PDF PAGE {start_page}, SKIP IT.\n"
+        "3. METADATA ONLY:\n"
+        "   - 'name': SEMANTIC CONCEPT NAME followed by label. Example: 'Banach-Steinhaus Theorem (Theorem 5.1)'.\n"
+        "   - 'type': MUST be one of the enum values.\n"
+        "   - 'page_start': The PDF PAGE index where the term begins.\n"
+        "   - 'used_terms': Technical keywords.\n"
+        "   - 'start_marker': First 15-30 chars of the LaTeX statement (e.g., '\\textbf{5.1 Theorem}').\n"
+        "   - 'end_marker': First 15-30 chars of the NEXT section or term (essential for multi-page proofs).\n"
+        "4. Return ONLY the JSON object. Do NOT include full LaTeX snippets.\n\n"
+        "LATEX CONTENT TO ANALYZE:\n"
+        f"{concatenated_latex}"
     )
 
+    logger.info(f"Full prompt start: {prompt[:500]}")
     try:
         data = ai.generate_json(prompt, schema=TERM_EXTRACTION_SCHEMA)
         if data and 'terms' in data:

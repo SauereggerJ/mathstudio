@@ -11,8 +11,14 @@ Provides LLM access to the MathStudio Research Library:
 
 import json
 import logging
+import sys
+import os
 from pathlib import Path
 from typing import Any
+
+# Add project root to sys.path so we can import services
+PROJECT_ROOT = Path(__file__).parent.parent.absolute()
+sys.path.append(str(PROJECT_ROOT))
 
 import requests
 from mcp.server import Server
@@ -92,11 +98,17 @@ You are an Agentic Research Assistant for the MathStudio Mathematical Library.
 Answer mathematical questions by extracting knowledge directly from primary sources in the library. Never guess or hallucinate; always cite actual book pages.
 
 ## CORE TOOLS (in preferred order of use)
-1. **search_knowledge_base** — Search approved KB terms (theorems, definitions). This is the fastest path.
-2. **search_books** — Find relevant books across the library.
-3. **search_within_book** — Find the exact page where a concept appears.
-4. **get_book_pages_latex** — Convert pages to high-quality LaTeX. This caches results for reuse.
-5. **read_pdf_pages** — Cheap page peek to verify page offsets (printed vs. PDF page numbers).
+1. **translate_math_query** — Use this for complex or structural questions. It generates optimized patterns and keywords.
+2. **search_knowledge_base** — Search indexed terms. Supports structural variables like `?a`, `?b`.
+3. **search_books** — Find relevant books across the library.
+4. **search_within_book** — Find the exact page where a concept appears.
+5. **get_book_pages_latex** — Convert pages to high-quality LaTeX. This caches results for reuse.
+
+## STRUCTURAL MATH SEARCH
+You can perform structural searches for formulas using placeholders. 
+- Example: To find the Fundamental Theorem of Calculus, search for `\int_{?a}^{?b} ?f'(x) dx = ?f(?b) - ?f(?a)`.
+- Example: To find any identity involving a sum, search for `\sum_{?i=?a}^{?b} ?f(?i)`.
+- Placeholders must be a single letter preceded by `?` (e.g., `?a`, `?b`).
 
 ## THE RESEARCH IMPERATIVE
 **Never settle for the first result.** When researching a topic:
@@ -355,24 +367,73 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
-        # ── KNOWLEDGE BASE ────────────────────────────────────────────────────
+        # ── KNOWLEDGE BASE & MATH SEARCH ──────────────────────────────────────
 
         Tool(
-            name="search_knowledge_base",
+            name="start_research_draft",
+            description="Initialize a persistent workspace for an exhaustive (20+ pages) mathematical report. When using this, you are expected to include verbatim proofs, detailed examples, and deep author comparisons.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Title of the research report"}
+                },
+                "required": ["title"]
+            }
+        ),
+
+        Tool(
+            name="append_to_draft",
+            description="Add a section (2-3 pages) of LaTeX content to the current draft. Call this repeatedly for a long report.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "description": "High-quality LaTeX content for this section"}
+                },
+                "required": ["content"]
+            }
+        ),
+
+        Tool(
+            name="publish_research_report",
+            description="Finalize the draft into a persistent note (PDF and Markdown).",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+
+        Tool(
+            name="translate_math_query",
             description=(
-                "Search the Knowledge Base for indexed theorems, definitions, and mathematical results. "
-                "These are human-reviewed, high-quality extractions with full LaTeX content. "
-                "Always check here first before doing a full PDF extraction."
+                "Convert a natural language mathematical question into a structured search plan. "
+                "Use this for 'quirky' or complex questions to get optimized MWS and ES parameters."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search term (e.g., 'Hahn-Banach', 'Lipschitz continuity')"},
-                    "type": {
-                        "type": "string",
-                        "enum": ["theorem", "definition", "lemma", "proposition", "corollary", "example", "remark", "note"],
-                        "description": "Filter by term type"
-                    },
+                    "question": {"type": "string", "description": "The user's original math question"}
+                },
+                "required": ["question"]
+            }
+        ),
+
+        Tool(
+            name="search_knowledge_base",
+            description=(
+                "Search the Knowledge Base for Gold Standard mathematical results (theorems, definitions). "
+                "THIS IS YOUR PRIMARY SOURCE. These are human-verified, high-precision extractions. "
+                "Supports structural math variables (?a, ?b) and advanced filters. "
+                "Always check here before using search_books."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search term or LaTeX pattern (e.g., '\\int ?f(x) dx')"},
+                    "type": {"type": "string", "enum": ["theorem", "definition", "lemma", "proposition", "corollary", "example", "remark", "axiom", "notation"]},
+                    "book_id": {"type": "integer"},
+                    "msc": {"type": "string", "description": "MSC 2020 code prefix (e.g. '26')"},
+                    "year": {"type": "integer"},
                     "limit": {"type": "integer", "default": 20}
                 },
                 "required": ["query"]
@@ -592,6 +653,29 @@ async def list_tools() -> list[Tool]:
 # Tool Dispatch
 # ---------------------------------------------------------------------------
 
+async def start_research_draft(args: dict) -> list[TextContent]:
+    from services.note import sectional_note_service
+    # Use install_id or similar for session persistence
+    session_id = "agent_session" 
+    sectional_note_service.start_draft(session_id, args["title"])
+    return [TextContent(type="text", text=f"✓ Research draft '{args['title']}' initialized.")]
+
+async def append_to_draft(args: dict) -> list[TextContent]:
+    from services.note import sectional_note_service
+    session_id = "agent_session"
+    if sectional_note_service.append_section(session_id, args["content"]):
+        return [TextContent(type="text", text="✓ Section appended to draft.")]
+    return [TextContent(type="text", text="✗ Failed to append. Ensure draft was started.")]
+
+async def publish_research_report(args: dict) -> list[TextContent]:
+    from services.note import sectional_note_service, note_service
+    session_id = "agent_session"
+    note_id = sectional_note_service.finalize_draft(session_id, note_service)
+    if note_id:
+        return [TextContent(type="text", text=f"✓ Report published as Note ID: {note_id}.")]
+    return [TextContent(type="text", text="✗ Failed to publish report.")]
+
+
 @app.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     try:
@@ -610,6 +694,10 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             # Knowledge Base
             "search_knowledge_base": search_knowledge_base,
             "get_kb_term": get_kb_term,
+            "translate_math_query": translate_math_query,
+            "start_research_draft": start_research_draft,
+            "append_to_draft": append_to_draft,
+            "publish_research_report": publish_research_report,
             # Book metadata
             "update_book_metadata": update_book_metadata,
             "enrich_book_metadata": enrich_book_metadata,
@@ -664,7 +752,8 @@ async def search_books(args: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"No results for '{args['query']}'.")]
     output = f"Found {data.get('total_count', len(results))} results for '{args['query']}':\n\n"
     for i, b in enumerate(results, 1):
-        output += f"{i}. **{b['title']}** — {b['author']} [ID: {b['id']}]\n"
+        lang_str = f" [{b.get('language', 'unknown')}]" if b.get('language') else ""
+        output += f"{i}. **{b['title']}** — {b['author']} [ID: {b['id']}]{lang_str}\n"
         if b.get("summary"):
             output += f"   {b['summary'][:120]}...\n"
         output += "\n"
@@ -675,7 +764,8 @@ async def get_book_details(args: dict) -> list[TextContent]:
     r = requests.get(f"{API_BASE}/books/{args['book_id']}", timeout=10)
     r.raise_for_status()
     d = r.json()
-    out = f"# {d['title']}\n**Author:** {d['author']} | **ID:** {d['id']} | **Pages:** {d.get('page_count', '?')}\n\n"
+    lang = d.get('language', 'unknown')
+    out = f"# {d['title']}\n**Author:** {d['author']} | **ID:** {d['id']} | **Language:** {lang} | **Pages:** {d.get('page_count', '?')}\n\n"
     flags = []
     if d.get("has_toc"): flags.append("TOC ✓")
     else: flags.append("TOC ✗ → run reindex_book")
@@ -796,9 +886,16 @@ async def synthesize_page_knowledge(args: dict) -> list[TextContent]:
 
 
 async def search_knowledge_base(args: dict) -> list[TextContent]:
-    params = {"q": args["query"], "limit": args.get("limit", 20), "status": "approved"}
-    if args.get("type"):
-        params["kind"] = args["type"]
+    params = {
+        "q": args["query"],
+        "limit": args.get("limit", 20),
+        "status": "approved"
+    }
+    if args.get("type"): params["kind"] = args["type"]
+    if args.get("book_id"): params["book_id"] = args["book_id"]
+    if args.get("msc"): params["msc"] = args["msc"]
+    if args.get("year"): params["year"] = args["year"]
+
     r = requests.get(f"{API_BASE}/kb/terms/search", params=params, timeout=10)
     r.raise_for_status()
     data = r.json()
@@ -810,6 +907,24 @@ async def search_knowledge_base(args: dict) -> list[TextContent]:
         out += f"— {item.get('book_author', 'Unknown')}, p. {item.get('page_start', '?')} "
         out += f"[ID: {item.get('id')}]\n"
     return [TextContent(type="text", text=out)]
+
+
+async def translate_math_query(args: dict) -> list[TextContent]:
+    question = args["question"]
+    # Internal logic to use AI to formulate structural search patterns
+    # We simulate this by defining a specialized system prompt for the query translation
+    from core.ai import ai
+    prompt = (
+        "You are a mathematical search architect. Convert the following user question into a structured search strategy.\n"
+        "Identify:\n"
+        "1. STRUCTURAL PATTERN: A LaTeX formula with variables like ?a, ?b if the user is asking about a specific identity (e.g. '\\int ?a dx').\n"
+        "2. KEYWORDS: 3-5 high-signal keywords for Elasticsearch.\n"
+        "3. FILTERS: Expected term types, MSC categories (e.g. 26 for Analysis), or specific authors if mentioned.\n\n"
+        f"USER QUESTION: {question}\n\n"
+        "Return your plan as a concise bulleted list."
+    )
+    plan = ai.generate_text(prompt)
+    return [TextContent(type="text", text=f"Search Strategy for: {question}\n\n{plan}")]
 
 
 async def get_kb_term(args: dict) -> list[TextContent]:

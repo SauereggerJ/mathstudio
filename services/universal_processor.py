@@ -113,7 +113,8 @@ class UniversalProcessor:
             "DESCRIPTION: Provide a detailed professional review (2-3 paragraphs) for a research database.\n"
             "ROUTING: Select the best existing folder from the list below. Be CONSERVATIVE: prefer placing special cases into a broader existing category (e.g. '04_Algebra' for a book on Group Theory) rather than creating new folders. Only suggest a new sub-path (Format: 'ExistingFolder/NewSub') if the topic is distinct and warrants its own directory.\n"
             "TITLE: If the book is in German, ensure the German title is returned as the primary title. Do not translate it to English.\n"
-            "Return a strictly valid JSON object: {\"metadata\": {\"title\", \"author\", \"publisher\", \"year\", \"isbn\", \"doi\", \"msc_class\", \"target_path\", \"summary\", \"description\", \"audience\", \"has_exercises\", \"has_solutions\", \"language\"}, \"toc\": [{\"title\", \"page\", \"level\"}], \"index_terms\": [], \"page_offset\": 0}\n\n"
+            "CONTENT RANGE: Identify the absolute PDF page index where the actual mathematical content (Chapter 1) begins and where the main text (excluding the Index/Bibliography) ends.\n"
+            "Return a strictly valid JSON object: {\"metadata\": {\"title\", \"author\", \"publisher\", \"year\", \"isbn\", \"doi\", \"msc_class\", \"target_path\", \"summary\", \"description\", \"audience\", \"has_exercises\", \"has_solutions\", \"language\"}, \"toc\": [{\"title\", \"page\", \"level\"}], \"index_terms\": [], \"page_offset\": 0, \"content_start_page\": 0, \"content_end_page\": 0}\n\n"
             f"BASELINE TOC FROM PDF METADATA:\n{native_toc_str}\n\n"
             f"EXISTING FOLDERS:\n{folder_list}"
         )
@@ -162,13 +163,17 @@ class UniversalProcessor:
             conn.execute("""
                 UPDATE books SET title=?, author=?, publisher=?, year=?, isbn=?, doi=?, 
                 msc_class=?, summary=?, description=?, audience=?, has_exercises=?, 
-                has_solutions=?, index_text=?, page_offset=?, language=?, last_metadata_refresh=unixepoch() WHERE id=?
+                has_solutions=?, index_text=?, page_offset=?, language=?, 
+                content_start_page=?, content_end_page=?,
+                last_metadata_refresh=unixepoch() WHERE id=?
             """, (
                 meta.get('title'), author_str, meta.get('publisher'), meta.get('year'),
                 meta.get('isbn'), meta.get('doi'), meta.get('msc_class'), meta.get('summary'),
                 meta.get('description'), meta.get('audience'),
                 1 if meta.get('has_exercises') else 0, 1 if meta.get('has_solutions') else 0,
-                index_text, final_data.get('page_offset', 0), meta.get('language'), book_id
+                index_text, final_data.get('page_offset', 0), meta.get('language'),
+                final_data.get('content_start_page'), final_data.get('content_end_page'),
+                book_id
             ))
             
             # --- Push to Elasticsearch ---

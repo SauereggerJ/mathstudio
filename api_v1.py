@@ -1412,7 +1412,7 @@ def list_knowledge_terms():
     letter = request.args.get('letter')
     sort = request.args.get('sort', 'alpha')
     kind = request.args.get('kind')
-    limit = request.args.get('limit', 100, type=int)
+    limit = request.args.get('limit', 500, type=int)
     offset = request.args.get('offset', 0, type=int)
     
     result = knowledge_service.browse_terms(
@@ -1427,9 +1427,17 @@ def kb_search_terms():
     if not query: return jsonify({'error': 'q is required'}), 400
     status = request.args.get('status', 'approved')
     kind = request.args.get('kind')
+    book_id = request.args.get('book_id', type=int)
+    msc = request.args.get('msc')
+    year = request.args.get('year', type=int)
     limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    sort = request.args.get('sort', 'score')
     
-    results = knowledge_service.search_terms(query, kind=kind, status=status, limit=limit)
+    results = knowledge_service.search_terms(
+        query, kind=kind, status=status, limit=limit, offset=offset, sort=sort,
+        book_id=book_id, msc=msc, year=year
+    )
     return jsonify(results)
 
 @api_v1.route('/kb/terms/count', methods=['GET'])

@@ -1,2 +1,13 @@
 mcp>=1.0.0
 requests>=2.31.0
+Pillow
+rapidfuzz
+google-genai
+beautifulsoup4
+lxml
+elasticsearch==8.12.1
+numpy
+pypdf
+pymupdf
+tenacity
+python-dateutil

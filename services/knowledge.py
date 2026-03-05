@@ -122,15 +122,18 @@ class KnowledgeService:
     # Search & Browse
     # ──────────────────────────────────────────────
 
-    def search_terms(self, query: str, kind: str = None, status: str = 'approved', limit: int = 50) -> List[Dict]:
-        """Federated search over knowledge terms using ES and MWS."""
+    def search_terms(self, query: str, kind: str = None, status: str = 'approved', 
+                     limit: int = 250, offset: int = 0, sort: str = 'score',
+                     book_id: int = None, msc: str = None, year: int = None) -> List[Dict]:
+        """Federated search over knowledge terms using ES and MWS with advanced filtering and pagination."""
         from services.search import search_service
         from core.search_engine import es_client
-        
+
         mws_ids = []
         # 1. Math Pass
-        if "$" in query or "\\(" in query:
-            mws_ids = search_service.search_mws(query)
+        if "$" in query or "\\(" in query or "?" in query:
+            mws_query = query.replace("$", "").replace("\\(", "").replace("\\)", "")
+            mws_ids = search_service.search_mws(mws_query)
 
         # 2. Elasticsearch Pass
         body = {
@@ -142,14 +145,28 @@ class KnowledgeService:
                     "filter": []
                 }
             },
+            "from": offset,
             "size": limit
         }
-        
+
+        # Sorting logic in ES
+        if sort == 'alpha':
+            body["sort"] = [{"name.keyword": "asc"}]
+        elif sort == 'newest':
+            body["sort"] = [{"id": "desc"}]
+        elif sort == 'type':
+            body["sort"] = [{"term_type.keyword": "asc"}]
+        # Default is score (relevance)
         if status:
             body["query"]["bool"]["filter"].append({"term": {"status": status}})
         if kind:
             body["query"]["bool"]["filter"].append({"term": {"term_type": kind}})
-            
+        if book_id:
+            body["query"]["bool"]["filter"].append({"term": {"book_id": book_id}})
+
+        # Metadata filters (require joining/indexing metadata into terms or using a nested filter)
+        # Note: We currently store term metadata primarily in ES. If year/msc aren't in ES, 
+        # we filter them during the enrichment phase below.
         # Boost MWS results if any
         if mws_ids:
             body["query"]["bool"]["should"] = [
@@ -164,6 +181,16 @@ class KnowledgeService:
             results = []
             for hit in hits:
                 term = hit['_source']
+                # Join with Book Metadata for filtering/display
+                with self.db.get_connection() as conn:
+                    book = conn.execute("SELECT title, author, year, msc_class FROM books WHERE id = ?", (term['book_id'],)).fetchone()
+                
+                if not book: continue
+                
+                # Apply post-ES filters
+                if msc and msc not in (book['msc_class'] or ""): continue
+                if year and book['year'] != year: continue
+
                 results.append({
                     "id": term['id'],
                     "name": term['name'],
@@ -172,7 +199,10 @@ class KnowledgeService:
                     "used_terms": term['used_terms'],
                     "status": term['status'],
                     "score": hit['_score'],
-                    "book_id": term['book_id']
+                    "book_id": term['book_id'],
+                    "book_title": book['title'],
+                    "book_author": book['author'],
+                    "book_year": book['year']
                 })
             
             if results:
@@ -194,7 +224,7 @@ class KnowledgeService:
 
     def browse_terms(self, letter: str = None, sort: str = 'alpha',
                      kind: str = None, status: str = 'approved', 
-                     limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+                     limit: int = 500, offset: int = 0) -> Dict[str, Any]:
         """Browse terms by letter with sorting."""
         with self.db.get_connection() as conn:
             where_clauses = []
