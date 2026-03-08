@@ -1,0 +1,52 @@
+\documentclass{article}
+\usepackage{amsmath, amsthm, amssymb}
+
+ewtheorem{proposition}{Proposition}
+
+\begin{document}
+
+\section*{11 Multiple Integrals}
+
+\begin{proof}
+Indeed,
+\[
+\int_{D_x} f(x)\,dx = \int_{D_x} (f \chi_{D_x})(x)\,dx = \int_{D_t} (((f \chi_{D_x}) \circ \varphi) |\det \varphi'|) (t)\,dt =
+\]
+\[
+= \int_{D_t} ((f \circ \varphi)|\det \varphi'| \chi_{E_x}) (t)\,dt = \int_{E_t} ((f \circ \varphi)|\det \varphi'|) (t)\,dt.
+\]
+In this computation we have used the definition of the integral over a set, formula
+(11.10), and the fact that $\chi_{E_t} = \chi_{E_x} \circ \varphi$.
+\end{proof}
+
+\subsection*{b. Invariance of the Integral}
+We recall that the integral of a function $f : E \to \mathbb{R}$ over a set $E$ reduces to computing the integral of the function $f \chi_E$ over an interval $I \supset E$. But the interval $I$ itself
+was by definition connected with a Cartesian coordinate system in $\mathbb{R}^n$. We can now
+prove that all Cartesian systems lead to the same integral.
+
+\begin{proposition}
+The value of the integral of a function $f$ over a set $E \subset \mathbb{R}^n$ is independent of the choice of Cartesian coordinate system in $\mathbb{R}^n$.
+\end{proposition}
+
+\begin{proof}
+In fact the transition from one Cartesian coordinate system in $\mathbb{R}^n$ to another
+Cartesian system has a Jacobian constantly equal to 1 in absolute value. By Proposition 1 this implies the equality
+\[
+\int_{E_x} f(x)\,dx = \int_{E_t} (f \circ \varphi)(t)\,dt.
+\]
+But this means that the integral is invariantly defined: if $p$ is a point of $E$ having
+coordinates $x = (x^1, \ldots, x^n)$ in the first system and $t = (t^1, \ldots, t^n)$ in the second,
+and $x = \psi(t)$ is the transition function from one system to the other, then
+\[
+f(p) = f_x(x^1,\ldots,x^n) = f_t(t^1,\ldots,t^n),
+\]
+where $f_t = f_x \circ \psi$. Hence we have shown that
+\[
+\int_{E_x} f_x(x)\,dx = \int_{E_t} f_t(t)\,dt,
+\]
+where $E_x$ and $E_t$ denote the set $E$ in the $x$ and $t$ coordinates respectively.
+We can conclude from Proposition 2 and Definition 3 of Sect. 11.2 for the (Jordan) measure of a set $E \subset \mathbb{R}^n$ that this measure is independent of the Cartesian
+coordinate system in $\mathbb{R}^n$, or, what is the same, that Jordan measure is invariant under the group of rigid Euclidean motions in $\mathbb{R}^n$.
+\end{proof}
+
+\end{document}

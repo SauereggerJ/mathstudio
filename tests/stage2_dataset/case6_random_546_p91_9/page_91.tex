@@ -1,0 +1,47 @@
+10.3 The Differential of a Mapping 71
+
+Definition 3 Relative to the original mapping (10.43) the mapping $\varphi_i : U_i \rightarrow Y$ is
+called the partial mapping with respect to the variable $x_i$ at $a \in X$.
+
+Definition 4 If the mapping (10.44) is differentiable at $x_i = a_i$, its derivative at that
+point is called the partial derivative or partial differential of $f$ at $a$ with respect to
+the variable $x_i$.
+
+We usually denote this partial derivative by one of the symbols
+$$
+\partial_i f(a), \quad D_i f(a), \quad \frac{\partial f}{\partial x_i}(a), \quad f'_i(a).
+$$
+
+In accordance with these definitions $D_i f(a) \in \mathcal{L}(X_i; Y)$. More precisely,
+$$
+D_i f(a) \in \mathcal{L}(TX_{i,a_i}; TY_{f(a)}).
+$$
+
+The differential $df(a)$ of the mapping (10.43) at the point $a$ (if $f$ is differentiable at that point) is often called the total differential in this situation in order to
+distinguish it from the partial differentials with respect to the individual variables.
+
+We have already encountered all these concepts in the case of real-valued functions of $m$ real variables, so that we shall not give a detailed discussion of them. We
+remark only that by repeating our earlier reasoning, taking account of Example 9 in
+Sect. 9.2, one can prove easily that the following proposition holds in general.
+
+Proposition 3 If the mapping (10.43) is differentiable at the point $a = (a_1, \dots, a_m)$
+$\in X_1 \times \cdots \times X_m = X$, it has partial derivatives with respect to each variable at
+that point, and the total differential and the partial differentials are related by the
+equation
+$$
+df(a)h = d_1 f(a)h_1 + \cdots + d_m f(a)h_m, \tag{10.45}
+$$
+where $h = (h_1, \dots, h_m) \in TX_1(a_1) \times \cdots \times TX_m(a_m) = TX(a)$.
+
+We have already shown by the example of numerical functions that the existence
+of partial derivatives does not in general guarantee the differentiability of the function (10.43).
+
+10.3.5 Problems and Exercises
+
+1. a) Let $A \in \mathcal{L}(X; X)$ be a nilpotent operator, that is, there exists $k \in \mathbb{N}$ such
+that $A^k = 0$. Show that the operator $(E - A)$ has an inverse in this case and that
+$(E - A)^{-1} = E + A + \cdots + A^{k-1}.$
+
+b) Let $D : \mathcal{P}[x] \rightarrow \mathcal{P}[x]$ be the operator of differentiation on the vector space
+$\mathcal{P}[x]$ of polynomials. Remarking that $D$ is a nilpotent operator, write the operator
+$\exp(aD)$, where $a \in \mathbb{R}$, and show that $\exp(aD)(P(x)) = P(x + a) =: T_a(P(x)).$

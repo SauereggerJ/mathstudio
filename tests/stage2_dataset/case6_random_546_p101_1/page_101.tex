@@ -1,0 +1,38 @@
+10.5 Higher-Order Derivatives
+81
+If the mapping (10.58) is differentiable in $U$, then the derivative of $f$, given by
+$$f': U \to \mathcal{L}(X; Y),$$
+(10.59)
+is defined in $U$.
+The space $\mathcal{L}(X; Y) =: Y_1$ is a normed space relative to which the mapping
+(10.59) has the form (10.58), that is, $f' : U \to Y_1$, and it makes sense to speak
+of differentiability for it.
+If the mapping (10.59) is differentiable, its derivative
+$$(f')' : U \to \mathcal{L}(X; Y_1) = \mathcal{L}(X; \mathcal{L}(X; Y))$$
+is called the second derivative or second differential of $f$ and denoted $f''$ or $f^{(2)}$.
+In general, we adopt the following inductive definition.
+Definition 1 The derivative of order $n \in \mathbb{N}$ or $n$th differential of the mapping
+(10.58) at the point $x \in U$ is the mapping tangent to the derivative of $f$ of order
+$n-1$ at that point.
+If the derivative of order $k \in \mathbb{N}$ at the point $x \in U$ is denoted $f^{(k)} (x)$, Definition 1
+means that
+$$f^{(n)} (x) := (f^{(n-1)})'(x).$$
+Thus, if $f^{(n)} (x)$ is defined, then
+$$f^{(n)}(x) \in \mathcal{L}(X; Y_n) = \mathcal{L}(X; \mathcal{L}(X; Y_{n-1})) =$$
+$$= \cdots = \mathcal{L}(X; \mathcal{L}(X; \ldots; \mathcal{L}(X; Y)) \ldots).$$
+(10.60)
+Consequently, by Proposition 4 of Sect. 10.2, $f^{(n)} (x)$, the differential of order $n$ of
+the mapping (10.58) at the point $x$ can be interpreted as an element of the space
+$$\underbrace{\mathcal{L}(X, \ldots, X}_{n \text{ factors}}; Y)$$
+of continuous $n$-linear transformations.
+We note once again that the tangent mapping $f'(x) : T_Xx \to T_{Y_{f(x)}}Y$ is a map-
+ping of tangent spaces, each of which, because of the affine or vector-space structure
+of the spaces being mapped, we have identified with the corresponding vector space
+and said on that basis that $f'(x) \in \mathcal{L}(X; Y)$. It is this device of regarding elements
+$f'(x_1) \in \mathcal{L}(T_{x_1}X; T_{f(x_1)}Y)$ and $f'(x_2) \in \mathcal{L}(T_{x_2}X, T_{f(x_2)}Y)$, which lie in different
+spaces, as vectors in the same space $\mathcal{L}(X; Y)$ that provides the basis for defining
+higher-order differentials of mappings of normed vector spaces. In the case of an
+affine or vector space there is a natural connection between vectors in the differ-
+ent tangent spaces corresponding to different points of the original space. In the
+final analysis, it is this connection that makes it possible to speak of the continuous
+differentiability of both the mapping (10.58) and its higher-order differentials.

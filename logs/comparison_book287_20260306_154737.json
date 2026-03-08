@@ -1,0 +1,143 @@
+[
+  {
+    "page": 10,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 0.75,
+    "deepseek_time": 5.39,
+    "gemini_names": [
+      "Problem 0.1."
+    ],
+    "deepseek_names": [
+      "Sturm-Liouville boundary value problem"
+    ]
+  },
+  {
+    "page": 11,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 1.6,
+    "deepseek_time": 12.15,
+    "gemini_names": [
+      "[normed linear space]"
+    ],
+    "deepseek_names": [
+      "Sturm-Liouville boundary value problem"
+    ]
+  },
+  {
+    "page": 12,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 1.48,
+    "deepseek_time": 10.09,
+    "gemini_names": [
+      "normed linear space"
+    ],
+    "deepseek_names": [
+      "normed linear space"
+    ]
+  },
+  {
+    "page": 13,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 0.73,
+    "deepseek_time": 29.31,
+    "gemini_names": [
+      "Example"
+    ],
+    "deepseek_names": [
+      "Banach space"
+    ]
+  },
+  {
+    "page": 14,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 2.46,
+    "deepseek_time": 4.89,
+    "gemini_names": [
+      "$C(I)$ with the maximum norm is a Banach space."
+    ],
+    "deepseek_names": [
+      "$C(I)$ with the maximum norm is a Banach space"
+    ]
+  },
+  {
+    "page": 15,
+    "gemini_terms": 0,
+    "deepseek_terms": 1,
+    "gemini_time": 4.84,
+    "deepseek_time": 9.51,
+    "gemini_names": [],
+    "deepseek_names": [
+      "Lemma 1.3 (Smoothing)"
+    ]
+  },
+  {
+    "page": 16,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 3.37,
+    "deepseek_time": 16.04,
+    "gemini_names": [
+      "[Corollary 1.4]"
+    ],
+    "deepseek_names": [
+      "inner product"
+    ]
+  },
+  {
+    "page": 17,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 2.09,
+    "deepseek_time": 13.81,
+    "gemini_names": [
+      "[Example]"
+    ],
+    "deepseek_names": [
+      "normalized or unit vector"
+    ]
+  },
+  {
+    "page": 18,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 2.87,
+    "deepseek_time": 10.61,
+    "gemini_names": [
+      "[1.5 (Cauchy-Schwarz-Bunjakowski)]"
+    ],
+    "deepseek_names": [
+      "Cauchy-Schwarz-Bunjakowski"
+    ]
+  },
+  {
+    "page": 19,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 1.98,
+    "deepseek_time": 11.34,
+    "gemini_names": [
+      "[Lemma 1.7]"
+    ],
+    "deepseek_names": [
+      "Lemma 1.7"
+    ]
+  },
+  {
+    "page": 20,
+    "gemini_terms": 1,
+    "deepseek_terms": 1,
+    "gemini_time": 34.01,
+    "deepseek_time": 2.52,
+    "gemini_names": [
+      "[Theorem 1.8]"
+    ],
+    "deepseek_names": [
+      "Lemma 1.9"
+    ]
+  }
+]

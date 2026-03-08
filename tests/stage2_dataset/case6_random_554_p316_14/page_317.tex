@@ -1,0 +1,35 @@
+296 5 Differential Calculus
+
+whose solution $f(x)$ is uniquely determined when the ``initial condition'' $f(0)$ is
+specified. Then
+$$f(x) = f(0)e^{\alpha x}.$$
+We introduced the number $e$ and the function $e^x = \exp x$ in a rather formal way
+earlier, assuring the reader that $e$ really was an important number and $\exp x$ really
+was an important function. It is now clear that even if we had not introduced this
+function earlier, it would certainly have been necessary to introduce it as the solution
+of the important, though very simple equation (5.152). More precisely, it would have
+sufficed to introduce the function that is the solution of Eq. (5.152) for some specific
+value of $\alpha$, for example, $\alpha = 1$; for the general equation (5.152) can be reduced to
+this case by changing to a new variable $t$ connected with $x$ by the relation $x = \frac{t}{\alpha}$
+$(\alpha \ne 0)$.
+Indeed, we then have
+$$f(x) = f\left(\frac{t}{\alpha}\right) = F(t), \quad \frac{df(x)}{dx} = \frac{dF(t)}{dt} \frac{dt}{dx} = \alpha F'(t)$$
+and instead of the equation $f'(x) = \alpha f(x)$ we then have $\alpha F'(t) = \alpha F(t)$, or $F'(t) =
+F(t)$.
+Thus, let us consider the equation
+$$f'(x) = f(x) \quad (5.153)$$
+and denote the solution of this equation satisfying $f(0) = 1$ by $\exp x$.
+Let us check to see whether this definition agrees with our previous definition of
+$\exp x$.
+Let us try to calculate the value of $f(x)$ starting from the relation $f(0) = 1$ and
+the assumption that $f$ satisfies (5.153). Since $f$ is differentiable, it is continuous.
+But then Eq. (5.153) implies that $f'(x)$ is also continuous. Moreover, it follows
+from (5.153) that $f$ also has a second derivative $f''(x) = f'(x)$, and in general that
+$f$ is infinitely differentiable. Since the rate of variation $f'(x)$ of the function $f(x)$
+is continuous, the function $f'$ changes very little over a small interval $h$ of variation
+of its argument. Therefore $f(x_0 + h) = f(x_0) + f'(\xi)h \approx f(x_0) + f'(x_0)h$. Let us
+use this approximate formula and traverse the interval from $0$ to $x$ in small steps of
+size $h = \frac{x}{n}$, where $n \in \mathbb{N}$. If $x_0 = 0$ and $x_{k+1} = x_k + h$, we should have
+$$f(x_{k+1}) \approx f(x_k) + f'(x_k)h.$$
+Taking account of (5.153) and the condition $f(0) = 1$, we have
+$$f(x) = f(x_n) \approx f(x_{n-1}) + f'(x_{n-1})h = f(x_{n-1})(1 + h) \sim (f(x_{n-2}) + f'(x_{n-2})h) (1 + h) =$$

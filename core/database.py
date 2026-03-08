@@ -84,7 +84,9 @@ class DatabaseManager:
                 ("metadata_status", "TEXT DEFAULT 'raw'"),
                 ("trust_score", "REAL DEFAULT 0.0"),
                 ("zb_review", "TEXT"),
-                ("language", "TEXT")
+                ("language", "TEXT"),
+                ("content_start", "INTEGER"),
+                ("content_end", "INTEGER")
             ]:
                 try:
                     conn.execute(f"ALTER TABLE books ADD COLUMN {col} {col_type}")
@@ -199,7 +201,8 @@ class DatabaseManager:
             for col, col_type in [
                 ("quality_score", "REAL DEFAULT 0.0"),
                 ("quality_comments", "TEXT"),
-                ("harvested_at", "INTEGER")
+                ("harvested_at", "INTEGER"),
+                ("status", "TEXT DEFAULT 'ok'")
             ]:
                 try:
                     conn.execute(f"ALTER TABLE extracted_pages ADD COLUMN {col} {col_type}")
@@ -341,6 +344,21 @@ class DatabaseManager:
                 ) STRICT
             ''')
 
+            # 18.5 Mathematical Concepts (Canonical Anchors)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS mathematical_concepts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    subject_area TEXT NOT NULL,
+                    msc_code TEXT,
+                    source TEXT NOT NULL,
+                    source_url TEXT,
+                    summary TEXT,
+                    embedding BLOB,
+                    UNIQUE(name, subject_area)
+                ) STRICT
+            ''')
+
             # 19. Flat Knowledge Base: Knowledge Terms
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS knowledge_terms (
@@ -357,6 +375,16 @@ class DatabaseManager:
                     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
                 ) STRICT
             ''')
+
+            # 19.1 Migration for knowledge_terms
+            try:
+                conn.execute("ALTER TABLE knowledge_terms ADD COLUMN concept_id INTEGER REFERENCES mathematical_concepts(id)")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                conn.execute("ALTER TABLE knowledge_terms ADD COLUMN attempted_repair_prose INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
 
             # 20. Knowledge Terms FTS
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_terms_fts'")

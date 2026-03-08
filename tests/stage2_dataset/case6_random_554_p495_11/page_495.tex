@@ -1,0 +1,50 @@
+8.4 Real-valued Functions of Several Variables
+475
+    \begin{enumerate}
+        \setcounter{enumi}{3}
+        \renewcommand{\theenumi}{\alph{enumi}}
+        \item Show that if $\mathbf{x} = (x^1, \ldots, x^m)$ and
+        \[
+        \|\mathbf{x}\| = \left(\sum_{i=1}^m (x^i)^2\right)^{1/2},
+        \]
+        then for $m > 2$ the function
+        \[
+        f(\mathbf{x}) = \|\mathbf{x}\|^{2-m}
+        \]
+        is harmonic in the domain $\mathbb{R}^m \setminus \{\mathbf{0}\}$, where $\mathbf{0} = (0, \ldots, 0)$.
+        \item Verify that the function
+        \[
+        f(\mathbf{x}^1, \ldots, \mathbf{x}^m, t) = \frac{1}{(2\alpha\sqrt{\pi}t)^m} \exp\left(-\frac{\|\mathbf{x}\|^2}{4a^2t}\right)
+        \]
+        which is defined for $t > 0$ and $\mathbf{x} = (x^1, \ldots, x^m) \in \mathbb{R}^m$, satisfies the heat equation
+        \[
+        \frac{\partial f}{\partial t} = a^2 \Delta f,
+        \]
+        that is, verify that $\frac{\partial f}{\partial t} = a^2 \sum_{i=1}^m \frac{\partial^2 f}{\partial x^i{}^2}$ at each point of the domain of definition of
+        the function.
+        \item Taylor's formula in multi-index notation. The symbol $\mathbf{\alpha} := (\alpha_1, \ldots, \alpha_m)$ consist-
+        ing of nonnegative integers $\alpha_i, i = 1, \ldots, m$, is called the multi-index $\mathbf{\alpha}$.
+        The following notation is conventional:
+        \[
+        |\mathbf{\alpha}| := \alpha_1 + \ldots + \alpha_m,
+        \]
+        \[
+        \mathbf{\alpha}! := \alpha_1! \ldots \alpha_m!;
+        \]
+        finally, if $\mathbf{a} = (\alpha_1, \ldots, \alpha_m)$, then
+        \[
+        \mathbf{a}^\mathbf{a} := \alpha_1^{\alpha_1} \ldots \alpha_m^{\alpha_m}.
+        \]
+        \begin{enumerate}
+            \item[(a)] Verify that if $k \in \mathbb{N}$, then
+            \[
+            (\alpha_1 + \ldots + \alpha_m)^k = \sum_{|\mathbf{\alpha}|=k} \frac{k!}{\alpha_1! \ldots \alpha_m!} \alpha_1^{\alpha_1} \ldots \alpha_m^{\alpha_m},
+            \]
+            or
+            \[
+            (\alpha_1 + \ldots + \alpha_m)^k = \sum_{|\mathbf{\alpha}|=k} \frac{k!}{\mathbf{\alpha}!} \mathbf{a}^\mathbf{a},
+            \]
+            where the summation extends over all sets $\mathbf{\alpha} = (\alpha_1, \ldots, \alpha_m)$ of nonnegative integers
+            such that $\sum_{i=1}^m \alpha_i = k$.
+        \end{enumerate}
+    \end{enumerate}

@@ -15,6 +15,7 @@ from google.genai import types
 import converter
 from core.database import db
 from core.ai import ai
+from services.pipeline import pipeline_service
 from core.config import LIBRARY_ROOT, CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, EMBEDDING_MODEL, PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
@@ -176,7 +177,7 @@ class NoteService:
             return None
 
     def lint_latex(self, latex_code: str) -> List[str]:
-        """Performs fast local structural analysis of LaTeX code."""
+        """Performs fast local structural analysis of LaTeX code to catch common AI hallucination errors."""
         if not latex_code: return ["Empty LaTeX code"]
         errors = []
         import re
@@ -200,20 +201,37 @@ class NoteService:
                         last = stack.pop()
                         if last != env_name:
                             errors.append(f"Environment nesting error: expected \\end{{{last}}}, found \\end{{{env_name}}}")
+            if stack:
+                errors.append(f"Unclosed environments remaining: {', '.join(stack)}")
 
-        # 2. Check for matching braces { }
-        if latex_code.count('{') != latex_code.count('}'):
-            errors.append(f"Mismatched curly braces: {latex_code.count('{')} opening vs {latex_code.count('}')} closing")
+        # 2. Advanced Brace Matching (ignoring escaped braces)
+        # Strip escaped braces \{ and \} to count actual logical groups
+        stripped_code = re.sub(r'\\\\', '', latex_code) # remove literal backslashes
+        stripped_code = re.sub(r'\\\{', '', stripped_code)
+        stripped_code = re.sub(r'\\\}', '', stripped_code)
+        
+        open_braces = stripped_code.count('{')
+        close_braces = stripped_code.count('}')
+        if open_braces != close_braces:
+            errors.append(f"Mismatched curly braces: {open_braces} opening vs {close_braces} closing")
+            
+        # 3. Inline Math Delimiter Checking ($ ... $)
+        # Remove literal \$ so they don't mess up counts
+        stripped_dollar = re.sub(r'\\\$', '', latex_code)
+        # Remove block math $$ so we only count isolated $
+        stripped_dollar = re.sub(r'\$\$', '', stripped_dollar)
+        
+        dollar_count = stripped_dollar.count('$')
+        if dollar_count % 2 != 0:
+            errors.append(f"Unbalanced inline math decorators ($ sign count is odd: {dollar_count})")
 
-        # 3. Check for common unescaped characters in text mode
+        # 4. Check for common unescaped characters in text mode
         # (Very heuristic, ignore inside math mode or comments)
-        # For simplicity, just look for raw & or % not preceded by \
-        # This is noisy, so we only flag it if it looks really suspicious
         raw_ampersands = re.findall(r'(?<!\\)&', latex_code)
-        # Filter ampersands that are likely inside tabular/matrix (which is OK)
         if raw_ampersands:
-            if not any(env in latex_code for env in ['tabular', 'matrix', 'align', 'gather', 'split', 'cases', 'aligned', 'array', 'multline', 'eqnarray']):
-                errors.append(f"Found {len(raw_ampersands)} potential unescaped ampersands outside math environments")
+            math_envs = ['tabular', 'matrix', 'align', 'gather', 'split', 'cases', 'aligned', 'array', 'multline', 'eqnarray', 'bmatrix', 'pmatrix', 'vmatrix', 'Vmatrix']
+            if not any(env in latex_code for env in math_envs):
+                errors.append(f"Found {len(raw_ampersands)} potential unescaped ampersands outside tabular/matrix environments")
 
         return errors
 
@@ -818,7 +836,7 @@ class NoteService:
             # Find all cached pages with sufficient quality that HAVEN'T been harvested
             query = """
                 SELECT page_number FROM extracted_pages 
-                WHERE book_id = ? AND quality_score >= 0.7 AND harvested_at IS NULL
+                WHERE book_id = ? AND (quality_score >= 0.7 OR quality_score IS NULL) AND harvested_at IS NULL
             """
             params = [book_id]
             
@@ -1623,142 +1641,137 @@ class NoteService:
         is_biblio = lower.count('\\bibitem') > 3 or lower.count('[') > 20
         return has_math and not is_biblio
 
+    def is_cancelled(self, scan_id):
+        """Checks if the user has requested cancellation."""
+        try:
+            with self.db.get_connection() as conn:
+                row = conn.execute("SELECT status FROM book_scans WHERE id = ?", (scan_id,)).fetchone()
+                return row and row['status'] == 'cancelled'
+        except Exception: return False
+
     def run_book_scan(self, scan_id):
-        """Execute a full book scan: classify pages, convert, extract terms, throttled."""
-        import fitz
-        
+        """Execute a full book scan using the unified 5-pass PipelineService."""
         with self.db.get_connection() as conn:
-            scan = conn.execute("SELECT * FROM book_scans WHERE id = ?", (scan_id,)).fetchone()
-            if not scan:
-                return
-            book = conn.execute("SELECT id, path, page_count FROM books WHERE id = ?", (scan['book_id'],)).fetchone()
-            if not book:
-                return
-        
-        book_id = book['id']
-        batch_size = scan['batch_size'] or 25
-        cooldown = scan['cooldown_seconds'] or 300
-        
+            row = conn.execute("SELECT book_id FROM book_scans WHERE id = ?", (scan_id,)).fetchone()
+            if not row: return
+            book_id = row['book_id']
+
         try:
             # Mark as running
             with self.db.get_connection() as conn:
-                conn.execute("UPDATE book_scans SET status = 'running', started_at = unixepoch() WHERE id = ?", (scan_id,))
+                conn.execute("UPDATE book_scans SET status = 'scanning', started_at = unixepoch() WHERE id = ?", (scan_id,))
             
-            # Step 1: Open PDF and classify pages
-            logger.info(f"Scan {scan_id}: Classifying pages for book {book_id}")
-            pdf_path = LIBRARY_ROOT / book['path']
-            if not pdf_path.exists():
-                raise FileNotFoundError(f"PDF not found: {pdf_path}")
+            # Pass 0: Boundaries
+            if self.is_cancelled(scan_id): return
+            logger.info(f"Scan {scan_id}: Starting Pass 0 (Boundaries)")
+            pipeline_service.run_pass_0(book_id)
+
+            # Fix progress tracking: get actual pages to process
+            with self.db.get_connection() as conn:
+                book = conn.execute("SELECT content_start, content_end FROM books WHERE id = ?", (book_id,)).fetchone()
+                if book:
+                    pages_total = (book['content_end'] or 0) - (book['content_start'] or 0) + 1
+                    conn.execute("UPDATE book_scans SET pages_total = ? WHERE id = ?", (max(0, pages_total), scan_id))
             
-            doc = fitz.open(str(pdf_path))
-            content_pages = []
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text = page.get_text()
-                if self.classify_page(text) == 'content':
-                    content_pages.append(page_num + 1)  # 1-indexed
-            doc.close()
+            # Pass 1: Visual Harvester
+            if self.is_cancelled(scan_id): return
+            logger.info(f'Scan {scan_id}: Starting Pass 1 (LaTeX Converter)')
             
-            logger.info(f"Scan {scan_id}: {len(content_pages)} content pages out of {book['page_count']} total")
+            def update_progress(done):
+                with self.db.get_connection() as conn:
+                    conn.execute("UPDATE book_scans SET pages_done = ? WHERE id = ?", (done, scan_id))
             
+            stats1 = pipeline_service.run_pass_1(book_id, progress_callback=update_progress)
+            
+            # Update pages_done after Pass 1
             with self.db.get_connection() as conn:
                 conn.execute(
-                    "UPDATE book_scans SET pages_content = ?, pages_total = ? WHERE id = ?",
-                    (json.dumps(content_pages), len(content_pages), scan_id)
+                    "UPDATE book_scans SET pages_done = ?, status = 'extracting' WHERE id = ?", 
+                    (stats1.get('ok', 0) + stats1.get('failed', 0), scan_id)
                 )
-            
-            # Step 2: Process in chunks
-            total_terms = 0
-            for i in range(0, len(content_pages), batch_size):
-                # Check if cancelled
-                with self.db.get_connection() as conn:
-                    status = conn.execute("SELECT status FROM book_scans WHERE id = ?", (scan_id,)).fetchone()
-                    if status and status['status'] == 'cancelled':
-                        logger.info(f"Scan {scan_id}: Cancelled by user")
-                        return
-                
-                chunk = content_pages[i:i + batch_size]
-                logger.info(f"Scan {scan_id}: Processing chunk {i//batch_size + 1} — pages {chunk[0]}-{chunk[-1]} ({len(chunk)} pages)")
-                
-                # Convert pages (uses adaptive batching internally)
-                results, convert_error = self.get_or_convert_pages(book_id, chunk)
-                if convert_error:
-                    logger.warning(f"Scan {scan_id}: Conversion error in chunk: {convert_error}")
-                
-                # Push digitized pages to Elasticsearch
-                if results:
-                    try:
-                        from elasticsearch import helpers
-                        from core.search_engine import es_client
-                        actions = []
-                        for r in results:
-                            if r.get('latex'):
-                                # We strip some common LaTeX noise for better text search if needed, 
-                                # but usually ES handles it fine.
-                                actions.append({
-                                    "_index": "mathstudio_pages",
-                                    "_op_type": "index", # Overwrite if exists (approximate match by book_id + page)
-                                    # Since mathstudio_pages documents don't have deterministic IDs in my current helper,
-                                    # we might get duplicates if we don't use a consistent ID.
-                                    # Let's use book_{id}_p{page} as ID for pages to prevent duplicates.
-                                    "_id": f"book_{book_id}_p{r['page']}",
-                                    "_source": {
-                                        "book_id": book_id,
-                                        "page_number": r['page'],
-                                        "content": r['latex']
-                                    }
-                                })
-                        if actions:
-                            helpers.bulk(es_client, actions)
-                    except Exception as e:
-                        logger.error(f"Scan {scan_id}: Failed to sync pages to Elasticsearch: {e}")
 
-                # Filter pages that are term-extractable
-                extractable_pages = []
-                for r in results:
-                    if r.get('latex') and self.is_term_extractable(r['latex']):
-                        extractable_pages.append(r['page'])
-                
-                # Extract terms for extractable pages
-                if extractable_pages:
-                    terms_count, term_err = self.extract_and_save_knowledge_terms_batch(
-                        book_id, extractable_pages, window_buffer=2, force=True
-                    )
-                    if term_err:
-                        logger.warning(f"Scan {scan_id}: Term extraction error: {term_err}")
-                    total_terms += (terms_count or 0)
-                
-                # Update progress
-                pages_done = min(i + batch_size, len(content_pages))
+            # Auto-insert into deep_indexed_books
+            with self.db.get_connection() as conn:
+                conn.execute("INSERT OR REPLACE INTO deep_indexed_books (book_id, indexed_at) VALUES (?, unixepoch())", (book_id,))
+            
+            # Pass 2: Term Extraction
+            if self.is_cancelled(scan_id): return
+            logger.info(f'Scan {scan_id}: Starting Pass 2 (Term Extraction)')
+            
+            def update_term_progress(done, terms):
                 with self.db.get_connection() as conn:
                     conn.execute(
-                        "UPDATE book_scans SET pages_done = ?, terms_found = ? WHERE id = ?",
-                        (pages_done, total_terms, scan_id)
+                        "UPDATE book_scans SET pages_done = ?, terms_found = ?, status = 'extracting' WHERE id = ?", 
+                        (done, terms, scan_id)
                     )
-                
-                # Cooldown between chunks (unless this was the last chunk)
-                if i + batch_size < len(content_pages):
-                    logger.info(f"Scan {scan_id}: Cooling down for {cooldown}s...")
-                    time.sleep(cooldown)
             
-            # Done
+            stats2 = pipeline_service.run_pass_2(book_id, progress_callback=update_term_progress)
+            
+            # Update terms_found and transition to semantic phase
             with self.db.get_connection() as conn:
                 conn.execute(
-                    "UPDATE book_scans SET status = 'completed', completed_at = unixepoch(), pages_done = pages_total WHERE id = ?",
+                    "UPDATE book_scans SET terms_found = ?, status = 'embedding' WHERE id = ?", 
+                    (stats2.get('saved', 0), scan_id)
+                )
+
+            # Pass 3: Incrementally Embed Terms
+            if self.is_cancelled(scan_id): return
+            logger.info(f"Scan {scan_id}: Starting Pass 3 (Embedding)")
+            from scripts.batch_embed_terms import process_batch
+            process_batch() # This is already incremental thanks to our earlier patch
+
+            # Pass 4: Anchoring
+            if self.is_cancelled(scan_id): return
+            logger.info(f"Scan {scan_id}: Starting Pass 4 (Anchoring)")
+            with self.db.get_connection() as conn:
+                conn.execute("UPDATE book_scans SET status = 'anchoring' WHERE id = ?", (scan_id,))
+            from services.anchoring import AnchoringService
+            anch_svc = AnchoringService()
+            anch_svc.run_clustering()
+
+            # Pass 5: ES Backfill (Terms)
+            if self.is_cancelled(scan_id): return
+            logger.info(f"Scan {scan_id}: Starting Pass 5 (Synching ES Terms)")
+            with self.db.get_connection() as conn:
+                conn.execute("UPDATE book_scans SET status = 'syncing' WHERE id = ?", (scan_id,))
+            from scripts.backfill_concept_ids import backfill
+            backfill()
+
+            # Pass 6: ES Page Indexing (Full-Text)
+            if self.is_cancelled(scan_id): return
+            logger.info(f"Scan {scan_id}: Starting Pass 6 (Indexing Full-Text Pages)")
+            from scripts.index_latex_pages import index_latex_pages
+            index_latex_pages(book_id)
+
+            # Update final status
+            with self.db.get_connection() as conn:
+                conn.execute(
+                    'UPDATE book_scans SET status = "completed", completed_at = unixepoch() WHERE id = ?',
                     (scan_id,)
                 )
-            logger.info(f"Scan {scan_id}: Completed. {total_terms} terms extracted from {len(content_pages)} pages.")
+            logger.info(f'Scan {scan_id}: Completed pipeline successfully.')
             
         except Exception as e:
-            logger.error(f"Scan {scan_id}: Failed with error: {e}")
+            logger.error(f"Scan {scan_id} failed: {e}")
             with self.db.get_connection() as conn:
-                conn.execute(
-                    "UPDATE book_scans SET status = 'failed', error_log = ? WHERE id = ?",
-                    (str(e), scan_id)
-                )
+                conn.execute("UPDATE book_scans SET status = 'failed', error_log = ? WHERE id = ?", (str(e), scan_id))
 
     def scan_worker(self):
         """Background daemon: picks queued scans and runs them one at a time."""
+        time.sleep(5) # Let the app initialize
+        
+        # Reset stale "running" scans on startup
+        try:
+            with self.db.get_connection() as conn:
+                conn.execute("""
+                    UPDATE book_scans 
+                    SET status = 'queued' 
+                    WHERE status NOT IN ('completed', 'failed', 'cancelled', 'queued')
+                """)
+                logger.info("Scan worker: Reset stale scans to 'queued' on startup.")
+        except Exception as e:
+            logger.error(f"Scan worker startup error: {e}")
+
         while True:
             try:
                 with self.db.get_connection() as conn:

@@ -1,0 +1,63 @@
+164
+\hfill
+12 Surfaces and Differential Forms in $\mathbb{R}^n$
+in it by any topological space homeomorphic to $\mathbb{R}^k$. Most often the standard param-
+eter region for local charts is assumed to be an open cube $I^k$ or an open ball $B^k$
+in $\mathbb{R}^k$. But this makes no substantial difference.
+
+\noindent
+To carry out certain analogies and in order to make a number of the following
+constructions easier to visualize, we shall as a rule take a cube $I^k$ as the canonical
+parameter domain for local charts on a surface. Thus a chart
+\[
+\varphi: I^k \to U \subset S
+\]
+(12.1)
+gives a local parametric equation $x = \varphi(t)$ for the surface $S \subset \mathbb{R}^n$, and the $k$-
+dimensional surface itself thus has the local structure of a deformed standard $k$-
+dimensional interval $I^k \subset \mathbb{R}^n$.
+
+\noindent
+The parametric definition of a surface is especially important for computational
+purposes, as will become clear below. Sometimes one can define the entire surface
+by a single chart. Such a surface is usually called \textit{elementary}. For example, the graph
+of a continuous function $f: I^k \to \mathbb{R}^{n-k}$ in $\mathbb{R}^n$ is an elementary surface. However,
+elementary surfaces are more the exception than the rule. For example, our ordinary
+two-dimensional terrestrial sphere cannot be defined by only one chart. An atlas of
+the surface of the Earth must contain at least two charts (see Problem 3 at the end of
+this section).
+
+\noindent
+In accordance with this analogy we adopt the following definition.
+
+\noindent
+\textbf{Definition 3} A set $\mathcal{A}(S) := \{\varphi_i: I^k \to U_i, i \in \mathbb{N}\}$ of local charts of a surface $S$
+whose domains of action together cover the entire surface (that is, $S = \bigcup_i U_i$) is
+called an \textit{atlas} of the surface $S$.
+
+\noindent
+The union of two atlases of the same surface is obviously also an atlas of the
+surface.
+
+\noindent
+If no restrictions are imposed on the mappings (12.1), the local parametrizations
+of the surface, except that they must be homeomorphisms, the surface may be situ-
+ated very strangely in $\mathbb{R}^n$. For example, it can happen that a surface homeomorphic
+to a two-dimensional sphere, that is, a topological sphere, is contained in $\mathbb{R}^3$, but
+the region it bounds is not homeomorphic to a ball (the so-called Alexander horned
+sphere).$^3$
+
+\noindent
+To eliminate such complications, which have nothing to do with the questions
+considered in analysis, we defined a \textit{smooth} $k$-dimensional surface in $\mathbb{R}^n$ in Sect. 8.7
+to be a set $S \subset \mathbb{R}^n$ such that for each $x_0 \in S$ there exists a neighborhood $U(x_0)$
+in $\mathbb{R}^n$ and a diffeomorphism $\psi : U(x_0) \to \mathbb{R}^n = \{t \in \mathbb{R}^n \mid |t^i| < 1, i = 1, \dots, n\}$ un-
+der which the set $U_S(x_0) := S \cap U(x_0)$ maps into the cube $I^k = \mathbb{R}^k \cap \{t \in \mathbb{R}^n \mid
+t^{k+1} = \dots = t^n = 0\}$.
+
+\noindent
+It is clear that a surface that is smooth in this sense is a surface in the sense
+of Definition 1, since the mappings $x = \psi^{-1}(t^1, \dots, t^k, 0, \dots, 0) = (\varphi^1(t), \dots, \varphi^k(t))$
+\hfill 163
+$^3$ An example of the surface described here was constructed by the American topologist
+J.W. Alexander (1888–1977).

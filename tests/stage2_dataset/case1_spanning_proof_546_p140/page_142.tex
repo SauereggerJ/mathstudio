@@ -1,0 +1,43 @@
+122
+11 Multiple Integrals
+and the discontinuities of $\chi_E$ form the set $\partial E$, we find by Lebesgue's criterion that
+the measure just introduced is defined only for admissible sets.
+Thus admissible sets, and only admissible sets, are measurable in the sense of
+Definition 3.
+Let us now ascertain the geometric meaning of $\mu(E)$. If $E$ is an admissible set
+then
+$$\mu(E) = \int_I \chi_E(x) dx = \int_{\underline{I}} \chi_E(x)dx = \int_{\overline{I}} \chi_E(x) dx,$$
+where the last two integrals are the upper and lower Darboux integrals respectively.
+By the Darboux criterion for existence of the integral (Theorem 3) the measure
+$\mu(E)$ of a set is defined if and only if these lower and upper integrals are equal.
+By the theorem of Darboux (Theorem 2 of Sect. 11.1) they are the limits of the
+upper and lower Darboux sums of the function $\chi_E$ corresponding to partitions $P$
+of $I$. But by definition of $\chi_E$ the lower Darboux sum is the sum of the volumes
+of the intervals of the partition $P$ that are entirely contained in $E$ (the volume of a
+polyhedron inscribed in $E$), while the upper sum is the sum of the volumes of the
+intervals of $P$ that intersect $E$ (the volume of a circumscribed polyhedron). Hence
+$\mu(E)$ is the common limit as $\lambda(P) \to 0$ of the volumes of polyhedra inscribed in
+and circumscribed about $E$, in agreement with the accepted idea of the volume of
+simple solids $E \subset \mathbb{R}^n$.
+For $n = 1$ content is usually called length, and for $n = 2$ it is called area.
+\begin{remark}{3} Let us now explain why the measure $\mu(E)$ introduced in Definition 3 is
+sometimes called Jordan measure.
+\end{remark}
+\begin{definition}{4} A set $E \subset \mathbb{R}^n$ is a set of measure zero in the sense of Jordan or a set
+of content zero if for every $\varepsilon > 0$ it can be covered by a finite system of intervals
+$I_1, \dots, I_k$ such that $\sum_{i=1}^k |I_i| < \varepsilon$.
+\end{definition}
+Compared with measure zero in the sense of Lebesgue, a requirement that the
+covering be finite appears here, shrinking the class of sets of Lebesgue measure
+zero. For example, the set of rational points is a set of measure zero in the sense of
+Lebesgue, but not in the sense of Jordan.
+In order for the least upper bound of the contents of polyhedra inscribed in a
+bounded set $E$ to be the same as the greatest lower bound of the contents of poly-
+hedra circumscribed about $E$ (and to serve as the measure $\mu(E)$ or content of $E$), it
+is obviously necessary and sufficient that the boundary $\partial E$ of $E$ have measure $0$ in
+the sense of Jordan. That is the motivation for the following definition.
+\begin{definition}{5} A set $E$ is Jordan-measurable if it is bounded and its boundary has
+Jordan measure zero.
+\end{definition}
+As Remark 2 shows, the class of Jordan-measurable subsets is precisely the class
+of admissible sets introduced in Definition 1. That is the reason the measure $\mu(E)$

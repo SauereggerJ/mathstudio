@@ -1,0 +1,60 @@
+10 \hfill 1. A first look at Banach and Hilbert spaces
+
+is a (finite dimensional) Hilbert space. $\diamondsuit$
+
+\noindent\textbf{Example.} A somewhat more interesting example is the Hilbert space $l^2(\mathbb{N})$,
+that is, the set of all sequences
+\[
+\{(a_j)_{j=1}^\infty : \sum_{j=1}^\infty |a_j|^2 < \infty\}
+\tag{1.20}
+\]
+with scalar product
+\[
+(a,b) = \sum_{j=1}^\infty a_j \bar{b}_j.
+\tag{1.21}
+\]
+(Show that this is in fact a separable Hilbert space! Problem 1.5) $\diamondsuit$
+
+Of course I still owe you a proof for the claim that $\sqrt{\langle f, f \rangle}$ is indeed a
+norm. Only the triangle inequality is nontrivial which will follow from the
+Cauchy-Schwarz inequality below.
+
+A vector $f \in \mathcal{H}$ is called \textbf{normalized} or \textbf{unit vector} if $\|f\| = 1$. Two
+vectors $f, g \in \mathcal{H}$ are called \textbf{orthogonal} or \textbf{perpendicular} ($\mathrm{f} \perp \mathrm{g}$) if $\langle f, g \rangle =
+0$ and \textbf{parallel} if one is a multiple of the other.
+
+For two orthogonal vectors we have the \textbf{Pythagorean theorem}:
+\[
+\|f + g\|^2 = \|f\|^2 + \|g\|^2, \quad \mathrm{f} \perp \mathrm{g},
+\tag{1.22}
+\]
+which is one line of computation.
+
+Suppose $u$ is a unit vector, then the projection of $f$ in the direction of
+$u$ is given by
+\[
+f_{\parallel} = \langle u, f \rangle u
+\tag{1.23}
+\]
+and $f_{\perp}$ defined via
+\[
+f_{\perp} = f - \langle u, f \rangle u
+\tag{1.24}
+\]
+is perpendicular to $u$ since $\langle u, f_{\perp} \rangle = \langle u, f - \langle u, f \rangle u \rangle = \langle u, f \rangle - \langle u, f \rangle \langle u, u \rangle =
+0$.
+
+\begin{center}
+\includegraphics[width=0.4\textwidth]{page17_figure.png}
+\end{center}
+% Note: The original page has a figure here which I cannot reproduce with pure LaTeX text. 
+% I will skip the tikz, as per instructions. The figure caption is implicit in the context.
+% The figure shows vectors f, u, f_parallel, f_perpendicular forming a right triangle.
+
+Taking any other vector parallel to $u$ it is easy to see
+\[
+\|f - \lambda u\|^2 = \|f_{\perp} + (\langle u, f \rangle - \lambda u)\|^2 = \|f_{\perp}\|^2 + |\langle u, f \rangle - \lambda|^2
+\tag{1.25}
+\]
+and hence $f_{\parallel} = \langle u, f \rangle u$ is the unique vector parallel to $u$ which is closest to
+$f$.

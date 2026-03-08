@@ -1,0 +1,775 @@
+[
+  {
+    "name": "case1_spanning_proof_546_p140",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "raw_response": "### Lemma 2: Union, Intersection, and Difference of Admissible Sets (Lemma)\nKeywords: admissible set, union, intersection, difference, finite number\n\\begin{lemma}{2} The union or intersection of a finite number of admissible sets is an admissible set; the difference of admissible sets is also an admissible set.\n\\end{lemma}\n\n### Remark 1: Infinite Collections of Admissible Sets (Remark)\nKeywords: infinite collection, admissible sets, Lemma 2, Lemma 1\n\\begin{remark}{1} For an infinite collection of admissible sets Lemma 2 is generally not true, and the same is the case with assertions b) and c) of Lemma 1.\n\\end{remark}\n\n### Remark 2: Boundary of an Admissible Set is Compact (Remark)\nKeywords: boundary, admissible set, compact, covering, intervals, volume\n\\begin{remark}{2} The boundary of an admissible set is not only closed, but also bounded in $\\mathbb{R}^n$, that is, it is a compact subset of $\\mathbb{R}^n$. Hence by Lemma 3 of Sect. 11.1, it can even be covered by a finite set of intervals whose total content (volume) is arbitrarily close to zero.\n\\end{remark}\n\n### Definition 2: Integral of a Function over a Set (Definition)\nKeywords: integral over a set, characteristic function, Riemann integrable, $\\mathcal{R}(E)$\n\\begin{definition}{2} The integral of $f$ over $E$ is given by\n$$\\int_E f(x)dx := \\int_I f \\chi_E(x)dx,$$\nwhere $I$ is any interval containing $E$.\n\\end{definition}",
+    "parsed_terms": [
+      {
+        "name": "Lemma 2: Union, Intersection, and Difference of Admissible Sets",
+        "type": "lemma",
+        "used_terms": [
+          "admissible set",
+          "union",
+          "intersection",
+          "difference",
+          "finite number"
+        ],
+        "latex_content": "\\begin{lemma}{2} The union or intersection of a finite number of admissible sets is an admissible set; the difference of admissible sets is also an admissible set.\n\\end{lemma}",
+        "page_start": 140
+      },
+      {
+        "name": "Remark 1: Infinite Collections of Admissible Sets",
+        "type": "remark",
+        "used_terms": [
+          "infinite collection",
+          "admissible sets",
+          "Lemma 2",
+          "Lemma 1"
+        ],
+        "latex_content": "\\begin{remark}{1} For an infinite collection of admissible sets Lemma 2 is generally not true, and the same is the case with assertions b) and c) of Lemma 1.\n\\end{remark}",
+        "page_start": 140
+      },
+      {
+        "name": "Remark 2: Boundary of an Admissible Set is Compact",
+        "type": "remark",
+        "used_terms": [
+          "boundary",
+          "admissible set",
+          "compact",
+          "covering",
+          "intervals",
+          "volume"
+        ],
+        "latex_content": "\\begin{remark}{2} The boundary of an admissible set is not only closed, but also bounded in $\\mathbb{R}^n$, that is, it is a compact subset of $\\mathbb{R}^n$. Hence by Lemma 3 of Sect. 11.1, it can even be covered by a finite set of intervals whose total content (volume) is arbitrarily close to zero.\n\\end{remark}",
+        "page_start": 140
+      },
+      {
+        "name": "Definition 2: Integral of a Function over a Set",
+        "type": "definition",
+        "used_terms": [
+          "integral over a set",
+          "characteristic function",
+          "Riemann integrable",
+          "$\\mathcal{R}(E)$"
+        ],
+        "latex_content": "\\begin{definition}{2} The integral of $f$ over $E$ is given by\n$$\\int_E f(x)dx := \\int_I f \\chi_E(x)dx,$$\nwhere $I$ is any interval containing $E$.\n\\end{definition}",
+        "page_start": 140
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 4
+  },
+  {
+    "name": "case1_spanning_proof_546_p165",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "raw_response": "### Change of Variable Under Mappings of Measurable Sets (Proposition)\nKeywords: change of variable, diffeomorphism, measurable set, integral transformation\n\\begin{proposition}\n1 Let $\\varphi : D_t \\to D_x$ be a diffeomorphism of a bounded open set $D_t \\subset\n\\mathbb{R}^m$ onto a set $D_x \\subset \\mathbb{R}^n$ of the same type; let $E_t$ and $E_x$ be subsets of $D_t$ and $D_x$\nrespectively and such that $E_t \\subset D_t$, $E_x \\subset D_x$, and $E_x = \\varphi(E_t)$. If $f \\in \\mathcal{R}(E_x)$, then\n$f \\circ \\varphi |\\det \\varphi'| \\in \\mathcal{R}(E_t)$, and the following equality holds:\n$$\n\\int_{E_x} f(x)dx = \\int_{E_t} (f \\circ \\varphi |\\det \\varphi'|) (t) dt.\n\\eqno (11.16)\n$$\n\\end{proposition}\n\\begin{proof}\nIndeed,\n\\[\n\\int_{D_x} f(x)\\,dx = \\int_{D_x} (f \\chi_{D_x})(x)\\,dx = \\int_{D_t} (((f \\chi_{D_x}) \\circ \\varphi) |\\det \\varphi'|) (t)\\,dt =\n\\]\n\\[\n= \\int_{D_t} ((f \\circ \\varphi)|\\det \\varphi'| \\chi_{E_x}) (t)\\,dt = \\int_{E_t} ((f \\circ \\varphi)|\\det \\varphi'|) (t)\\,dt.\n\\]\nIn this computation we have used the definition of the integral over a set, formula\n(11.10), and the fact that $\\chi_{E_t} = \\chi_{E_x} \\circ \\varphi$.\n\\end{proof}",
+    "parsed_terms": [
+      {
+        "name": "Change of Variable Under Mappings of Measurable Sets",
+        "type": "proposition",
+        "used_terms": [
+          "change of variable",
+          "diffeomorphism",
+          "measurable set",
+          "integral transformation"
+        ],
+        "latex_content": "\\begin{proposition}\n1 Let $\\varphi : D_t \\to D_x$ be a diffeomorphism of a bounded open set $D_t \\subset\n\\mathbb{R}^m$ onto a set $D_x \\subset \\mathbb{R}^n$ of the same type; let $E_t$ and $E_x$ be subsets of $D_t$ and $D_x$\nrespectively and such that $E_t \\subset D_t$, $E_x \\subset D_x$, and $E_x = \\varphi(E_t)$. If $f \\in \\mathcal{R}(E_x)$, then\n$f \\circ \\varphi |\\det \\varphi'| \\in \\mathcal{R}(E_t)$, and the following equality holds:\n$$\n\\int_{E_x} f(x)dx = \\int_{E_t} (f \\circ \\varphi |\\det \\varphi'|) (t) dt.\n\\eqno (11.16)\n$$\n\\end{proposition}\n\\begin{proof}\nIndeed,\n\\[\n\\int_{D_x} f(x)\\,dx = \\int_{D_x} (f \\chi_{D_x})(x)\\,dx = \\int_{D_t} (((f \\chi_{D_x}) \\circ \\varphi) |\\det \\varphi'|) (t)\\,dt =\n\\]\n\\[\n= \\int_{D_t} ((f \\circ \\varphi)|\\det \\varphi'| \\chi_{E_x}) (t)\\,dt = \\int_{E_t} ((f \\circ \\varphi)|\\det \\varphi'|) (t)\\,dt.\n\\]\nIn this computation we have used the definition of the integral over a set, formula\n(11.10), and the fact that $\\chi_{E_t} = \\chi_{E_x} \\circ \\varphi$.\n\\end{proof}",
+        "page_start": 165
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case1_spanning_proof_554_p418",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "raw_response": "### Cauchy Criterion for Convergence of an Improper Integral (Proposition)\nKeywords: improper integral, convergence, Cauchy criterion, limit\n\\begin{proposition} 2 \\text{ (Cauchy criterion for convergence of an improper integral) If the}\n\\text{function } x \\mapsto f(x) \\text{ is defined on the interval } [a, \\omega[ \\text{ and integrable on every closed}\n\\text{interval } [a, b] \\subset [a, \\omega[, \\text{ then the integral } \\int_{a}^{\\omega} f(x)dx \\text{ converges if and only if for}\n\\text{every } \\varepsilon > 0 \\text{ there exists } B \\in [a, \\omega[ \\text{ such that the relation}\n\\begin{equation*}\n\\left| \\int_{b_1}^{b_2} f(x)dx \\right| < \\varepsilon\n\\end{equation*}\n\\text{holds for any } b_1, b_2 \\in [a, \\omega[ \\text{ satisfying } B < b_1 \\text{ and } B < b_2.\n\\end{proposition}",
+    "parsed_terms": [
+      {
+        "name": "Cauchy Criterion for Convergence of an Improper Integral",
+        "type": "proposition",
+        "used_terms": [
+          "improper integral",
+          "convergence",
+          "Cauchy criterion",
+          "limit"
+        ],
+        "latex_content": "\\begin{proposition} 2 \\text{ (Cauchy criterion for convergence of an improper integral) If the}\n\\text{function } x \\mapsto f(x) \\text{ is defined on the interval } [a, \\omega[ \\text{ and integrable on every closed}\n\\text{interval } [a, b] \\subset [a, \\omega[, \\text{ then the integral } \\int_{a}^{\\omega} f(x)dx \\text{ converges if and only if for}\n\\text{every } \\varepsilon > 0 \\text{ there exists } B \\in [a, \\omega[ \\text{ such that the relation}\n\\begin{equation*}\n\\left| \\int_{b_1}^{b_2} f(x)dx \\right| < \\varepsilon\n\\end{equation*}\n\\text{holds for any } b_1, b_2 \\in [a, \\omega[ \\text{ satisfying } B < b_1 \\text{ and } B < b_2.\n\\end{proposition}",
+        "page_start": 418
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case1_spanning_proof_554_p431",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "raw_response": "### Ball (Definition)\nKeywords: ball, delta-neighborhood, open ball, metric space\n\\begin{definition} \\label{def:ball} For $\\delta > 0$ the set\n$$\nB(\\mathbf{a}; \\delta) = \\{\\mathbf{x} \\in \\mathbb{R}^m \\mid d(\\mathbf{a}, \\mathbf{x}) < \\delta\\}\n$$\nis called the \\emph{ball} with center $\\mathbf{a} \\in \\mathbb{R}^m$ of radius $\\delta$ or the $\\delta$-neighborhood of the point\n$\\mathbf{a} \\in \\mathbb{R}^m$.\n\\end{definition}\n\n### Open Set (Definition)\nKeywords: open set, neighborhood, topology\n\\begin{definition} \\label{def:open} A set $G \\subset \\mathbb{R}^m$ is \\emph{open} in $\\mathbb{R}^m$ if for every point $\\mathbf{x} \\in G$ there is a ball\n$B(\\mathbf{x}; \\delta)$ such that $B(\\mathbf{x}; \\delta) \\subset G$.\n\\end{definition}\n\n### Closed Set (Definition)\nKeywords: closed set, complement, open set\n\\begin{definition} \\label{def:closed} The set $F \\subset \\mathbb{R}^m$ is \\emph{closed} in $\\mathbb{R}^m$ if its complement $G = \\mathbb{R}^m \\setminus F$ is open\nin $\\mathbb{R}^m$.\n\\end{definition}\n\n### Properties of Open and Closed Sets (Proposition)\nKeywords: union, intersection, open sets, closed sets, finite intersection, arbitrary union\n\\begin{proposition} \\label{prop:open_closed_sets} a) The union $\\bigcup_{\\alpha \\in A} G_\\alpha$ of the sets of any system $\\{G_\\alpha, \\alpha \\in A\\}$ of open\nsets in $\\mathbb{R}^m$ is an open set in $\\mathbb{R}^m$.\nb) The intersection $\\bigcap_{i=1}^n G_i$ of a finite number of open sets in $\\mathbb{R}^m$ is an open set\nin $\\mathbb{R}^m$.\na') The intersection $\\bigcap_{\\alpha \\in A} F_\\alpha$ of the sets of any system $\\{F_\\alpha, \\alpha \\in A\\}$ of closed sets\n$F_\\alpha$ in $\\mathbb{R}^m$ is a closed set in $\\mathbb{R}^m$.\nb') The union $\\bigcup_{i=1}^n F_i$ of a finite number of closed sets in $\\mathbb{R}^m$ is a closed set\nin $\\mathbb{R}^m$.\n\\end{proposition}\n\\begin{proof} a) If $\\mathbf{x} \\in \\bigcup_{\\alpha \\in A} G_\\alpha$, then there exists $\\alpha_0 \\in A$ such that $\\mathbf{x} \\in G_{\\alpha_0}$, and conse-\nquently there is a $\\delta$-neighborhood $B(\\mathbf{x}; \\delta)$ of $\\mathbf{x}$ such that $B(\\mathbf{x}; \\delta) \\subset G_{\\alpha_0}$. But then\n$B(\\mathbf{x}; \\delta) \\subset \\bigcup_{\\alpha \\in A} G_\\alpha$.\nb) Let $\\mathbf{x} \\in \\bigcap_{i=1}^n G_i$. Then $\\mathbf{x} \\in G_i$ ($i = 1, \\ldots, n$). Let $\\delta_1, \\ldots, \\delta_n$ be positive num-\nbers such that $B(\\mathbf{x}; \\delta_i) \\subset G_i$ ($i = 1, \\ldots, n$). Setting $\\delta = \\min\\{\\delta_1, \\ldots, \\delta_n\\}$, we obvi-\nously find that $\\delta > 0$ and $B(\\mathbf{x}; \\delta) \\subset \\bigcap_{i=1}^n G_i$.\na') Let us show that the set $C\\left(\\bigcap_{\\alpha \\in A} F_\\alpha\\right)$ complementary to $\\bigcap_{\\alpha \\in A} F_\\alpha$ in $\\mathbb{R}^m$ is\nan open set in $\\mathbb{R}^m$.\nIndeed,\n$$\nC\\left(\\bigcap_{\\alpha \\in A} F_\\alpha\\right) = \\bigcup_{\\alpha \\in A} (C F_\\alpha) = \\bigcup_{\\alpha \\in A} G_\\alpha,\n$$\nwhere the sets $G_\\alpha = C F_\\alpha$ are open in $\\mathbb{R}^m$. Part a') now follows from a).\nb') Similarly, from b) we obtain\n$$\nC\\left(\\bigcup_{i=1}^n F_i\\right) = \\bigcap_{i=1}^n (C F_i) = \\bigcap_{i=1}^n G_i.\n$$\n\\end{proof}",
+    "parsed_terms": [
+      {
+        "name": "Ball",
+        "type": "definition",
+        "used_terms": [
+          "ball",
+          "delta-neighborhood",
+          "open ball",
+          "metric space"
+        ],
+        "latex_content": "\\begin{definition} \\label{def:ball} For $\\delta > 0$ the set\n$$\nB(\\mathbf{a}; \\delta) = \\{\\mathbf{x} \\in \\mathbb{R}^m \\mid d(\\mathbf{a}, \\mathbf{x}) < \\delta\\}\n$$\nis called the \\emph{ball} with center $\\mathbf{a} \\in \\mathbb{R}^m$ of radius $\\delta$ or the $\\delta$-neighborhood of the point\n$\\mathbf{a} \\in \\mathbb{R}^m$.\n\\end{definition}",
+        "page_start": 431
+      },
+      {
+        "name": "Open Set",
+        "type": "definition",
+        "used_terms": [
+          "open set",
+          "neighborhood",
+          "topology"
+        ],
+        "latex_content": "\\begin{definition} \\label{def:open} A set $G \\subset \\mathbb{R}^m$ is \\emph{open} in $\\mathbb{R}^m$ if for every point $\\mathbf{x} \\in G$ there is a ball\n$B(\\mathbf{x}; \\delta)$ such that $B(\\mathbf{x}; \\delta) \\subset G$.\n\\end{definition}",
+        "page_start": 431
+      },
+      {
+        "name": "Closed Set",
+        "type": "definition",
+        "used_terms": [
+          "closed set",
+          "complement",
+          "open set"
+        ],
+        "latex_content": "\\begin{definition} \\label{def:closed} The set $F \\subset \\mathbb{R}^m$ is \\emph{closed} in $\\mathbb{R}^m$ if its complement $G = \\mathbb{R}^m \\setminus F$ is open\nin $\\mathbb{R}^m$.\n\\end{definition}",
+        "page_start": 431
+      },
+      {
+        "name": "Properties of Open and Closed Sets",
+        "type": "proposition",
+        "used_terms": [
+          "union",
+          "intersection",
+          "open sets",
+          "closed sets",
+          "finite intersection",
+          "arbitrary union"
+        ],
+        "latex_content": "\\begin{proposition} \\label{prop:open_closed_sets} a) The union $\\bigcup_{\\alpha \\in A} G_\\alpha$ of the sets of any system $\\{G_\\alpha, \\alpha \\in A\\}$ of open\nsets in $\\mathbb{R}^m$ is an open set in $\\mathbb{R}^m$.\nb) The intersection $\\bigcap_{i=1}^n G_i$ of a finite number of open sets in $\\mathbb{R}^m$ is an open set\nin $\\mathbb{R}^m$.\na') The intersection $\\bigcap_{\\alpha \\in A} F_\\alpha$ of the sets of any system $\\{F_\\alpha, \\alpha \\in A\\}$ of closed sets\n$F_\\alpha$ in $\\mathbb{R}^m$ is a closed set in $\\mathbb{R}^m$.\nb') The union $\\bigcup_{i=1}^n F_i$ of a finite number of closed sets in $\\mathbb{R}^m$ is a closed set\nin $\\mathbb{R}^m$.\n\\end{proposition}\n\\begin{proof} a) If $\\mathbf{x} \\in \\bigcup_{\\alpha \\in A} G_\\alpha$, then there exists $\\alpha_0 \\in A$ such that $\\mathbf{x} \\in G_{\\alpha_0}$, and conse-\nquently there is a $\\delta$-neighborhood $B(\\mathbf{x}; \\delta)$ of $\\mathbf{x}$ such that $B(\\mathbf{x}; \\delta) \\subset G_{\\alpha_0}$. But then\n$B(\\mathbf{x}; \\delta) \\subset \\bigcup_{\\alpha \\in A} G_\\alpha$.\nb) Let $\\mathbf{x} \\in \\bigcap_{i=1}^n G_i$. Then $\\mathbf{x} \\in G_i$ ($i = 1, \\ldots, n$). Let $\\delta_1, \\ldots, \\delta_n$ be positive num-\nbers such that $B(\\mathbf{x}; \\delta_i) \\subset G_i$ ($i = 1, \\ldots, n$). Setting $\\delta = \\min\\{\\delta_1, \\ldots, \\delta_n\\}$, we obvi-\nously find that $\\delta > 0$ and $B(\\mathbf{x}; \\delta) \\subset \\bigcap_{i=1}^n G_i$.\na') Let us show that the set $C\\left(\\bigcap_{\\alpha \\in A} F_\\alpha\\right)$ complementary to $\\bigcap_{\\alpha \\in A} F_\\alpha$ in $\\mathbb{R}^m$ is\nan open set in $\\mathbb{R}^m$.\nIndeed,\n$$\nC\\left(\\bigcap_{\\alpha \\in A} F_\\alpha\\right) = \\bigcup_{\\alpha \\in A} (C F_\\alpha) = \\bigcup_{\\alpha \\in A} G_\\alpha,\n$$\nwhere the sets $G_\\alpha = C F_\\alpha$ are open in $\\mathbb{R}^m$. Part a') now follows from a).\nb') Similarly, from b) we obtain\n$$\nC\\left(\\bigcup_{i=1}^n F_i\\right) = \\bigcap_{i=1}^n (C F_i) = \\bigcap_{i=1}^n G_i.\n$$\n\\end{proof}",
+        "page_start": 431
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 4
+  },
+  {
+    "name": "case2_embedded_def_287_p16",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "raw_response": "### Inner product / scalar product (Definition)\nKeywords: inner product, scalar product, skew linear form, norm, Hilbert space\nSuppose $\\mathcal{H}$ is a vector space. A map $\\langle \\cdot, \\cdot \\rangle: \\mathcal{H} \\times \\mathcal{H} \\to \\mathbb{C}$ is called skew\nlinear form if it is conjugate linear in the first and linear in the second\nargument, that is,\n\\begin{align*}\n\\langle \\lambda_1 f_1 + \\lambda_2 f_2, g \\rangle &= \\lambda_1^* \\langle f_1, g \\rangle + \\lambda_2^* \\langle f_2, g \\rangle \\\\\n\\langle f, \\lambda_1 g_1 + \\lambda_2 g_2 \\rangle &= \\lambda_1 \\langle f, g_1 \\rangle + \\lambda_2 \\langle f, g_2 \\rangle, \\quad \\lambda_1, \\lambda_2 \\in \\mathbb{C},\n\\end{align*}\n(1.17)\nwhere $*$ denotes complex conjugation. A skew linear form satisfying the\nrequirements\n\\begin{enumerate}\n    \\item $\\langle f, f \\rangle > 0$ for $f \\neq 0$.\n    \\item $\\langle f, g \\rangle = \\langle g, f \\rangle^*$\n\\end{enumerate}\nis called inner product or scalar product. Associated with every scalar\nproduct is a norm\n\\[\n\\|f\\| = \\sqrt{\\langle f, f \\rangle}.\n\\tag{1.18}\n\\]\nThe pair $(\\mathcal{H}, \\langle \\cdot, \\cdot \\rangle)$ is called inner product space. If $\\mathcal{H}$ is complete it is\ncalled a Hilbert space.\n\n---\n\n### Example: $\\mathbb{C}^n$ as a Hilbert space (Example)\nKeywords: $\\mathbb{C}^n$, finite dimensional Hilbert space, scalar product\nClearly $\\mathbb{C}^n$ with the usual scalar product\n\\[\n(a,b) = \\sum_{j=1}^n a_j \\bar{b}_j\n\\tag{1.19}\n\\]\nis a (finite dimensional) Hilbert space. $\\diamondsuit$\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Inner product / scalar product",
+        "type": "definition",
+        "used_terms": [
+          "inner product",
+          "scalar product",
+          "skew linear form",
+          "norm",
+          "Hilbert space"
+        ],
+        "latex_content": "Suppose $\\mathcal{H}$ is a vector space. A map $\\langle \\cdot, \\cdot \\rangle: \\mathcal{H} \\times \\mathcal{H} \\to \\mathbb{C}$ is called skew\nlinear form if it is conjugate linear in the first and linear in the second\nargument, that is,\n\\begin{align*}\n\\langle \\lambda_1 f_1 + \\lambda_2 f_2, g \\rangle &= \\lambda_1^* \\langle f_1, g \\rangle + \\lambda_2^* \\langle f_2, g \\rangle \\\\\n\\langle f, \\lambda_1 g_1 + \\lambda_2 g_2 \\rangle &= \\lambda_1 \\langle f, g_1 \\rangle + \\lambda_2 \\langle f, g_2 \\rangle, \\quad \\lambda_1, \\lambda_2 \\in \\mathbb{C},\n\\end{align*}\n(1.17)\nwhere $*$ denotes complex conjugation. A skew linear form satisfying the\nrequirements\n\\begin{enumerate}\n    \\item $\\langle f, f \\rangle > 0$ for $f \\neq 0$.\n    \\item $\\langle f, g \\rangle = \\langle g, f \\rangle^*$\n\\end{enumerate}\nis called inner product or scalar product. Associated with every scalar\nproduct is a norm\n\\[\n\\|f\\| = \\sqrt{\\langle f, f \\rangle}.\n\\tag{1.18}\n\\]\nThe pair $(\\mathcal{H}, \\langle \\cdot, \\cdot \\rangle)$ is called inner product space. If $\\mathcal{H}$ is complete it is\ncalled a Hilbert space.\n\n---",
+        "page_start": 16
+      },
+      {
+        "name": "Example: $\\mathbb{C}^n$ as a Hilbert space",
+        "type": "example",
+        "used_terms": [
+          "$\\mathbb{C}^n$",
+          "finite dimensional Hilbert space",
+          "scalar product"
+        ],
+        "latex_content": "Clearly $\\mathbb{C}^n$ with the usual scalar product\n\\[\n(a,b) = \\sum_{j=1}^n a_j \\bar{b}_j\n\\tag{1.19}\n\\]\nis a (finite dimensional) Hilbert space. $\\diamondsuit$\n\n---",
+        "page_start": 16
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 2
+  },
+  {
+    "name": "case2_embedded_def_287_p18",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "raw_response": "### Cauchy-Schwarz-Bunjakowski Inequality (Theorem)\nKeywords: Cauchy-Schwarz, inner product, inequality, norm\n\\noindent\\textbf{Theorem 1.5 (Cauchy-Schwarz-Bunjakowski).} Let $\\mathcal{H}_0$ be an inner product\nspace, then for every $f, g \\in \\mathcal{H}_0$ we have\n\\[\n|\\langle f,g \\rangle| \\leq \\|f\\|\\|g\\|\n\\tag{1.26}\n\\]\nwith equality if and only if $f$ and $g$ are parallel.\n\n\\noindent\\textbf{Proof.} It suffices to prove the case $\\|g\\| = 1$. But then the claim follows\nfrom $\\|f\\|^2 = |\\langle g, f \\rangle|^2 + \\|f_{\\perp}\\|^2$.\n\n---\n\n### Jordan-von Neumann Theorem (Theorem)\nKeywords: parallelogram law, polarization identity, norm, inner product\n\\noindent\\textbf{Theorem 1.6 (Jordan-von Neumann).} A norm is associated with a scalar\nproduct if and only if the \\textbf{parallelogram law}\n\\[\n\\|f + g\\|^2 + \\|f - g\\|^2 = 2\\|f\\|^2 + 2\\|g\\|^2\n\\tag{1.28}\n\\]\nholds.\n\nIn this case the scalar product can be recovered from its norm by virtue\nof the \\textbf{polarization identity}\n\\[\n\\langle f,g \\rangle = \\frac{1}{4} \\left( \\|f + g\\|^2 - \\|f \u2013 g\\|^2 + i\\|f + ig\\|^2 \u2013 i\\|f + ig\\|^2 \\right).\n\\tag{1.29}\n\\]\n\n\\noindent\\textbf{Proof.} If an inner product space is given, verification of the parallelogram\nlaw and the polarization identity is straight forward (Problem 1.6).\nTo show the converse, we define\n\\[\ns(f,g) = \\frac{1}{4} \\left( \\|f + g\\|^2 - \\|f \u2013 g\\|^2 + i\\|f + ig\\|^2 \u2013 i\\| f + ig\\|^2 \\right).\n\\tag{1.30}\n\\]\nThen $s(f, f) = \\|f\\|^2$ and $s(f,g) = s(g, f)^*$ are straightforward to check.\nMoreover, another straightforward computation using the parallelogram law\nshows\n\\[\ns(f,g) + s(f,h) = 2s\\left(f, \\frac{g+h}{2}\\right).\n\\tag{1.31}\n\\]\nNow choosing $h=0$ (and using $s(f,0) = 0$) shows $s(f,g) = 2s(f,\\frac{g}{2})$ and\nthus $s(f,g) + s(f,h) = s(f,g+h)$. Furthermore, by induction we infer\n$\\lambda s(f,g) = s(f, \\lambda g)$ for every positive rational $\\lambda$.\nBy continuity (check this!) this holds for all $\\lambda > 0$ and $s(f,-g) = -s(f,g)$\nrespectively $s(f, ig) = is(f,g)$ finishes the proof. $\\square$\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Cauchy-Schwarz-Bunjakowski Inequality",
+        "type": "theorem",
+        "used_terms": [
+          "Cauchy-Schwarz",
+          "inner product",
+          "inequality",
+          "norm"
+        ],
+        "latex_content": "\\noindent\\textbf{Theorem 1.5 (Cauchy-Schwarz-Bunjakowski).} Let $\\mathcal{H}_0$ be an inner product\nspace, then for every $f, g \\in \\mathcal{H}_0$ we have\n\\[\n|\\langle f,g \\rangle| \\leq \\|f\\|\\|g\\|\n\\tag{1.26}\n\\]\nwith equality if and only if $f$ and $g$ are parallel.\n\n\\noindent\\textbf{Proof.} It suffices to prove the case $\\|g\\| = 1$. But then the claim follows\nfrom $\\|f\\|^2 = |\\langle g, f \\rangle|^2 + \\|f_{\\perp}\\|^2$.\n\n---",
+        "page_start": 18
+      },
+      {
+        "name": "Jordan-von Neumann Theorem",
+        "type": "theorem",
+        "used_terms": [
+          "parallelogram law",
+          "polarization identity",
+          "norm",
+          "inner product"
+        ],
+        "latex_content": "\\noindent\\textbf{Theorem 1.6 (Jordan-von Neumann).} A norm is associated with a scalar\nproduct if and only if the \\textbf{parallelogram law}\n\\[\n\\|f + g\\|^2 + \\|f - g\\|^2 = 2\\|f\\|^2 + 2\\|g\\|^2\n\\tag{1.28}\n\\]\nholds.\n\nIn this case the scalar product can be recovered from its norm by virtue\nof the \\textbf{polarization identity}\n\\[\n\\langle f,g \\rangle = \\frac{1}{4} \\left( \\|f + g\\|^2 - \\|f \u2013 g\\|^2 + i\\|f + ig\\|^2 \u2013 i\\|f + ig\\|^2 \\right).\n\\tag{1.29}\n\\]\n\n\\noindent\\textbf{Proof.} If an inner product space is given, verification of the parallelogram\nlaw and the polarization identity is straight forward (Problem 1.6).\nTo show the converse, we define\n\\[\ns(f,g) = \\frac{1}{4} \\left( \\|f + g\\|^2 - \\|f \u2013 g\\|^2 + i\\|f + ig\\|^2 \u2013 i\\| f + ig\\|^2 \\right).\n\\tag{1.30}\n\\]\nThen $s(f, f) = \\|f\\|^2$ and $s(f,g) = s(g, f)^*$ are straightforward to check.\nMoreover, another straightforward computation using the parallelogram law\nshows\n\\[\ns(f,g) + s(f,h) = 2s\\left(f, \\frac{g+h}{2}\\right).\n\\tag{1.31}\n\\]\nNow choosing $h=0$ (and using $s(f,0) = 0$) shows $s(f,g) = 2s(f,\\frac{g}{2})$ and\nthus $s(f,g) + s(f,h) = s(f,g+h)$. Furthermore, by induction we infer\n$\\lambda s(f,g) = s(f, \\lambda g)$ for every positive rational $\\lambda$.\nBy continuity (check this!) this holds for all $\\lambda > 0$ and $s(f,-g) = -s(f,g)$\nrespectively $s(f, ig) = is(f,g)$ finishes the proof. $\\square$\n\n---",
+        "page_start": 18
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 2
+  },
+  {
+    "name": "case2_embedded_def_287_p19",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "raw_response": "### Lemma 1.7: Cauchy Sequences under Stronger Norms (Lemma)\nKeywords: stronger norm, Cauchy sequence, continuity, density\n\\noindent\\textbf{Lemma 1.7.} If $\\|\\cdot\\|_2$ is stronger than $\\|\\cdot\\|_1$, then any $\\|\\cdot\\|_2$ Cauchy sequence\nis also a $\\|\\cdot\\|_1$ Cauchy sequence.\n\nHence if a function $F: \\mathcal{X} \\to \\mathcal{Y}$ is continuous in $(\\mathcal{X}, \\|\\cdot\\|_1)$ it is also\ncontinuos in $(\\mathcal{X}, \\|\\cdot\\|_2)$ and if a set is dense in $(\\mathcal{X}, \\|\\cdot\\|_2)$ it is also dense in\n$(\\mathcal{X}, \\|\\cdot\\|_1)$.\n\n### Example: Incomplete L^2 Sequence (Example)\nKeywords: Cauchy sequence, L^2, incomplete, step function\n\\noindent\\textbf{Example.} Take $I = [0, 2]$ and define\n\\[\nf_n(x) = \\begin{cases}\n0, & 0<x<1-\\frac{1}{n} \\\\\n1 + n(x-1), & 1-\\frac{1}{n}\\leq x \\leq 1 \\\\\n1, & 1 < x \\leq 2\n\\end{cases}\n\\tag{1.35}\n\\]\nthen $f_n(x)$ is a Cauchy sequence in $L^2$, but there is no limit in $L^2$! Clearly\nthe limit should be the step function which is $0$ for $0 < x < 1$ and $1$ for\n$1 \\leq x \\leq 2$, but this step function is discontinuous (Problem 1.8)! $\\diamondsuit$\n\nThis shows that in infinite dimensional spaces different norms will give\nraise to different convergent sequences! In fact, the key to solving prob-\nlems in infinite dimensional spaces is often finding the right norm! This is\nsomething which cannot happen in the finite dimensional case.",
+    "parsed_terms": [
+      {
+        "name": "Lemma 1.7: Cauchy Sequences under Stronger Norms",
+        "type": "lemma",
+        "used_terms": [
+          "stronger norm",
+          "Cauchy sequence",
+          "continuity",
+          "density"
+        ],
+        "latex_content": "\\noindent\\textbf{Lemma 1.7.} If $\\|\\cdot\\|_2$ is stronger than $\\|\\cdot\\|_1$, then any $\\|\\cdot\\|_2$ Cauchy sequence\nis also a $\\|\\cdot\\|_1$ Cauchy sequence.\n\nHence if a function $F: \\mathcal{X} \\to \\mathcal{Y}$ is continuous in $(\\mathcal{X}, \\|\\cdot\\|_1)$ it is also\ncontinuos in $(\\mathcal{X}, \\|\\cdot\\|_2)$ and if a set is dense in $(\\mathcal{X}, \\|\\cdot\\|_2)$ it is also dense in\n$(\\mathcal{X}, \\|\\cdot\\|_1)$.",
+        "page_start": 19
+      },
+      {
+        "name": "Example: Incomplete L^2 Sequence",
+        "type": "example",
+        "used_terms": [
+          "Cauchy sequence",
+          "L^2",
+          "incomplete",
+          "step function"
+        ],
+        "latex_content": "\\noindent\\textbf{Example.} Take $I = [0, 2]$ and define\n\\[\nf_n(x) = \\begin{cases}\n0, & 0<x<1-\\frac{1}{n} \\\\\n1 + n(x-1), & 1-\\frac{1}{n}\\leq x \\leq 1 \\\\\n1, & 1 < x \\leq 2\n\\end{cases}\n\\tag{1.35}\n\\]\nthen $f_n(x)$ is a Cauchy sequence in $L^2$, but there is no limit in $L^2$! Clearly\nthe limit should be the step function which is $0$ for $0 < x < 1$ and $1$ for\n$1 \\leq x \\leq 2$, but this step function is discontinuous (Problem 1.8)! $\\diamondsuit$\n\nThis shows that in infinite dimensional spaces different norms will give\nraise to different convergent sequences! In fact, the key to solving prob-\nlems in infinite dimensional spaces is often finding the right norm! This is\nsomething which cannot happen in the finite dimensional case.",
+        "page_start": 19
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 2
+  },
+  {
+    "name": "case2_embedded_def_546_p33",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "raw_response": "### Subspace of a Topological Space (Definition)\nKeywords: subspace, induced topology, relative topology, open sets\n\\textbf{Definition 9} A subset $Y \\subset X$ of a topological space $(X, \\tau)$ with the topology $\\tau_Y$\ninduced on $Y$ is called a subspace of the topological space $X$.\nIt is clear that a set that is open in $(Y, \\tau_Y)$ is not necessarily open in $(X, \\tau_X)$.\n\n---\n\n### Direct Product of Topological Spaces (Definition)\nKeywords: direct product, product topology, base, open sets\n\\textbf{Definition 10} The topological space $(X_1 \\times X_2, \\tau_1 \\times \\tau_2)$ whose topology has the\nbase consisting of sets of the form $G_1 \\times G_2$, where $G_i$ is an open set in the topo-\nlogical space $(X_i, \\tau_i)$, $i = 1, 2$, is called the direct product of the topological spaces\n$(X_1, \\tau_1)$ and $(X_2, \\tau_2)$.\n\n---\n\n### Example: R\u00b2 as the Direct Product R\u00b9 \u00d7 R\u00b9 (Example)\nKeywords: standard topology, product of open intervals, base\n\\textbf{Example 9} If $\\R = \\R^1$ and $\\R^2$ are considered with their standard topologies, then,\nas one can see, $\\R^2$ is the direct product $\\R^1 \\times \\R^1$. For every open set in $\\R^2$ can be\nobtained, for example, as the union of \"square\" neighborhoods of all its points. And squares (with sides parallel to the axes) are the products of open intervals, which are\nopen sets in R.\nIt should be noted that the sets $G_1 \\times G_2$, where $G_1 \\in \\tau_1$ and $G_2 \\in \\tau_2$, constitute\nonly a base for the topology, not all the open sets in the direct product of topological\nspaces.",
+    "parsed_terms": [
+      {
+        "name": "Subspace of a Topological Space",
+        "type": "definition",
+        "used_terms": [
+          "subspace",
+          "induced topology",
+          "relative topology",
+          "open sets"
+        ],
+        "latex_content": "\\textbf{Definition 9} A subset $Y \\subset X$ of a topological space $(X, \\tau)$ with the topology $\\tau_Y$\ninduced on $Y$ is called a subspace of the topological space $X$.\nIt is clear that a set that is open in $(Y, \\tau_Y)$ is not necessarily open in $(X, \\tau_X)$.\n\n---",
+        "page_start": 33
+      },
+      {
+        "name": "Direct Product of Topological Spaces",
+        "type": "definition",
+        "used_terms": [
+          "direct product",
+          "product topology",
+          "base",
+          "open sets"
+        ],
+        "latex_content": "\\textbf{Definition 10} The topological space $(X_1 \\times X_2, \\tau_1 \\times \\tau_2)$ whose topology has the\nbase consisting of sets of the form $G_1 \\times G_2$, where $G_i$ is an open set in the topo-\nlogical space $(X_i, \\tau_i)$, $i = 1, 2$, is called the direct product of the topological spaces\n$(X_1, \\tau_1)$ and $(X_2, \\tau_2)$.\n\n---",
+        "page_start": 33
+      },
+      {
+        "name": "Example: R\u00b2 as the Direct Product R\u00b9 \u00d7 R\u00b9",
+        "type": "example",
+        "used_terms": [
+          "standard topology",
+          "product of open intervals",
+          "base"
+        ],
+        "latex_content": "\\textbf{Example 9} If $\\R = \\R^1$ and $\\R^2$ are considered with their standard topologies, then,\nas one can see, $\\R^2$ is the direct product $\\R^1 \\times \\R^1$. For every open set in $\\R^2$ can be\nobtained, for example, as the union of \"square\" neighborhoods of all its points. And squares (with sides parallel to the axes) are the products of open intervals, which are\nopen sets in R.\nIt should be noted that the sets $G_1 \\times G_2$, where $G_1 \\in \\tau_1$ and $G_2 \\in \\tau_2$, constitute\nonly a base for the topology, not all the open sets in the direct product of topological\nspaces.",
+        "page_start": 33
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 3
+  },
+  {
+    "name": "case2_embedded_def_546_p183",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "raw_response": "### Atlas of a Surface (Definition)\nKeywords: atlas, surface, local charts, cover, domains of action\n[LaTeX Body]\n\\textbf{Definition 3} A set $\\mathcal{A}(S) := \\{\\varphi_i: I^k \\to U_i, i \\in \\mathbb{N}\\}$ of local charts of a surface $S$\nwhose domains of action together cover the entire surface (that is, $S = \\bigcup_i U_i$) is\ncalled an \\textit{atlas} of the surface $S$.\n\n---\n\n### Proposition: Local Extension of a Rank-k Parametrization to a Diffeomorphism (Proposition)\nKeywords: diffeomorphism, maximal rank, local parametrization, extension, cube\n[LaTeX Body]\nProposition If the mapping (12.1) belongs to class $C^{(1)}(I^k, \\mathbb{R}^n)$ and has maximal\nrank at each point of the cube $I^k$, there exists a number $\\varepsilon > 0$ and a diffeomorphism\n$\\varphi_{\\varepsilon}: I^n \\rightarrow \\mathbb{R}^n$ of the cube $I^n := \\{t \\in \\mathbb{R}^n \\mid |t^i| \\leq \\varepsilon_i, i=1, \\ldots, n\\}$ of dimension $n$\nin $\\mathbb{R}^n$ such that $\\varphi|_{\\mathbb{R}^k \\cap I^n} = \\varphi_{\\varepsilon}|_{\\mathbb{R}^k \\cap I^n}$.\n\nIn other words, it is asserted that under these hypotheses the mappings (12.1) are\nlocally the restrictions of diffeomorphisms of the full-dimensional cubes $I^n$ to the\n$k$-dimensional cubes $I^k = I^k \\cap I^n$.\n\nProof Suppose for definiteness that the first $k$ of the $n$ coordinate functions $x^k =\n\\varphi^i (t^1, \\ldots, t^k)$, $i=1, \\ldots, n$, of the mapping $x = \\varphi(t)$ are such that $\\det \\left( \\frac{\\partial \\varphi^i}{\\partial t^j} (0) \\right) \neq 0$,\n$i, j = 1, \\ldots, k$. Then by the implicit function theorem the relations\n$$\n\\begin{array}{l}\nx^1 = \\varphi^1 (t^1, \\ldots, t^k), \\\\\n\\vdots \\\\\nx^k = \\varphi^k (t^1, \\ldots, t^k), \\\\\nx^{k+1} = \\varphi^{k+1} (t^1, \\ldots, t^k), \\\\\n\\vdots \\\\\nx^n = \\varphi^n (t^1, \\ldots, t^k)\n\\end{array}\n$$\nnear the point $(t_0, x_0) = (0, \\varphi(0))$ are equivalent to relations\n$$\n\\begin{array}{l}\nt^1 = f^1(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nt^k = f^k(x^1,\\ldots,x^k), \\\\\nx^{k+1} = f^{k+1}(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nx^n = f^n(x^1,\\ldots,x^k).\n\\end{array}\n$$\nIn this case the mapping\n$$\n\\begin{array}{l}\nt^1 = f^1(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nt^k = f^k(x^1,\\ldots,x^k), \\\\\nt^{k+1} = x^{k+1} - f^{k+1}(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nt^n = x^n - f^n(x^1,\\ldots,x^k)\n\\end{array}\n$$\nis a diffeomorphism of a full-dimensional neighborhood of the point $x_0 \\in \\mathbb{R}^n$. As $\\varphi_{\\varepsilon}$\nwe can now take the restriction to some cube $I^n$ of the diffeomorphism inverse to\nit.\nBy a change of scale, of course, one can arrange to have $\\varepsilon = 1$ and a unit cube\n$I^n$ in the last diffeomorphism.\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Atlas of a Surface",
+        "type": "definition",
+        "used_terms": [
+          "atlas",
+          "surface",
+          "local charts",
+          "cover",
+          "domains of action"
+        ],
+        "latex_content": "[LaTeX Body]\n\\textbf{Definition 3} A set $\\mathcal{A}(S) := \\{\\varphi_i: I^k \\to U_i, i \\in \\mathbb{N}\\}$ of local charts of a surface $S$\nwhose domains of action together cover the entire surface (that is, $S = \\bigcup_i U_i$) is\ncalled an \\textit{atlas} of the surface $S$.\n\n---",
+        "page_start": 183
+      },
+      {
+        "name": "Proposition: Local Extension of a Rank-k Parametrization to a Diffeomorphism",
+        "type": "proposition",
+        "used_terms": [
+          "diffeomorphism",
+          "maximal rank",
+          "local parametrization",
+          "extension",
+          "cube"
+        ],
+        "latex_content": "[LaTeX Body]\nProposition If the mapping (12.1) belongs to class $C^{(1)}(I^k, \\mathbb{R}^n)$ and has maximal\nrank at each point of the cube $I^k$, there exists a number $\\varepsilon > 0$ and a diffeomorphism\n$\\varphi_{\\varepsilon}: I^n \\rightarrow \\mathbb{R}^n$ of the cube $I^n := \\{t \\in \\mathbb{R}^n \\mid |t^i| \\leq \\varepsilon_i, i=1, \\ldots, n\\}$ of dimension $n$\nin $\\mathbb{R}^n$ such that $\\varphi|_{\\mathbb{R}^k \\cap I^n} = \\varphi_{\\varepsilon}|_{\\mathbb{R}^k \\cap I^n}$.\n\nIn other words, it is asserted that under these hypotheses the mappings (12.1) are\nlocally the restrictions of diffeomorphisms of the full-dimensional cubes $I^n$ to the\n$k$-dimensional cubes $I^k = I^k \\cap I^n$.\n\nProof Suppose for definiteness that the first $k$ of the $n$ coordinate functions $x^k =\n\\varphi^i (t^1, \\ldots, t^k)$, $i=1, \\ldots, n$, of the mapping $x = \\varphi(t)$ are such that $\\det \\left( \\frac{\\partial \\varphi^i}{\\partial t^j} (0) \\right) \neq 0$,\n$i, j = 1, \\ldots, k$. Then by the implicit function theorem the relations\n$$\n\\begin{array}{l}\nx^1 = \\varphi^1 (t^1, \\ldots, t^k), \\\\\n\\vdots \\\\\nx^k = \\varphi^k (t^1, \\ldots, t^k), \\\\\nx^{k+1} = \\varphi^{k+1} (t^1, \\ldots, t^k), \\\\\n\\vdots \\\\\nx^n = \\varphi^n (t^1, \\ldots, t^k)\n\\end{array}\n$$\nnear the point $(t_0, x_0) = (0, \\varphi(0))$ are equivalent to relations\n$$\n\\begin{array}{l}\nt^1 = f^1(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nt^k = f^k(x^1,\\ldots,x^k), \\\\\nx^{k+1} = f^{k+1}(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nx^n = f^n(x^1,\\ldots,x^k).\n\\end{array}\n$$\nIn this case the mapping\n$$\n\\begin{array}{l}\nt^1 = f^1(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nt^k = f^k(x^1,\\ldots,x^k), \\\\\nt^{k+1} = x^{k+1} - f^{k+1}(x^1,\\ldots,x^k), \\\\\n\\vdots \\\\\nt^n = x^n - f^n(x^1,\\ldots,x^k)\n\\end{array}\n$$\nis a diffeomorphism of a full-dimensional neighborhood of the point $x_0 \\in \\mathbb{R}^n$. As $\\varphi_{\\varepsilon}$\nwe can now take the restriction to some cube $I^n$ of the diffeomorphism inverse to\nit.\nBy a change of scale, of course, one can arrange to have $\\varepsilon = 1$ and a unit cube\n$I^n$ in the last diffeomorphism.\n\n---",
+        "page_start": 183
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 2
+  },
+  {
+    "name": "case3_dense_page_287_p32",
+    "description": "Multiple theorems and proofs packed into a single page.",
+    "raw_response": "### Theorem 2.13: Compactness of Extension ([Theorem])\nKeywords: normed space, completion, compact operator, extension\n\\begin{theorem}{2.13.}\nLet $X$ be a normed space and $A \\in \\mathcal{C}(X)$. Let $\\overline{X}$ be its\ncompletion, then $\\overline{A} \\in \\mathcal{C}(\\overline{X})$, where $\\overline{A}$ is the unique extension of $A$.\n\\end{theorem}\n\\begin{proof}\nLet $f_n \\in X$ be a given bounded sequence. We need to show that\n$A f_n$ has a convergent subsequence. Pick $\\tilde{f}_n \\in X$ such that $\\|\\tilde{f}_n - f_n\\| \\leq \\frac{1}{n}$ and\nby compactness of $A$ we can assume that $A\\tilde{f}_n \\to g$. But then $\\|A f_n - g\\| \\leq$\n$\\|A\\|\\|\\tilde{f}_n - f_n\\| + \\|A\\tilde{f}_n - g\\|$ shows that $A f_n \\to g$.\n\\end{proof}\n\n### Lemma 2.14: Compactness of Integral Operator ([Lemma])\nKeywords: integral operator, compact operator, continuous kernel, L^2, Arzel\u00e0-Ascoli\n\\begin{lemma}{2.14.}\nThe integral operator\n$$(Kf)(x) = \\int_a^b K(x,y)f(y)dy,$$\n(2.38)\nwhere $K(x, y) \\in \\mathcal{C}([a, b] \\times [a, b])$, defined on $L^2(a,b)$ is compact.\n\\end{lemma}\n\\begin{proof}\nFirst of all note that $K(\\cdot, \\cdot)$ is continuous on $[a, b] \\times [a, b]$ and hence\nuniformly continuous. In particular, for every $\\varepsilon > 0$ we can find a $\\delta > 0$\nsuch that $|K(y,t) \u2013 K(x,t)| \\leq \\varepsilon$ whenever $|y - x| < \\delta$. Let $g(x) = K f(x)$,\nthen\n$$|g(x) - g(y)| \\leq \\int_a^b |K(y,t) \u2013 K(x,t)||f(t)|dt$$\n$$\\leq \\varepsilon \\int_a^b |f(t)|dt \\leq \\varepsilon \\|1\\| \\|f\\|,$$,\n(2.39)\nwhenever $|y - x| < \\delta$. Hence, if $f_n(x)$ is a bounded sequence in $L^2(a,b)$,\nthen $g_n(x) = K f_n(x)$ is equicontinuous and has a uniformly convergent\nsubsequence by the Arzel\u00e0-Ascoli theorem (Theorem 2.15 below). But a\nuniformly convergent sequence is also convergent in the norm induced by\nthe scalar product. Therefore $K$ is compact.\n\\end{proof}\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Theorem 2.13: Compactness of Extension",
+        "type": "[theorem]",
+        "used_terms": [
+          "normed space",
+          "completion",
+          "compact operator",
+          "extension"
+        ],
+        "latex_content": "\\begin{theorem}{2.13.}\nLet $X$ be a normed space and $A \\in \\mathcal{C}(X)$. Let $\\overline{X}$ be its\ncompletion, then $\\overline{A} \\in \\mathcal{C}(\\overline{X})$, where $\\overline{A}$ is the unique extension of $A$.\n\\end{theorem}\n\\begin{proof}\nLet $f_n \\in X$ be a given bounded sequence. We need to show that\n$A f_n$ has a convergent subsequence. Pick $\\tilde{f}_n \\in X$ such that $\\|\\tilde{f}_n - f_n\\| \\leq \\frac{1}{n}$ and\nby compactness of $A$ we can assume that $A\\tilde{f}_n \\to g$. But then $\\|A f_n - g\\| \\leq$\n$\\|A\\|\\|\\tilde{f}_n - f_n\\| + \\|A\\tilde{f}_n - g\\|$ shows that $A f_n \\to g$.\n\\end{proof}",
+        "page_start": 32
+      },
+      {
+        "name": "Lemma 2.14: Compactness of Integral Operator",
+        "type": "[lemma]",
+        "used_terms": [
+          "integral operator",
+          "compact operator",
+          "continuous kernel",
+          "L^2",
+          "Arzel\u00e0-Ascoli"
+        ],
+        "latex_content": "\\begin{lemma}{2.14.}\nThe integral operator\n$$(Kf)(x) = \\int_a^b K(x,y)f(y)dy,$$\n(2.38)\nwhere $K(x, y) \\in \\mathcal{C}([a, b] \\times [a, b])$, defined on $L^2(a,b)$ is compact.\n\\end{lemma}\n\\begin{proof}\nFirst of all note that $K(\\cdot, \\cdot)$ is continuous on $[a, b] \\times [a, b]$ and hence\nuniformly continuous. In particular, for every $\\varepsilon > 0$ we can find a $\\delta > 0$\nsuch that $|K(y,t) \u2013 K(x,t)| \\leq \\varepsilon$ whenever $|y - x| < \\delta$. Let $g(x) = K f(x)$,\nthen\n$$|g(x) - g(y)| \\leq \\int_a^b |K(y,t) \u2013 K(x,t)||f(t)|dt$$\n$$\\leq \\varepsilon \\int_a^b |f(t)|dt \\leq \\varepsilon \\|1\\| \\|f\\|,$$,\n(2.39)\nwhenever $|y - x| < \\delta$. Hence, if $f_n(x)$ is a bounded sequence in $L^2(a,b)$,\nthen $g_n(x) = K f_n(x)$ is equicontinuous and has a uniformly convergent\nsubsequence by the Arzel\u00e0-Ascoli theorem (Theorem 2.15 below). But a\nuniformly convergent sequence is also convergent in the norm induced by\nthe scalar product. Therefore $K$ is compact.\n\\end{proof}\n\n---",
+        "page_start": 32
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 2
+  },
+  {
+    "name": "case3_dense_page_546_p141",
+    "description": "Multiple theorems and proofs packed into a single page.",
+    "raw_response": "### Lemma 3: Independence of Interval for Integral over a Set (Lemma)\nKeywords: integral over a set, characteristic function, interval, Lebesgue's criterion, Riemann sums\n\\begin{lemma}{3} If $I_1$ and $I_2$ are two intervals, both containing the set $E$, then the integrals\n$$\\int_{I_1} f \\chi_E(x)dx \\quad \\text{and} \\quad \\int_{I_2} f \\chi_E(x)dx$$\neither both exist or both fail to exist, and in the first case their values are the same.\n\\end{lemma}\n\\begin{proof} Consider the interval $I = I_1 \\cap I_2$. By hypothesis $I \\supset E$. The points of discontinuity of $f \\chi_E$ are either points of discontinuity of $f$ on $E$, or the result of\ndiscontinuities of $\\chi_E$, in which case they lie on $\\partial E$. In any case, all these points\nlie in $I = I_1 \\cap I_2$. By Lebesgue's criterion (Theorem 1 of Sect. 11.1) it follows that\nthe integrals of $f \\chi_E$ over the intervals $I, I_1$, and $I_2$ either all exist or all fail to\nexist. If they do exist, we may choose partitions of $I, I_1$, and $I_2$ to suit ourselves.\nTherefore we shall choose only those partitions of $I_1$ and $I_2$ obtained as extensions\nof partitions of $I = I_1 \\cap I_2$. Since the function is zero outside $I$, the Riemann sums\ncorresponding to these partitions of $I_1$ and $I_2$ reduce to Riemann sums for the corresponding partition of $I$. It then results from passage to the limit that the integrals\nover $I_1$ and $I_2$ are equal to the integral of the function in question over $I$.\n\\end{proof}\n\n### Theorem 1: Integrability over an Admissible Set (Theorem)\nKeywords: integrable over admissible set, bounded, continuous almost everywhere, Lebesgue's criterion\n\\begin{theorem}{1} A function $f : E \\to \\mathbb{R}$ is integrable over an admissible set if and only\nif it is bounded and continuous at almost all points of $E$.\n\\end{theorem}\n\\begin{proof} Compared with $f$, the function $f \\chi_E$ may have additional points of discontinuity only on the boundary $\\partial E$ of $E$, which by hypothesis is a set of measure\nzero.\n\\end{proof}\n\n### Definition 3: Jordan Measure (Content) of a Bounded Set (Definition)\nKeywords: Jordan measure, content, volume, length, area, Riemann integral\n\\begin{definition}{3} The (Jordan) measure or content of a bounded set $E \\subset \\mathbb{R}^n$ is\n$$\\mu(E) := \\int_E 1 \\cdot dx,$$\nprovided this Riemann integral exists.\n\\end{definition}\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Lemma 3: Independence of Interval for Integral over a Set",
+        "type": "lemma",
+        "used_terms": [
+          "integral over a set",
+          "characteristic function",
+          "interval",
+          "Lebesgue's criterion",
+          "Riemann sums"
+        ],
+        "latex_content": "\\begin{lemma}{3} If $I_1$ and $I_2$ are two intervals, both containing the set $E$, then the integrals\n$$\\int_{I_1} f \\chi_E(x)dx \\quad \\text{and} \\quad \\int_{I_2} f \\chi_E(x)dx$$\neither both exist or both fail to exist, and in the first case their values are the same.\n\\end{lemma}\n\\begin{proof} Consider the interval $I = I_1 \\cap I_2$. By hypothesis $I \\supset E$. The points of discontinuity of $f \\chi_E$ are either points of discontinuity of $f$ on $E$, or the result of\ndiscontinuities of $\\chi_E$, in which case they lie on $\\partial E$. In any case, all these points\nlie in $I = I_1 \\cap I_2$. By Lebesgue's criterion (Theorem 1 of Sect. 11.1) it follows that\nthe integrals of $f \\chi_E$ over the intervals $I, I_1$, and $I_2$ either all exist or all fail to\nexist. If they do exist, we may choose partitions of $I, I_1$, and $I_2$ to suit ourselves.\nTherefore we shall choose only those partitions of $I_1$ and $I_2$ obtained as extensions\nof partitions of $I = I_1 \\cap I_2$. Since the function is zero outside $I$, the Riemann sums\ncorresponding to these partitions of $I_1$ and $I_2$ reduce to Riemann sums for the corresponding partition of $I$. It then results from passage to the limit that the integrals\nover $I_1$ and $I_2$ are equal to the integral of the function in question over $I$.\n\\end{proof}",
+        "page_start": 141
+      },
+      {
+        "name": "Theorem 1: Integrability over an Admissible Set",
+        "type": "theorem",
+        "used_terms": [
+          "integrable over admissible set",
+          "bounded",
+          "continuous almost everywhere",
+          "Lebesgue's criterion"
+        ],
+        "latex_content": "\\begin{theorem}{1} A function $f : E \\to \\mathbb{R}$ is integrable over an admissible set if and only\nif it is bounded and continuous at almost all points of $E$.\n\\end{theorem}\n\\begin{proof} Compared with $f$, the function $f \\chi_E$ may have additional points of discontinuity only on the boundary $\\partial E$ of $E$, which by hypothesis is a set of measure\nzero.\n\\end{proof}",
+        "page_start": 141
+      },
+      {
+        "name": "Definition 3: Jordan Measure (Content) of a Bounded Set",
+        "type": "definition",
+        "used_terms": [
+          "Jordan measure",
+          "content",
+          "volume",
+          "length",
+          "area",
+          "Riemann integral"
+        ],
+        "latex_content": "\\begin{definition}{3} The (Jordan) measure or content of a bounded set $E \\subset \\mathbb{R}^n$ is\n$$\\mu(E) := \\int_E 1 \\cdot dx,$$\nprovided this Riemann integral exists.\n\\end{definition}\n\n---",
+        "page_start": 141
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 3
+  },
+  {
+    "name": "case6_random_554_p380_0",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Lemma 1: Differentiability of the Integral with Variable Upper Limit at a Point of Continuity (Lemma)\nKeywords: integral with variable upper limit, primitive, continuity, differentiability, Riemann integrable\n\\begin{lemma}\nIf $f \\in \\mathcal{R}[a,b]$ and the function $f$ is continuous at a point $x \\in [a, b]$,\nthen the function $F$ defined on $[a, b]$ by (6.40) is differentiable at the point $x$, and\nthe following equality holds:\n\\[\nF'(x) = f(x).\n\\]\n\\end{lemma}\n\\begin{proof}\nLet $x, x + h \\in [a, b]$. Let us estimate the difference $F(x + h) \u2013 F(x)$. It\nfollows from the continuity of $f$ at $x$ that $f(t) = f(x) + \\Delta(t)$, where $\\Delta(t) \\to 0$\nas $t \\to x$, $t \\in [a, b]$. If the point $x$ is held fixed, the function $\\Delta(t) = f(t) - f(x)$\nis integrable on $[a, b]$, being the difference of the integrable function $t \\to f(t)$ and\nthe constant $f(x)$. We denote by $M(h)$ the quantity $\\sup_{t\\in I(h)} |\\Delta(t)|$, where $I(h)$ is\nthe closed interval with endpoints $x, x + h \\in [a, b]$. By hypothesis $M(h) \\to 0$ as\n$h\\to 0$.\n\nWe now write\n\\[\nF(x + h) \u2013 F(x) = \\int_a^{x+h} f(t)\\,dt - \\int_a^x f(t)\\,dt = \\int_x^{x+h} f(t)\\,dt =\n\\]\n\\[\n= \\int_x^{x+h} (f(x) + \\Delta(t))\\,dt =\n\\]\n\\[\n= \\int_x^{x+h} f(x)\\,dt + \\int_x^{x+h} \\Delta(t)\\,dt = f(x)h + \\alpha(h)h,\n\\]\nwhere we have set\n\\[\n\\int_x^{x+h} \\Delta(t)\\,dt = \\alpha(h)h.\n\\]\n\nSince\n\\[\n\\left|\\int_x^{x+h} \\Delta(t)\\,dt\\right| \\le \\left|\\int_x^{x+h} |\\Delta(t)|\\,dt\\right| \\le \\left|\\int_x^{x+h} M(h)\\,dt\\right| = M(h)|h|,\n\\]\nit follows that $|\\alpha(h)| \\le M(h)$, and so $\\alpha (h) \\to 0$ as $h \\to 0$ (in such a way that $x + h \\in\n[a, b]$).\n\nThus we have shown that if the function $f$ is continuous at a point $x \\in [a, b]$, then\nfor displacements $h$ from $x$ such that $x + h \\in [a, b]$ the following equality holds:\n\\[\nF(x + h) \u2013 F(x) = f (x)h + \\alpha(h)h,\n\\tag{6.42}\n\\]\nwhere $\\alpha(h) \\to 0$ as $h \\to 0$.\n\nBut this means that the function $F(x)$ is differentiable on $[a, b]$ at the point $x \\in\n[a, b]$ and that $F'(x) = f(x)$.\n\\end{proof}",
+    "parsed_terms": [
+      {
+        "name": "Lemma 1: Differentiability of the Integral with Variable Upper Limit at a Point of Continuity",
+        "type": "lemma",
+        "used_terms": [
+          "integral with variable upper limit",
+          "primitive",
+          "continuity",
+          "differentiability",
+          "Riemann integrable"
+        ],
+        "latex_content": "\\begin{lemma}\nIf $f \\in \\mathcal{R}[a,b]$ and the function $f$ is continuous at a point $x \\in [a, b]$,\nthen the function $F$ defined on $[a, b]$ by (6.40) is differentiable at the point $x$, and\nthe following equality holds:\n\\[\nF'(x) = f(x).\n\\]\n\\end{lemma}\n\\begin{proof}\nLet $x, x + h \\in [a, b]$. Let us estimate the difference $F(x + h) \u2013 F(x)$. It\nfollows from the continuity of $f$ at $x$ that $f(t) = f(x) + \\Delta(t)$, where $\\Delta(t) \\to 0$\nas $t \\to x$, $t \\in [a, b]$. If the point $x$ is held fixed, the function $\\Delta(t) = f(t) - f(x)$\nis integrable on $[a, b]$, being the difference of the integrable function $t \\to f(t)$ and\nthe constant $f(x)$. We denote by $M(h)$ the quantity $\\sup_{t\\in I(h)} |\\Delta(t)|$, where $I(h)$ is\nthe closed interval with endpoints $x, x + h \\in [a, b]$. By hypothesis $M(h) \\to 0$ as\n$h\\to 0$.\n\nWe now write\n\\[\nF(x + h) \u2013 F(x) = \\int_a^{x+h} f(t)\\,dt - \\int_a^x f(t)\\,dt = \\int_x^{x+h} f(t)\\,dt =\n\\]\n\\[\n= \\int_x^{x+h} (f(x) + \\Delta(t))\\,dt =\n\\]\n\\[\n= \\int_x^{x+h} f(x)\\,dt + \\int_x^{x+h} \\Delta(t)\\,dt = f(x)h + \\alpha(h)h,\n\\]\nwhere we have set\n\\[\n\\int_x^{x+h} \\Delta(t)\\,dt = \\alpha(h)h.\n\\]\n\nSince\n\\[\n\\left|\\int_x^{x+h} \\Delta(t)\\,dt\\right| \\le \\left|\\int_x^{x+h} |\\Delta(t)|\\,dt\\right| \\le \\left|\\int_x^{x+h} M(h)\\,dt\\right| = M(h)|h|,\n\\]\nit follows that $|\\alpha(h)| \\le M(h)$, and so $\\alpha (h) \\to 0$ as $h \\to 0$ (in such a way that $x + h \\in\n[a, b]$).\n\nThus we have shown that if the function $f$ is continuous at a point $x \\in [a, b]$, then\nfor displacements $h$ from $x$ such that $x + h \\in [a, b]$ the following equality holds:\n\\[\nF(x + h) \u2013 F(x) = f (x)h + \\alpha(h)h,\n\\tag{6.42}\n\\]\nwhere $\\alpha(h) \\to 0$ as $h \\to 0$.\n\nBut this means that the function $F(x)$ is differentiable on $[a, b]$ at the point $x \\in\n[a, b]$ and that $F'(x) = f(x)$.\n\\end{proof}",
+        "page_start": 380
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case6_random_546_p101_1",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Higher-Order Derivatives Definition (Definition)\nKeywords: derivative of order n, nth differential, inductive definition, f^{(n)}\nDefinition 1 The derivative of order $n \\in \\mathbb{N}$ or $n$th differential of the mapping\n(10.58) at the point $x \\in U$ is the mapping tangent to the derivative of $f$ of order\n$n-1$ at that point.\nIf the derivative of order $k \\in \\mathbb{N}$ at the point $x \\in U$ is denoted $f^{(k)} (x)$, Definition 1\nmeans that\n$$f^{(n)} (x) := (f^{(n-1)})'(x).$$\nThus, if $f^{(n)} (x)$ is defined, then\n$$f^{(n)}(x) \\in \\mathcal{L}(X; Y_n) = \\mathcal{L}(X; \\mathcal{L}(X; Y_{n-1})) =$$\n$$= \\cdots = \\mathcal{L}(X; \\mathcal{L}(X; \\ldots; \\mathcal{L}(X; Y)) \\ldots).$$\n(10.60)\nConsequently, by Proposition 4 of Sect. 10.2, $f^{(n)} (x)$, the differential of order $n$ of\nthe mapping (10.58) at the point $x$ can be interpreted as an element of the space\n$$\\underbrace{\\mathcal{L}(X, \\ldots, X}_{n \\text{ factors}}; Y)$$\nof continuous $n$-linear transformations.\nWe note once again that the tangent mapping $f'(x) : T_Xx \\to T_{Y_{f(x)}}Y$ is a map-\nping of tangent spaces, each of which, because of the affine or vector-space structure\nof the spaces being mapped, we have identified with the corresponding vector space\nand said on that basis that $f'(x) \\in \\mathcal{L}(X; Y)$. It is this device of regarding elements\n$f'(x_1) \\in \\mathcal{L}(T_{x_1}X; T_{f(x_1)}Y)$ and $f'(x_2) \\in \\mathcal{L}(T_{x_2}X, T_{f(x_2)}Y)$, which lie in different\nspaces, as vectors in the same space $\\mathcal{L}(X; Y)$ that provides the basis for defining\nhigher-order differentials of mappings of normed vector spaces. In the case of an\naffine or vector space there is a natural connection between vectors in the differ-\nent tangent spaces corresponding to different points of the original space. In the\nfinal analysis, it is this connection that makes it possible to speak of the continuous\ndifferentiability of both the mapping (10.58) and its higher-order differentials.",
+    "parsed_terms": [
+      {
+        "name": "Higher-Order Derivatives Definition",
+        "type": "definition",
+        "used_terms": [
+          "derivative of order n",
+          "nth differential",
+          "inductive definition",
+          "f^{(n)}"
+        ],
+        "latex_content": "Definition 1 The derivative of order $n \\in \\mathbb{N}$ or $n$th differential of the mapping\n(10.58) at the point $x \\in U$ is the mapping tangent to the derivative of $f$ of order\n$n-1$ at that point.\nIf the derivative of order $k \\in \\mathbb{N}$ at the point $x \\in U$ is denoted $f^{(k)} (x)$, Definition 1\nmeans that\n$$f^{(n)} (x) := (f^{(n-1)})'(x).$$\nThus, if $f^{(n)} (x)$ is defined, then\n$$f^{(n)}(x) \\in \\mathcal{L}(X; Y_n) = \\mathcal{L}(X; \\mathcal{L}(X; Y_{n-1})) =$$\n$$= \\cdots = \\mathcal{L}(X; \\mathcal{L}(X; \\ldots; \\mathcal{L}(X; Y)) \\ldots).$$\n(10.60)\nConsequently, by Proposition 4 of Sect. 10.2, $f^{(n)} (x)$, the differential of order $n$ of\nthe mapping (10.58) at the point $x$ can be interpreted as an element of the space\n$$\\underbrace{\\mathcal{L}(X, \\ldots, X}_{n \\text{ factors}}; Y)$$\nof continuous $n$-linear transformations.\nWe note once again that the tangent mapping $f'(x) : T_Xx \\to T_{Y_{f(x)}}Y$ is a map-\nping of tangent spaces, each of which, because of the affine or vector-space structure\nof the spaces being mapped, we have identified with the corresponding vector space\nand said on that basis that $f'(x) \\in \\mathcal{L}(X; Y)$. It is this device of regarding elements\n$f'(x_1) \\in \\mathcal{L}(T_{x_1}X; T_{f(x_1)}Y)$ and $f'(x_2) \\in \\mathcal{L}(T_{x_2}X, T_{f(x_2)}Y)$, which lie in different\nspaces, as vectors in the same space $\\mathcal{L}(X; Y)$ that provides the basis for defining\nhigher-order differentials of mappings of normed vector spaces. In the case of an\naffine or vector space there is a natural connection between vectors in the differ-\nent tangent spaces corresponding to different points of the original space. In the\nfinal analysis, it is this connection that makes it possible to speak of the continuous\ndifferentiability of both the mapping (10.58) and its higher-order differentials.",
+        "page_start": 101
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case6_random_546_p4_2",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "NO_TERMS_FOUND",
+    "parsed_terms": [],
+    "isolated_proofs_count": 0,
+    "total_extracted": 0
+  },
+  {
+    "name": "case6_random_554_p496_3",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Hadamard's Lemma (Lemma)\nKeywords: Hadamard's lemma, representation of a function, continuous partial derivatives, zero at origin\n\\begin{enumerate}\n    \\setcounter{enumi}{5}\n    \\renewcommand{\\theenumi}{\\alph{enumi}}\n    \\item d) Prove Hadamard's lemma:\n    If $f \\in C^{(1)}(\\mathbb{I}^m; \\mathbb{R})$ and $f(\\mathbf{0}) = \\mathbf{0}$, there exist functions $g_1, \\ldots, g_m \\in C(\\mathbb{I}^m; \\mathbb{R})$\n    such that\n    \\[\n    f(x^1, \\ldots, x^m) = \\sum_{i=1}^m x^i g_i(x^1, \\ldots, x^m)\n    \\]\n    in $I^m$, and in addition\n    \\[\n    g_i(0) = \\frac{\\partial f}{\\partial x^i}(0), \\quad i = 1, \\ldots, m.\n    \\]\n\\end{enumerate}",
+    "parsed_terms": [
+      {
+        "name": "Hadamard's Lemma",
+        "type": "lemma",
+        "used_terms": [
+          "Hadamard's lemma",
+          "representation of a function",
+          "continuous partial derivatives",
+          "zero at origin"
+        ],
+        "latex_content": "\\begin{enumerate}\n    \\setcounter{enumi}{5}\n    \\renewcommand{\\theenumi}{\\alph{enumi}}\n    \\item d) Prove Hadamard's lemma:\n    If $f \\in C^{(1)}(\\mathbb{I}^m; \\mathbb{R})$ and $f(\\mathbf{0}) = \\mathbf{0}$, there exist functions $g_1, \\ldots, g_m \\in C(\\mathbb{I}^m; \\mathbb{R})$\n    such that\n    \\[\n    f(x^1, \\ldots, x^m) = \\sum_{i=1}^m x^i g_i(x^1, \\ldots, x^m)\n    \\]\n    in $I^m$, and in addition\n    \\[\n    g_i(0) = \\frac{\\partial f}{\\partial x^i}(0), \\quad i = 1, \\ldots, m.\n    \\]\n\\end{enumerate}",
+        "page_start": 496
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case6_random_546_p287_4",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "NO_TERMS_FOUND",
+    "parsed_terms": [],
+    "isolated_proofs_count": 0,
+    "total_extracted": 0
+  },
+  {
+    "name": "case6_random_546_p256_5",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Green's Theorem (Proposition)\nKeywords: Green's theorem, double integral, line integral, partial derivatives, oriented boundary\n\\noindent \\textbf{Proposition 1} Let $\\mathbb{R}^2$ be the plane with a fixed coordinate grid $x, y$, and let $\\bar{D}$ be\na compact domain in this plane bounded by piecewise-smooth curves. Let $P$ and $Q$\nbe smooth functions in the closed domain $\\bar{D}$. Then the following relation holds:\n\\[ \\iint_{\\bar{D}} \\left( \\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y} \\right) dx \\, dy = \\oint_{\\partial \\bar{D}} P dx + Q dy, \\tag{13.25} \\]\nin which the right-hand side contains the integral over the boundary $\\partial \\bar{D}$ of the\ndomain $\\bar{D}$ oriented consistently with the orientation of the domain $\\bar{D}$ itself.\n\\vspace{12pt}\n\\noindent $^7$G. Green (1793\u20131841) \u2013 British mathematician and mathematical physicist. Newton's grave in\nWestminster Abbey is framed by five smaller gravestones with brilliant names: Faraday, Thomson\n(Lord Kelvin), Green, Maxwell, and Dirac.\n\\vspace{12pt}\n\\begin{center}\n\\includegraphics[width=0.5\\textwidth]{page257_fig13_5.png}\n\\end{center}\n\\vspace{12pt}\n\\noindent We shall first consider the simplest version of (13.25) in which $\\bar{D}$ is the square\n$I = \\{(x, y) \\in \\mathbb{R}^2 \\mid 0 \\le x \\le 1, 0 \\le y \\le 1\\}$ and $Q = 0$ in $I$. Then Green's theorem\nreduces to the equality\n\\[ \\iint_{I} -\\frac{\\partial P}{\\partial y} dx \\, dy = - \\oint_{\\partial I} P dx, \\tag{13.26} \\]\nwhich we shall prove.\n\\vspace{12pt}\n\\noindent \\textsc{Proof} Reducing the double integral to an iterated integral and applying the funda-\nmental theorem of calculus, we obtain\n\\begin{align*} \\label{eq:13_26_proof}\n\\iint_{I} \\frac{\\partial P}{\\partial y} dx \\, dy &= \\int_0^1 dx \\int_0^1 \\frac{\\partial P}{\\partial y} dy \\\\\n&= \\int_0^1 \\left[ P(x, 1) - P(x, 0) \\right] dx = - \\int_0^1 P(x, 0) \\, dx + \\int_0^1 P(x, 1) \\, dx.\n\\end{align*}\nThe proof is now finished. What remains is a matter of definitions and interpre-\ntation of the relation just obtained. The point is that the difference of the last two\nintegrals is precisely the right-hand side of relation (13.26).\nIndeed, the piecewise-smooth curve $\\partial I$ breaks into four pieces (Fig. 13.5), which\ncan be regarded as parametrized curves\n\\begin{align*} \\gamma_1: [0, 1] &\\to \\mathbb{R}^2, & \\text{where } \\mathbf{x} \\mapsto \\gamma_1(x) = (x, 0), \\\\ \\gamma_2 : [0, 1] &\\to \\mathbb{R}^2, & \\text{where } y \\mapsto \\gamma_2(y) = (1, y), \\\\ \\gamma_3 : [0, 1] &\\to \\mathbb{R}^2, & \\text{where } x \\mapsto \\gamma_3(x) = (x, 1), \\\\ \\gamma_4: [0, 1] &\\to \\mathbb{R}^2, & \\text{where } y \\mapsto \\gamma_4(y) = (0, y). \\end{align*}\nBy definition of the integral of the 1-form $\\omega = P \\, dx$ over a curve\n\\[ \\int_{\\gamma_1} P(x, y) \\, dx := \\int_{[0,1]} \\gamma_1^*(P(x, y) \\, dx) := \\int_0^1 P(x, 0) \\, dx, \\]\n\\[ \\int_{\\gamma_2} P(x, y) \\, dx := \\int_{[0,1]} \\gamma_2^*(P(x, y) \\, dx) := \\int_0^1 0 \\, dy = 0, \\]\n\\begin{align*} \\int_{\\gamma_3} P(x, y) \\, dx &:= \\int_{[0,1]} \\gamma_3^*(P(x, y) \\, dx) := \\int_0^1 P(x, 1) \\, dx, \\\\ \\int_{\\gamma_4} P(x, y) \\, dx &:= \\int_{[0,1]} \\gamma_4^*(P(x, y) \\, dx) := \\int_0^1 0 \\, dy = 0, \\end{align*}\nand, in addition, by the choice of the orientation of the boundary of the domain,\ntaking account of the orientations of $\\gamma_1, \\gamma_2, \\gamma_3, \\gamma_4$, it is obvious that\n\\[ \\oint_{\\partial I} \\omega = \\int_{\\gamma_1} \\omega + \\int_{\\gamma_2} \\omega + \\int_{\\gamma_3} \\omega + \\int_{\\gamma_4} \\omega = \\int_{\\gamma_1} \\omega + \\int_{\\gamma_2} \\omega - \\int_{-\\gamma_3} \\omega - \\int_{-\\gamma_4} \\omega, \\]\nwhere $-\\gamma_i$ is the curve $\\gamma_i$ taken with the orientation opposite to the one defined\nby $\\gamma_i$.\nThus Eq. (13.26) is now verified.\n\\[ \\square \\]\nIt can be verified similarly that\n\\[ \\iint_{I} \\frac{\\partial Q}{\\partial x} dx \\, dy = \\oint_{\\partial I} Q \\, dy. \\tag{13.27} \\]\nAdding (13.26) and (13.27), we obtain Green's formula\n\\[ \\iint_{I} \\left( \\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y} \\right) dx \\, dy = \\oint_{\\partial I} P dx + Q dy \\tag{13.25'} \\]\nfor the square $I$.\nWe remark that the asymmetry of $P$ and $Q$ in Green's formula (13.25) and in\nEqs. (13.26) and (13.27) comes from the asymmetry of $x$ and $y$: after all, $x$ and $y$\nare ordered, and it is that ordering that gives the orientation in $\\mathbb{R}^2$ and in $I$.\nIn the language of forms, the relation (13.25') just proved can be rewritten as\n\\[ \\int_{I} d\\omega = \\int_{\\partial I} \\omega, \\tag{13.25''} \\]\nwhere $\\omega$ is an arbitrary smooth 1-form on $I$. The integrand on the right-hand side here\nis the restriction of the form $\\omega$ to the boundary $\\partial I$ of the square $I$.\nThe proof of relation (13.26) just given admits an obvious generalization: If $D_y$\nis not a square, but a ``curvilinear quadrilateral'' whose lateral sides are vertical closed\nintervals (possibly degenerating to a point) and whose other two sides are the graphs\nof piecewise-smooth functions $\\varphi_1(x) \\le \\varphi_2(x)$ over the closed interval $[a, b]$ of the\n$x$-axis, then\n\\[ \\iint_{D_y} \\frac{\\partial P}{\\partial y} dx \\, dy = - \\oint_{\\partial D_y} P dx. \\tag{13.26'} \\]\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Green's Theorem",
+        "type": "proposition",
+        "used_terms": [
+          "Green's theorem",
+          "double integral",
+          "line integral",
+          "partial derivatives",
+          "oriented boundary"
+        ],
+        "latex_content": "\\noindent \\textbf{Proposition 1} Let $\\mathbb{R}^2$ be the plane with a fixed coordinate grid $x, y$, and let $\\bar{D}$ be\na compact domain in this plane bounded by piecewise-smooth curves. Let $P$ and $Q$\nbe smooth functions in the closed domain $\\bar{D}$. Then the following relation holds:\n\\[ \\iint_{\\bar{D}} \\left( \\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y} \\right) dx \\, dy = \\oint_{\\partial \\bar{D}} P dx + Q dy, \\tag{13.25} \\]\nin which the right-hand side contains the integral over the boundary $\\partial \\bar{D}$ of the\ndomain $\\bar{D}$ oriented consistently with the orientation of the domain $\\bar{D}$ itself.\n\\vspace{12pt}\n\\noindent $^7$G. Green (1793\u20131841) \u2013 British mathematician and mathematical physicist. Newton's grave in\nWestminster Abbey is framed by five smaller gravestones with brilliant names: Faraday, Thomson\n(Lord Kelvin), Green, Maxwell, and Dirac.\n\\vspace{12pt}\n\\begin{center}\n\\includegraphics[width=0.5\\textwidth]{page257_fig13_5.png}\n\\end{center}\n\\vspace{12pt}\n\\noindent We shall first consider the simplest version of (13.25) in which $\\bar{D}$ is the square\n$I = \\{(x, y) \\in \\mathbb{R}^2 \\mid 0 \\le x \\le 1, 0 \\le y \\le 1\\}$ and $Q = 0$ in $I$. Then Green's theorem\nreduces to the equality\n\\[ \\iint_{I} -\\frac{\\partial P}{\\partial y} dx \\, dy = - \\oint_{\\partial I} P dx, \\tag{13.26} \\]\nwhich we shall prove.\n\\vspace{12pt}\n\\noindent \\textsc{Proof} Reducing the double integral to an iterated integral and applying the funda-\nmental theorem of calculus, we obtain\n\\begin{align*} \\label{eq:13_26_proof}\n\\iint_{I} \\frac{\\partial P}{\\partial y} dx \\, dy &= \\int_0^1 dx \\int_0^1 \\frac{\\partial P}{\\partial y} dy \\\\\n&= \\int_0^1 \\left[ P(x, 1) - P(x, 0) \\right] dx = - \\int_0^1 P(x, 0) \\, dx + \\int_0^1 P(x, 1) \\, dx.\n\\end{align*}\nThe proof is now finished. What remains is a matter of definitions and interpre-\ntation of the relation just obtained. The point is that the difference of the last two\nintegrals is precisely the right-hand side of relation (13.26).\nIndeed, the piecewise-smooth curve $\\partial I$ breaks into four pieces (Fig. 13.5), which\ncan be regarded as parametrized curves\n\\begin{align*} \\gamma_1: [0, 1] &\\to \\mathbb{R}^2, & \\text{where } \\mathbf{x} \\mapsto \\gamma_1(x) = (x, 0), \\\\ \\gamma_2 : [0, 1] &\\to \\mathbb{R}^2, & \\text{where } y \\mapsto \\gamma_2(y) = (1, y), \\\\ \\gamma_3 : [0, 1] &\\to \\mathbb{R}^2, & \\text{where } x \\mapsto \\gamma_3(x) = (x, 1), \\\\ \\gamma_4: [0, 1] &\\to \\mathbb{R}^2, & \\text{where } y \\mapsto \\gamma_4(y) = (0, y). \\end{align*}\nBy definition of the integral of the 1-form $\\omega = P \\, dx$ over a curve\n\\[ \\int_{\\gamma_1} P(x, y) \\, dx := \\int_{[0,1]} \\gamma_1^*(P(x, y) \\, dx) := \\int_0^1 P(x, 0) \\, dx, \\]\n\\[ \\int_{\\gamma_2} P(x, y) \\, dx := \\int_{[0,1]} \\gamma_2^*(P(x, y) \\, dx) := \\int_0^1 0 \\, dy = 0, \\]\n\\begin{align*} \\int_{\\gamma_3} P(x, y) \\, dx &:= \\int_{[0,1]} \\gamma_3^*(P(x, y) \\, dx) := \\int_0^1 P(x, 1) \\, dx, \\\\ \\int_{\\gamma_4} P(x, y) \\, dx &:= \\int_{[0,1]} \\gamma_4^*(P(x, y) \\, dx) := \\int_0^1 0 \\, dy = 0, \\end{align*}\nand, in addition, by the choice of the orientation of the boundary of the domain,\ntaking account of the orientations of $\\gamma_1, \\gamma_2, \\gamma_3, \\gamma_4$, it is obvious that\n\\[ \\oint_{\\partial I} \\omega = \\int_{\\gamma_1} \\omega + \\int_{\\gamma_2} \\omega + \\int_{\\gamma_3} \\omega + \\int_{\\gamma_4} \\omega = \\int_{\\gamma_1} \\omega + \\int_{\\gamma_2} \\omega - \\int_{-\\gamma_3} \\omega - \\int_{-\\gamma_4} \\omega, \\]\nwhere $-\\gamma_i$ is the curve $\\gamma_i$ taken with the orientation opposite to the one defined\nby $\\gamma_i$.\nThus Eq. (13.26) is now verified.\n\\[ \\square \\]\nIt can be verified similarly that\n\\[ \\iint_{I} \\frac{\\partial Q}{\\partial x} dx \\, dy = \\oint_{\\partial I} Q \\, dy. \\tag{13.27} \\]\nAdding (13.26) and (13.27), we obtain Green's formula\n\\[ \\iint_{I} \\left( \\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y} \\right) dx \\, dy = \\oint_{\\partial I} P dx + Q dy \\tag{13.25'} \\]\nfor the square $I$.\nWe remark that the asymmetry of $P$ and $Q$ in Green's formula (13.25) and in\nEqs. (13.26) and (13.27) comes from the asymmetry of $x$ and $y$: after all, $x$ and $y$\nare ordered, and it is that ordering that gives the orientation in $\\mathbb{R}^2$ and in $I$.\nIn the language of forms, the relation (13.25') just proved can be rewritten as\n\\[ \\int_{I} d\\omega = \\int_{\\partial I} \\omega, \\tag{13.25''} \\]\nwhere $\\omega$ is an arbitrary smooth 1-form on $I$. The integrand on the right-hand side here\nis the restriction of the form $\\omega$ to the boundary $\\partial I$ of the square $I$.\nThe proof of relation (13.26) just given admits an obvious generalization: If $D_y$\nis not a square, but a ``curvilinear quadrilateral'' whose lateral sides are vertical closed\nintervals (possibly degenerating to a point) and whose other two sides are the graphs\nof piecewise-smooth functions $\\varphi_1(x) \\le \\varphi_2(x)$ over the closed interval $[a, b]$ of the\n$x$-axis, then\n\\[ \\iint_{D_y} \\frac{\\partial P}{\\partial y} dx \\, dy = - \\oint_{\\partial D_y} P dx. \\tag{13.26'} \\]\n\n---",
+        "page_start": 256
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case6_random_546_p234_6",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "NO_TERMS_FOUND",
+    "parsed_terms": [],
+    "isolated_proofs_count": 0,
+    "total_extracted": 0
+  },
+  {
+    "name": "case6_random_546_p129_7",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Interval in \u211d\u207f (Definition)\nKeywords: interval, coordinate parallelepiped, \u211d\u207f, definition\n\\begin{definition}\nThe set $I = \\{x \\in \\mathbb{R}^n \\mid a^i \\le x^i \\le b^i, i = 1, \\ldots, n\\}$ is called an \\emph{interval} or a \\emph{coordinate parallelepiped} in $\\mathbb{R}^n$.\n\nIf we wish to note that the interval is determined by the points $a = (a^1, \\ldots, a^n)$ and $b = (b^1,\\ldots,b^n)$, we often denote it $I_{a,b}$, or, by analogy with the one-dimensional case, we write it as $a \\le x \\le b$.\n\\end{definition}\n\n### Volume (Measure) of an Interval (Definition)\nKeywords: volume, measure, interval, \u211d\u207f, definition\n\\begin{definition}\nTo the interval $I = \\{x \\in \\mathbb{R}^n \\mid a^i \\le x^i \\le b^i, i = 1, \\ldots, n\\}$ we assign the number $|I| := \\prod_{i=1}^n (b^i - a^i)$, called the \\emph{volume} or \\emph{measure} of the interval.\n\nThe volume (measure) of the interval $I$ is also denoted $v(I)$ and $\\mu(I)$.\n\\end{definition}\n\n### Properties of Interval Measure (Lemma)\nKeywords: measure, volume, homogeneity, additivity, subadditivity, interval, lemma\n\\begin{lemma}\nThe measure of an interval in $\\mathbb{R}^n$ has the following properties.\n\\begin{enumerate}\n    \\item[(a)] It is homogeneous, that is, if $\\lambda I_{a,b} := I_{\\lambda a, \\lambda b}$, where $\\lambda \\ge 0$, then $|\\lambda I_{a,b}| = \\lambda^n |I_{a,b}|$.\n    \\item[(b)] It is additive, that is, if the intervals $I, I_1, \\ldots, I_k$ are such that $I = \\bigcup_{j=1}^k I_j$ and no two of the intervals $I_1,\\ldots, I_k$ have common interior points, then $|I| = \\sum_{j=1}^k|I_j|$.\n    \\item[(c)] If the interval $I$ is covered by a finite system of intervals $I_1, \\ldots, I_k$, that is, $I \\subset \\bigcup_{j=1}^k I_j$, then $|I| \\le \\sum_{j=1}^k|I_j|$.\n\\end{enumerate}\nAll these assertions follow easily from Definitions 1 and 2.\n\\end{lemma}",
+    "parsed_terms": [
+      {
+        "name": "Interval in \u211d\u207f",
+        "type": "definition",
+        "used_terms": [
+          "interval",
+          "coordinate parallelepiped",
+          "\u211d\u207f",
+          "definition"
+        ],
+        "latex_content": "\\begin{definition}\nThe set $I = \\{x \\in \\mathbb{R}^n \\mid a^i \\le x^i \\le b^i, i = 1, \\ldots, n\\}$ is called an \\emph{interval} or a \\emph{coordinate parallelepiped} in $\\mathbb{R}^n$.\n\nIf we wish to note that the interval is determined by the points $a = (a^1, \\ldots, a^n)$ and $b = (b^1,\\ldots,b^n)$, we often denote it $I_{a,b}$, or, by analogy with the one-dimensional case, we write it as $a \\le x \\le b$.\n\\end{definition}",
+        "page_start": 129
+      },
+      {
+        "name": "Volume (Measure) of an Interval",
+        "type": "definition",
+        "used_terms": [
+          "volume",
+          "measure",
+          "interval",
+          "\u211d\u207f",
+          "definition"
+        ],
+        "latex_content": "\\begin{definition}\nTo the interval $I = \\{x \\in \\mathbb{R}^n \\mid a^i \\le x^i \\le b^i, i = 1, \\ldots, n\\}$ we assign the number $|I| := \\prod_{i=1}^n (b^i - a^i)$, called the \\emph{volume} or \\emph{measure} of the interval.\n\nThe volume (measure) of the interval $I$ is also denoted $v(I)$ and $\\mu(I)$.\n\\end{definition}",
+        "page_start": 129
+      },
+      {
+        "name": "Properties of Interval Measure",
+        "type": "lemma",
+        "used_terms": [
+          "measure",
+          "volume",
+          "homogeneity",
+          "additivity",
+          "subadditivity",
+          "interval",
+          "lemma"
+        ],
+        "latex_content": "\\begin{lemma}\nThe measure of an interval in $\\mathbb{R}^n$ has the following properties.\n\\begin{enumerate}\n    \\item[(a)] It is homogeneous, that is, if $\\lambda I_{a,b} := I_{\\lambda a, \\lambda b}$, where $\\lambda \\ge 0$, then $|\\lambda I_{a,b}| = \\lambda^n |I_{a,b}|$.\n    \\item[(b)] It is additive, that is, if the intervals $I, I_1, \\ldots, I_k$ are such that $I = \\bigcup_{j=1}^k I_j$ and no two of the intervals $I_1,\\ldots, I_k$ have common interior points, then $|I| = \\sum_{j=1}^k|I_j|$.\n    \\item[(c)] If the interval $I$ is covered by a finite system of intervals $I_1, \\ldots, I_k$, that is, $I \\subset \\bigcup_{j=1}^k I_j$, then $|I| \\le \\sum_{j=1}^k|I_j|$.\n\\end{enumerate}\nAll these assertions follow easily from Definitions 1 and 2.\n\\end{lemma}",
+        "page_start": 129
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 3
+  },
+  {
+    "name": "case6_random_554_p491_8",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "NO_TERMS_FOUND",
+    "parsed_terms": [],
+    "isolated_proofs_count": 0,
+    "total_extracted": 0
+  },
+  {
+    "name": "case6_random_546_p91_9",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Partial Derivative Notation (Definition)\nKeywords: partial derivative, notation, symbols\nWe usually denote this partial derivative by one of the symbols\n$$\n\\partial_i f(a), \\quad D_i f(a), \\quad \\frac{\\partial f}{\\partial x_i}(a), \\quad f'_i(a).\n$$\n\n### Total Differential vs. Partial Differentials (Definition)\nKeywords: total differential, partial differential, distinction\nThe differential $df(a)$ of the mapping (10.43) at the point $a$ (if $f$ is differentiable at that point) is often called the total differential in this situation in order to\ndistinguish it from the partial differentials with respect to the individual variables.\n\n### Proposition 3: Relation Between Total and Partial Differentials (Proposition)\nKeywords: total differential, partial differential, relation, differentiability\nProposition 3 If the mapping (10.43) is differentiable at the point $a = (a_1, \\dots, a_m)$\n$\\in X_1 \\times \\cdots \\times X_m = X$, it has partial derivatives with respect to each variable at\nthat point, and the total differential and the partial differentials are related by the\nequation\n$$\ndf(a)h = d_1 f(a)h_1 + \\cdots + d_m f(a)h_m, \\tag{10.45}\n$$\nwhere $h = (h_1, \\dots, h_m) \\in TX_1(a_1) \\times \\cdots \\times TX_m(a_m) = TX(a)$.",
+    "parsed_terms": [
+      {
+        "name": "Partial Derivative Notation",
+        "type": "definition",
+        "used_terms": [
+          "partial derivative",
+          "notation",
+          "symbols"
+        ],
+        "latex_content": "We usually denote this partial derivative by one of the symbols\n$$\n\\partial_i f(a), \\quad D_i f(a), \\quad \\frac{\\partial f}{\\partial x_i}(a), \\quad f'_i(a).\n$$",
+        "page_start": 91
+      },
+      {
+        "name": "Total Differential vs. Partial Differentials",
+        "type": "definition",
+        "used_terms": [
+          "total differential",
+          "partial differential",
+          "distinction"
+        ],
+        "latex_content": "The differential $df(a)$ of the mapping (10.43) at the point $a$ (if $f$ is differentiable at that point) is often called the total differential in this situation in order to\ndistinguish it from the partial differentials with respect to the individual variables.",
+        "page_start": 91
+      },
+      {
+        "name": "Proposition 3: Relation Between Total and Partial Differentials",
+        "type": "proposition",
+        "used_terms": [
+          "total differential",
+          "partial differential",
+          "relation",
+          "differentiability"
+        ],
+        "latex_content": "Proposition 3 If the mapping (10.43) is differentiable at the point $a = (a_1, \\dots, a_m)$\n$\\in X_1 \\times \\cdots \\times X_m = X$, it has partial derivatives with respect to each variable at\nthat point, and the total differential and the partial differentials are related by the\nequation\n$$\ndf(a)h = d_1 f(a)h_1 + \\cdots + d_m f(a)h_m, \\tag{10.45}\n$$\nwhere $h = (h_1, \\dots, h_m) \\in TX_1(a_1) \\times \\cdots \\times TX_m(a_m) = TX(a)$.",
+        "page_start": 91
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 3
+  },
+  {
+    "name": "case6_random_554_p426_10",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Example 19: Principal Value of Integral 1/x (Example)\nKeywords: principal value, singular integral, Cauchy principal value\n[LaTeX Body]\n\\textbf{Example 19}\n$$\n\\text{PV} \\int_{-1}^{1} \\frac{dx}{x} = 0.\n$$\nWe also adopt the following definition:\n$$\n\\text{PV} \\int_{-\\infty}^{+\\infty} f(x)dx := \\lim_{R \\to +\\infty} \\int_{-R}^{R} f(x)dx. \\quad (6.83)\n$$\n\n### Example 20: Principal Value of Integral x (Example)\nKeywords: principal value, improper integral, symmetric limit\n[LaTeX Body]\n\\textbf{Example 20}\n$$\n\\text{PV} \\int_{-\\infty}^{+\\infty} x dx = 0.\n$$\n\nFinally, if there are several (finitely many) singularities of one kind or another on\nthe interval of integration, at interior points or endpoints, then the nonsingular points\nof the interval are divided into a finite number of such intervals, each containing\nonly one singularity, and the integral is computed as the sum of the integrals over\nthe closed intervals of the partition.\n\nIt can be verified that the result of such a computation is not affected by the\narbitrariness in the choice of a partition.\n\n### Example 21: Definition of the Logarithmic Integral (Example)\nKeywords: logarithmic integral, li(x), principal value, singularity at 1\n[LaTeX Body]\n\\textbf{Example 21} The precise definition of the logarithmic integral can now be written\nas\n$$\n\\text{li}x = \\begin{cases} \\int_{0}^{x} \\frac{dt}{\\ln t}, & \\text{if } 0 < x < 1, \\\\ \\text{PV} \\int_{0}^{x} \\frac{dt}{\\ln t}, & \\text{if } 1 < x. \\end{cases}\n$$\nIn the last case the symbol PV refers to the only interior singularity on the interval\n]0, $x$[ , which is located at 1. We remark that in the sense of the definition in formula\n(6.81) this integral is not convergent.\n\n### Problems and Exercises 6.5.4 (Problem Set)\nKeywords: sine integral, cosine integral, Fresnel integrals, elliptic integrals, exponential integral, error function, particle motion\n[LaTeX Body]\n\\subsection{6.5.4 Problems and Exercises}\n\\textbf{1.} Show that the following functions have the stated properties.\na) $\\text{Si}(x) = \\int_{0}^{x} \\frac{\\sin t}{t} dt$ (the sine integral) is defined on all of $\\mathbb{R}$, is an odd function,\nand has a limit as $x \\to +\\infty$.\nb) $\\text{si}(x) = \\int_{x}^{\\infty} \\frac{\\sin t}{t} dt$ is defined on all of $\\mathbb{R}$ and differs from $\\text{Si}x$ only by a\nconstant;",
+    "parsed_terms": [
+      {
+        "name": "Example 19: Principal Value of Integral 1/x",
+        "type": "example",
+        "used_terms": [
+          "principal value",
+          "singular integral",
+          "Cauchy principal value"
+        ],
+        "latex_content": "[LaTeX Body]\n\\textbf{Example 19}\n$$\n\\text{PV} \\int_{-1}^{1} \\frac{dx}{x} = 0.\n$$\nWe also adopt the following definition:\n$$\n\\text{PV} \\int_{-\\infty}^{+\\infty} f(x)dx := \\lim_{R \\to +\\infty} \\int_{-R}^{R} f(x)dx. \\quad (6.83)\n$$",
+        "page_start": 426
+      },
+      {
+        "name": "Example 20: Principal Value of Integral x",
+        "type": "example",
+        "used_terms": [
+          "principal value",
+          "improper integral",
+          "symmetric limit"
+        ],
+        "latex_content": "[LaTeX Body]\n\\textbf{Example 20}\n$$\n\\text{PV} \\int_{-\\infty}^{+\\infty} x dx = 0.\n$$\n\nFinally, if there are several (finitely many) singularities of one kind or another on\nthe interval of integration, at interior points or endpoints, then the nonsingular points\nof the interval are divided into a finite number of such intervals, each containing\nonly one singularity, and the integral is computed as the sum of the integrals over\nthe closed intervals of the partition.\n\nIt can be verified that the result of such a computation is not affected by the\narbitrariness in the choice of a partition.",
+        "page_start": 426
+      },
+      {
+        "name": "Example 21: Definition of the Logarithmic Integral",
+        "type": "example",
+        "used_terms": [
+          "logarithmic integral",
+          "li(x)",
+          "principal value",
+          "singularity at 1"
+        ],
+        "latex_content": "[LaTeX Body]\n\\textbf{Example 21} The precise definition of the logarithmic integral can now be written\nas\n$$\n\\text{li}x = \\begin{cases} \\int_{0}^{x} \\frac{dt}{\\ln t}, & \\text{if } 0 < x < 1, \\\\ \\text{PV} \\int_{0}^{x} \\frac{dt}{\\ln t}, & \\text{if } 1 < x. \\end{cases}\n$$\nIn the last case the symbol PV refers to the only interior singularity on the interval\n]0, $x$[ , which is located at 1. We remark that in the sense of the definition in formula\n(6.81) this integral is not convergent.",
+        "page_start": 426
+      },
+      {
+        "name": "Problems and Exercises 6.5.4",
+        "type": "problem set",
+        "used_terms": [
+          "sine integral",
+          "cosine integral",
+          "Fresnel integrals",
+          "elliptic integrals",
+          "exponential integral",
+          "error function",
+          "particle motion"
+        ],
+        "latex_content": "[LaTeX Body]\n\\subsection{6.5.4 Problems and Exercises}\n\\textbf{1.} Show that the following functions have the stated properties.\na) $\\text{Si}(x) = \\int_{0}^{x} \\frac{\\sin t}{t} dt$ (the sine integral) is defined on all of $\\mathbb{R}$, is an odd function,\nand has a limit as $x \\to +\\infty$.\nb) $\\text{si}(x) = \\int_{x}^{\\infty} \\frac{\\sin t}{t} dt$ is defined on all of $\\mathbb{R}$ and differs from $\\text{Si}x$ only by a\nconstant;",
+        "page_start": 426
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 4
+  },
+  {
+    "name": "case6_random_554_p495_11",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "NO_TERMS_FOUND",
+    "parsed_terms": [],
+    "isolated_proofs_count": 0,
+    "total_extracted": 0
+  },
+  {
+    "name": "case6_random_554_p260_12",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Young's Inequalities (Theorem)\nKeywords: Young's inequality, convexity, p-norms, inequalities\nBy elementary algebraic transformations one can obtain a number of classical\ninequalities of great importance for analysis from the inequalities just proved. We\nshall now derive these inequalities.\na. Young's Inequalities$^{16}$\nIf $a > 0$ and $b > 0$, and the numbers $p$ and $q$ such that $\\frac{1}{p} + \\frac{1}{q} = 1$, then\n$$ a^{1/p}b^{1/q} \\le \\frac{a}{p} + \\frac{b}{q}, \\quad \\text{if } p > 1, \\quad (5.86) $$\n$$ a^{1/p}b^{1/q} \\ge \\frac{a}{p} + \\frac{b}{q}, \\quad \\text{if } p < 1, \\quad (5.87) $$\nand equality holds in (5.86) and (5.87) only when $a = b$.\nProof It suffices to set $x = a^{\\frac{1}{p}}$ and $\\alpha = \\frac{1}{p}$ in (5.84) and (5.85), and then introduce the\nnotation $\\frac{1}{q} = 1 - \\frac{1}{p}$.\n$^{16}$W.H. Young (1882\u20131946) \u2013 British mathematician.\n\n### H\u00f6lder's Inequalities (Theorem)\nKeywords: H\u00f6lder's inequality, p-norms, summation inequalities, convexity\nb. H\u00f6lder's Inequalities$^{17}$\nLet $x_i \\ge 0, y_i \\ge 0, i = 1, \\dots, n$, and $\\frac{1}{p} + \\frac{1}{q} = 1$. Then\n$$ \\sum_{i=1}^{n} x_i y_i \\le \\left(\\sum_{i=1}^{n} x_i^p\\right)^{1/p} \\left(\\sum_{i=1}^{n} y_i^q\\right)^{1/q} \\quad \\text{for } p > 1, \\quad (5.88) $$\nand\n$$ \\sum_{i=1}^{n} x_i y_i \\ge \\left(\\sum_{i=1}^{n} x_i^p\\right)^{1/p} \\left(\\sum_{i=1}^{n} y_i^q\\right)^{1/q} \\quad \\text{for } p < 1, p \\ne 0. \\quad (5.89) $$\nIn the case $p < 0$ it is assumed in (5.89) that $x_i > 0$ ($i = 1, \\dots, n$). Equality is\npossible in (5.88) and (5.89) only when the vectors $(x_1,\\dots,x_n)$ and $(y_1,\\dots, y_n)$\nare proportional.\nProof Let us verify the inequality (5.88). Let $X = \\sum_{i=1}^n x_i^p > 0$ and $Y = \\sum_{i=1}^n y_i^q > 0$. Setting $a = \\frac{x_i^p}{X}$ and $b = \\frac{y_i^q}{Y}$ in (5.86), we obtain\n$$ \\frac{x_i y_i}{X^{1/p}Y^{1/q}} \\le \\frac{1}{p} \\frac{x_i^p}{X} + \\frac{1}{q} \\frac{y_i^q}{Y}. $$\n$^{17}$O. H\u00f6lder (1859\u20131937) \u2013 German mathematician.\nSumming these inequalities over $i$ from $1$ to $n$, we obtain\n$$ \\frac{\\sum_{i=1}^n x_i y_i}{X^{1/p}Y^{1/q}} \\le 1, $$\nwhich is equivalent to relation (5.88).\nWe obtain (5.89) similarly from (5.87). Since equality occurs in (5.86) and (5.87)\nonly when $a = b$, we conclude that it is possible in (5.88) and (5.89) only when a\nproportionality $x_i^p = \\lambda y_i^q$ or $y_i^q = \\lambda x_i^p$ holds.",
+    "parsed_terms": [
+      {
+        "name": "Young's Inequalities",
+        "type": "theorem",
+        "used_terms": [
+          "Young's inequality",
+          "convexity",
+          "p-norms",
+          "inequalities"
+        ],
+        "latex_content": "By elementary algebraic transformations one can obtain a number of classical\ninequalities of great importance for analysis from the inequalities just proved. We\nshall now derive these inequalities.\na. Young's Inequalities$^{16}$\nIf $a > 0$ and $b > 0$, and the numbers $p$ and $q$ such that $\\frac{1}{p} + \\frac{1}{q} = 1$, then\n$$ a^{1/p}b^{1/q} \\le \\frac{a}{p} + \\frac{b}{q}, \\quad \\text{if } p > 1, \\quad (5.86) $$\n$$ a^{1/p}b^{1/q} \\ge \\frac{a}{p} + \\frac{b}{q}, \\quad \\text{if } p < 1, \\quad (5.87) $$\nand equality holds in (5.86) and (5.87) only when $a = b$.\nProof It suffices to set $x = a^{\\frac{1}{p}}$ and $\\alpha = \\frac{1}{p}$ in (5.84) and (5.85), and then introduce the\nnotation $\\frac{1}{q} = 1 - \\frac{1}{p}$.\n$^{16}$W.H. Young (1882\u20131946) \u2013 British mathematician.",
+        "page_start": 260
+      },
+      {
+        "name": "H\u00f6lder's Inequalities",
+        "type": "theorem",
+        "used_terms": [
+          "H\u00f6lder's inequality",
+          "p-norms",
+          "summation inequalities",
+          "convexity"
+        ],
+        "latex_content": "b. H\u00f6lder's Inequalities$^{17}$\nLet $x_i \\ge 0, y_i \\ge 0, i = 1, \\dots, n$, and $\\frac{1}{p} + \\frac{1}{q} = 1$. Then\n$$ \\sum_{i=1}^{n} x_i y_i \\le \\left(\\sum_{i=1}^{n} x_i^p\\right)^{1/p} \\left(\\sum_{i=1}^{n} y_i^q\\right)^{1/q} \\quad \\text{for } p > 1, \\quad (5.88) $$\nand\n$$ \\sum_{i=1}^{n} x_i y_i \\ge \\left(\\sum_{i=1}^{n} x_i^p\\right)^{1/p} \\left(\\sum_{i=1}^{n} y_i^q\\right)^{1/q} \\quad \\text{for } p < 1, p \\ne 0. \\quad (5.89) $$\nIn the case $p < 0$ it is assumed in (5.89) that $x_i > 0$ ($i = 1, \\dots, n$). Equality is\npossible in (5.88) and (5.89) only when the vectors $(x_1,\\dots,x_n)$ and $(y_1,\\dots, y_n)$\nare proportional.\nProof Let us verify the inequality (5.88). Let $X = \\sum_{i=1}^n x_i^p > 0$ and $Y = \\sum_{i=1}^n y_i^q > 0$. Setting $a = \\frac{x_i^p}{X}$ and $b = \\frac{y_i^q}{Y}$ in (5.86), we obtain\n$$ \\frac{x_i y_i}{X^{1/p}Y^{1/q}} \\le \\frac{1}{p} \\frac{x_i^p}{X} + \\frac{1}{q} \\frac{y_i^q}{Y}. $$\n$^{17}$O. H\u00f6lder (1859\u20131937) \u2013 German mathematician.\nSumming these inequalities over $i$ from $1$ to $n$, we obtain\n$$ \\frac{\\sum_{i=1}^n x_i y_i}{X^{1/p}Y^{1/q}} \\le 1, $$\nwhich is equivalent to relation (5.88).\nWe obtain (5.89) similarly from (5.87). Since equality occurs in (5.86) and (5.87)\nonly when $a = b$, we conclude that it is possible in (5.88) and (5.89) only when a\nproportionality $x_i^p = \\lambda y_i^q$ or $y_i^q = \\lambda x_i^p$ holds.",
+        "page_start": 260
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 2
+  },
+  {
+    "name": "case6_random_546_p76_13",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### Proposition 1: Equivalence of Finite Norm, Boundedness, and Continuity for Multilinear Transformations (Proposition)\nKeywords: multilinear transformation, normed spaces, finite norm, bounded transformation, continuous transformation, equivalence\n[LaTeX Body]\nProposition 1 For a multilinear transformation $A : X_1 \\times \\cdots \\times X_n \\to Y$ mapping a\nproduct of normed spaces $X_1, \\ldots, X_n$ into a normed space $Y$ the following condi-\ntions are equivalent:\na) $A$ has a finite norm,\nb) $A$ is a bounded transformation,\nc) $A$ is a continuous transformation,\nd) $A$ is continuous at the point $(0, \\ldots, 0) \\in X_1 \\times \\cdots \\times X_n.$\nProof We prove a closed chain of implications $a) \\Rightarrow b) \\Rightarrow c) \\Rightarrow d) \\Rightarrow a).$\nIt is obvious from relation (10.27) that $a) \\Rightarrow b).$\nLet us verify that $b) \\Rightarrow c),$ that is, that (10.29) implies that the operator $A$ is\ncontinuous. Indeed, taking account of the multilinearity of $A,$ we can write that\n$$A(x_1+ h_1, x_2 + h_2, \\ldots, x_n + h_n) \u2013 A(x_1, x_2, \\ldots, x_n) =$$\n$$= A(h_1, x_2, \\ldots, x_n) + \\ldots + A(x_1, x_2, \\ldots, x_{n-1}, h_n) =$$\n$$+ A(h_1,h_2, x_3, \\ldots, x_n) + \\ldots + A(x_1,\\ldots, x_{n-2}, h_{n-1}, h_n) +$$\n$$+ \\cdots +A(h_1,\\ldots, h_n).$$\nFrom (10.29) we now obtain the estimate\n$$|A(x_1+ h_1, x_2 + h_2, \\ldots, x_n + h_n) - A(x_1, x_2,\\ldots,x_n) | \\le$$\n$$\\le M(|h_1|\\cdot|x_2|\\cdots|x_n| + \\cdots +|x_1|\\cdot|x_2|\\cdots |x_{n-1}|\\cdot|h_n|+$$\n$$\\left. + \\cdots + |h_1|\\cdots |h_n| \\right),$$\nfrom which it follows that $A$ is continuous at each point $(x_1, \\ldots, x_n) \\in X_1 \\times \\cdots \\times$\n$X_n.$\nIn particular, if $(x_1, \\ldots, x_n) = (0, \\ldots, 0)$ we obtain $d)$ from $c).$\nIt remains to be shown that $d) \\Rightarrow a).$\nGiven $\\varepsilon > 0$ we find $\\delta = \\delta(\\varepsilon) > 0$ such that $|A(x_1,\\ldots,x_n)| < \\varepsilon$ when $\\max\\{|x_1|,$\n$\\ldots, |x_n|\\} < \\delta.$ Then for any set $e_1, \\ldots, e_n$ of unit vectors we obtain\n$$\\frac{1}{\\delta^n} |A(e_1,\\ldots, e_n)| = \\left|A\\left(\\frac{\\delta e_1}{\\delta}, \\ldots, \\frac{\\delta e_n}{\\delta}\\right)\\right| < \\frac{\\varepsilon}{\\delta^n},$$\nthat is, $||A|| < \\infty.$\nWe have seen above (Example 1) that not every linear transformation has a finite\nnorm, that is, a linear transformation is not always continuous. We have also pointed\nout that continuity can fail for a linear transformation only when the transformation\nis defined on an infinite-dimensional space.\n\n---",
+    "parsed_terms": [
+      {
+        "name": "Proposition 1: Equivalence of Finite Norm, Boundedness, and Continuity for Multilinear Transformations",
+        "type": "proposition",
+        "used_terms": [
+          "multilinear transformation",
+          "normed spaces",
+          "finite norm",
+          "bounded transformation",
+          "continuous transformation",
+          "equivalence"
+        ],
+        "latex_content": "[LaTeX Body]\nProposition 1 For a multilinear transformation $A : X_1 \\times \\cdots \\times X_n \\to Y$ mapping a\nproduct of normed spaces $X_1, \\ldots, X_n$ into a normed space $Y$ the following condi-\ntions are equivalent:\na) $A$ has a finite norm,\nb) $A$ is a bounded transformation,\nc) $A$ is a continuous transformation,\nd) $A$ is continuous at the point $(0, \\ldots, 0) \\in X_1 \\times \\cdots \\times X_n.$\nProof We prove a closed chain of implications $a) \\Rightarrow b) \\Rightarrow c) \\Rightarrow d) \\Rightarrow a).$\nIt is obvious from relation (10.27) that $a) \\Rightarrow b).$\nLet us verify that $b) \\Rightarrow c),$ that is, that (10.29) implies that the operator $A$ is\ncontinuous. Indeed, taking account of the multilinearity of $A,$ we can write that\n$$A(x_1+ h_1, x_2 + h_2, \\ldots, x_n + h_n) \u2013 A(x_1, x_2, \\ldots, x_n) =$$\n$$= A(h_1, x_2, \\ldots, x_n) + \\ldots + A(x_1, x_2, \\ldots, x_{n-1}, h_n) =$$\n$$+ A(h_1,h_2, x_3, \\ldots, x_n) + \\ldots + A(x_1,\\ldots, x_{n-2}, h_{n-1}, h_n) +$$\n$$+ \\cdots +A(h_1,\\ldots, h_n).$$\nFrom (10.29) we now obtain the estimate\n$$|A(x_1+ h_1, x_2 + h_2, \\ldots, x_n + h_n) - A(x_1, x_2,\\ldots,x_n) | \\le$$\n$$\\le M(|h_1|\\cdot|x_2|\\cdots|x_n| + \\cdots +|x_1|\\cdot|x_2|\\cdots |x_{n-1}|\\cdot|h_n|+$$\n$$\\left. + \\cdots + |h_1|\\cdots |h_n| \\right),$$\nfrom which it follows that $A$ is continuous at each point $(x_1, \\ldots, x_n) \\in X_1 \\times \\cdots \\times$\n$X_n.$\nIn particular, if $(x_1, \\ldots, x_n) = (0, \\ldots, 0)$ we obtain $d)$ from $c).$\nIt remains to be shown that $d) \\Rightarrow a).$\nGiven $\\varepsilon > 0$ we find $\\delta = \\delta(\\varepsilon) > 0$ such that $|A(x_1,\\ldots,x_n)| < \\varepsilon$ when $\\max\\{|x_1|,$\n$\\ldots, |x_n|\\} < \\delta.$ Then for any set $e_1, \\ldots, e_n$ of unit vectors we obtain\n$$\\frac{1}{\\delta^n} |A(e_1,\\ldots, e_n)| = \\left|A\\left(\\frac{\\delta e_1}{\\delta}, \\ldots, \\frac{\\delta e_n}{\\delta}\\right)\\right| < \\frac{\\varepsilon}{\\delta^n},$$\nthat is, $||A|| < \\infty.$\nWe have seen above (Example 1) that not every linear transformation has a finite\nnorm, that is, a linear transformation is not always continuous. We have also pointed\nout that continuity can fail for a linear transformation only when the transformation\nis defined on an infinite-dimensional space.\n\n---",
+        "page_start": 76
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  },
+  {
+    "name": "case6_random_554_p316_14",
+    "description": "Randomly selected page for general quality testing.",
+    "raw_response": "### The Exponential Function as Solution to f' = f (Definition)\nKeywords: exponential function, differential equation, initial condition, exp x, definition\n[LaTeX Body]\n\\subsection{5.6.5 The Number $e$ and the Function $\\exp x$ Revisited}\nBy examples we have verified (see also Problems 3 and 4 at the end of this section)\nthat a number of natural phenomena can be described from the mathematical point\nof view by the same differential equation, namely\n$$f'(x) = \\alpha f(x), \\quad (5.152)$$\n$^{32}\\text{It should be noted that here, like in many others studied examples of problems of natural science,}$\n$\\text{we illustrate the calculation method. In the calculation are included some original data (empirical}$\n$\\text{constants, various assumptions) on which depends the level of concordance of the calculations with}$\n$\\text{the reality. This data are not given by mathematics but by a corresponding science. For example,}$\n$\\text{in order to obtain data on the aerodynamic properties of the bodies, in particular the nature of the}$\n$\\text{change in the resistance force occurring during their movement in the atmosphere, it is necessary}$\n$\\text{often to perform a long series of experiments in wind tunnels. Mathematics helps to calculate one}$\n$\\text{or another mathematical model of the phenomenon, it often provides a ready calculation procedure,}$\n$\\text{but the correctness of the initial data and the adequacy of the model is the work of another relevant}$\n$\\text{science (biology, chemistry, physics, ...).}$\nwhose solution $f(x)$ is uniquely determined when the ``initial condition'' $f(0)$ is\nspecified. Then\n$$f(x) = f(0)e^{\\alpha x}.$$\nWe introduced the number $e$ and the function $e^x = \\exp x$ in a rather formal way\nearlier, assuring the reader that $e$ really was an important number and $\\exp x$ really\nwas an important function. It is now clear that even if we had not introduced this\nfunction earlier, it would certainly have been necessary to introduce it as the solution\nof the important, though very simple equation (5.152). More precisely, it would have\nsufficed to introduce the function that is the solution of Eq. (5.152) for some specific\nvalue of $\\alpha$, for example, $\\alpha = 1$; for the general equation (5.152) can be reduced to\nthis case by changing to a new variable $t$ connected with $x$ by the relation $x = \\frac{t}{\\alpha}$\n$(\\alpha \\ne 0)$.\nIndeed, we then have\n$$f(x) = f\\left(\\frac{t}{\\alpha}\\right) = F(t), \\quad \\frac{df(x)}{dx} = \\frac{dF(t)}{dt} \\frac{dt}{dx} = \\alpha F'(t)$$\nand instead of the equation $f'(x) = \\alpha f(x)$ we then have $\\alpha F'(t) = \\alpha F(t)$, or $F'(t) =\nF(t)$.\nThus, let us consider the equation\n$$f'(x) = f(x) \\quad (5.153)$$\nand denote the solution of this equation satisfying $f(0) = 1$ by $\\exp x$.\nLet us check to see whether this definition agrees with our previous definition of\n$\\exp x$.\nLet us try to calculate the value of $f(x)$ starting from the relation $f(0) = 1$ and\nthe assumption that $f$ satisfies (5.153). Since $f$ is differentiable, it is continuous.\nBut then Eq. (5.153) implies that $f'(x)$ is also continuous. Moreover, it follows\nfrom (5.153) that $f$ also has a second derivative $f''(x) = f'(x)$, and in general that\n$f$ is infinitely differentiable. Since the rate of variation $f'(x)$ of the function $f(x)$\nis continuous, the function $f'$ changes very little over a small interval $h$ of variation\nof its argument. Therefore $f(x_0 + h) = f(x_0) + f'(\\xi)h \\approx f(x_0) + f'(x_0)h$. Let us\nuse this approximate formula and traverse the interval from $0$ to $x$ in small steps of\nsize $h = \\frac{x}{n}$, where $n \\in \\mathbb{N}$. If $x_0 = 0$ and $x_{k+1} = x_k + h$, we should have\n$$f(x_{k+1}) \\approx f(x_k) + f'(x_k)h.$$\nTaking account of (5.153) and the condition $f(0) = 1$, we have\n$$f(x) = f(x_n) \\approx f(x_{n-1}) + f'(x_{n-1})h = f(x_{n-1})(1 + h) \\sim (f(x_{n-2}) + f'(x_{n-2})h) (1 + h) =$$\n\n---",
+    "parsed_terms": [
+      {
+        "name": "The Exponential Function as Solution to f' = f",
+        "type": "definition",
+        "used_terms": [
+          "exponential function",
+          "differential equation",
+          "initial condition",
+          "exp x",
+          "definition"
+        ],
+        "latex_content": "[LaTeX Body]\n\\subsection{5.6.5 The Number $e$ and the Function $\\exp x$ Revisited}\nBy examples we have verified (see also Problems 3 and 4 at the end of this section)\nthat a number of natural phenomena can be described from the mathematical point\nof view by the same differential equation, namely\n$$f'(x) = \\alpha f(x), \\quad (5.152)$$\n$^{32}\\text{It should be noted that here, like in many others studied examples of problems of natural science,}$\n$\\text{we illustrate the calculation method. In the calculation are included some original data (empirical}$\n$\\text{constants, various assumptions) on which depends the level of concordance of the calculations with}$\n$\\text{the reality. This data are not given by mathematics but by a corresponding science. For example,}$\n$\\text{in order to obtain data on the aerodynamic properties of the bodies, in particular the nature of the}$\n$\\text{change in the resistance force occurring during their movement in the atmosphere, it is necessary}$\n$\\text{often to perform a long series of experiments in wind tunnels. Mathematics helps to calculate one}$\n$\\text{or another mathematical model of the phenomenon, it often provides a ready calculation procedure,}$\n$\\text{but the correctness of the initial data and the adequacy of the model is the work of another relevant}$\n$\\text{science (biology, chemistry, physics, ...).}$\nwhose solution $f(x)$ is uniquely determined when the ``initial condition'' $f(0)$ is\nspecified. Then\n$$f(x) = f(0)e^{\\alpha x}.$$\nWe introduced the number $e$ and the function $e^x = \\exp x$ in a rather formal way\nearlier, assuring the reader that $e$ really was an important number and $\\exp x$ really\nwas an important function. It is now clear that even if we had not introduced this\nfunction earlier, it would certainly have been necessary to introduce it as the solution\nof the important, though very simple equation (5.152). More precisely, it would have\nsufficed to introduce the function that is the solution of Eq. (5.152) for some specific\nvalue of $\\alpha$, for example, $\\alpha = 1$; for the general equation (5.152) can be reduced to\nthis case by changing to a new variable $t$ connected with $x$ by the relation $x = \\frac{t}{\\alpha}$\n$(\\alpha \\ne 0)$.\nIndeed, we then have\n$$f(x) = f\\left(\\frac{t}{\\alpha}\\right) = F(t), \\quad \\frac{df(x)}{dx} = \\frac{dF(t)}{dt} \\frac{dt}{dx} = \\alpha F'(t)$$\nand instead of the equation $f'(x) = \\alpha f(x)$ we then have $\\alpha F'(t) = \\alpha F(t)$, or $F'(t) =\nF(t)$.\nThus, let us consider the equation\n$$f'(x) = f(x) \\quad (5.153)$$\nand denote the solution of this equation satisfying $f(0) = 1$ by $\\exp x$.\nLet us check to see whether this definition agrees with our previous definition of\n$\\exp x$.\nLet us try to calculate the value of $f(x)$ starting from the relation $f(0) = 1$ and\nthe assumption that $f$ satisfies (5.153). Since $f$ is differentiable, it is continuous.\nBut then Eq. (5.153) implies that $f'(x)$ is also continuous. Moreover, it follows\nfrom (5.153) that $f$ also has a second derivative $f''(x) = f'(x)$, and in general that\n$f$ is infinitely differentiable. Since the rate of variation $f'(x)$ of the function $f(x)$\nis continuous, the function $f'$ changes very little over a small interval $h$ of variation\nof its argument. Therefore $f(x_0 + h) = f(x_0) + f'(\\xi)h \\approx f(x_0) + f'(x_0)h$. Let us\nuse this approximate formula and traverse the interval from $0$ to $x$ in small steps of\nsize $h = \\frac{x}{n}$, where $n \\in \\mathbb{N}$. If $x_0 = 0$ and $x_{k+1} = x_k + h$, we should have\n$$f(x_{k+1}) \\approx f(x_k) + f'(x_k)h.$$\nTaking account of (5.153) and the condition $f(0) = 1$, we have\n$$f(x) = f(x_n) \\approx f(x_{n-1}) + f'(x_{n-1})h = f(x_{n-1})(1 + h) \\sim (f(x_{n-2}) + f'(x_{n-2})h) (1 + h) =$$\n\n---",
+        "page_start": 316
+      }
+    ],
+    "isolated_proofs_count": 0,
+    "total_extracted": 1
+  }
+]

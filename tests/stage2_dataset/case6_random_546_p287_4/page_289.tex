@@ -1,0 +1,26 @@
+272 14 Elements of Vector Analysis and Field Theory
+Example 9 Using the notation introduced in Example 8 and formulas (14.26'),
+(14.26'') and (14.26'''), we obtain in Cartesian, cylindrical, and spherical coordi-
+nates respectively
+$$\omega^2_B = B_x \mathrm{d}y \wedge \mathrm{d}z + B_y \mathrm{d}z \wedge \mathrm{d}x + B_z \mathrm{d}x \wedge \mathrm{d}y = \quad \quad \quad \text{(14.32')}$$
+$$= B_r r \mathrm{d}\varphi \wedge \mathrm{d}z + B_z \mathrm{d}z \wedge \mathrm{d}r + B_z r \mathrm{d}r \wedge \mathrm{d}\varphi = \quad \quad \quad \text{(14.32'')}$$
+$$= B_R R^2 \cos \theta \mathrm{d}\varphi \wedge \mathrm{d}\theta + B_\theta R \mathrm{d}\theta \wedge \mathrm{d}R + B_R \cos \theta \mathrm{d}R \wedge \mathrm{d}\varphi. \quad \text{(14.32''')}$$
+h.
+We add further that on the basis of (14.28) we can write
+$$\omega^3 = \rho \sqrt{E_1 E_2 E_3} \mathrm{d}t^1 \wedge \mathrm{d}t^2 \wedge \mathrm{d}t^3. \quad \text{(14.33)}$$
+Example 10 In particular, for Cartesian, cylindrical, and spherical coordinates re-
+spectively, formula (14.33) has the following forms:
+$$\omega^3 = \rho \mathrm{d}x \wedge \mathrm{d}y \wedge \mathrm{d}z = \quad \quad \quad \quad \quad \text{(14.33')}$$
+$$= \rho r \mathrm{d}r \wedge \mathrm{d}\varphi \wedge \mathrm{d}z = \quad \quad \quad \quad \quad \text{(14.33'')}$$
+$$= \rho R^2 \cos \theta \mathrm{d}R \wedge \mathrm{d}\varphi \wedge \mathrm{d}\theta. \quad \quad \quad \quad \text{(14.33''')}$$
+Now that we have obtained formulas (14.31)–(14.33), it is easy to find the coordi-
+nate representation of the operators grad, curl, and div in a triorthogonal curvilinear
+coordinate system using Definitions (14.9)–(14.11).
+Let $\mathrm{grad} f = A^1e_1 + A^2e_2 + A^3e_3$. Using the definitions, we write
+$$\omega^1_{\mathrm{grad} f} := \mathrm{d}\omega^0 = \mathrm{d}f := \frac{\partial f}{\partial t^1} \mathrm{d}t^1 + \frac{\partial f}{\partial t^2} \mathrm{d}t^2 + \frac{\partial f}{\partial t^3} \mathrm{d}t^3.$$
+From this, using formula (14.31), we conclude that
+$$\mathrm{grad} f = \frac{1}{\sqrt{E_1}}\frac{\partial f}{\partial t^1} e_1 + \frac{1}{\sqrt{E_2}}\frac{\partial f}{\partial t^2} e_2 + \frac{1}{\sqrt{E_3}}\frac{\partial f}{\partial t^3} e_3. \quad \text{(14.34)}$$
+Example 11 In Cartesian, cylindrical, and spherical coordinates respectively,
+$$\mathrm{grad} f = \frac{\partial f}{\partial x} e_x + \frac{\partial f}{\partial y} e_y + \frac{\partial f}{\partial z} e_z = \quad \quad \quad \quad \quad \text{(14.34')}$$
+$$= \frac{\partial f}{\partial r} e_r + \frac{1}{r}\frac{\partial f}{\partial \varphi} e_\varphi + \frac{\partial f}{\partial z} e_z = \quad \quad \quad \quad \quad \text{(14.34'')}$$
+$$= \frac{\partial f}{\partial R} e_R + \frac{1}{R\cos\theta}\frac{\partial f}{\partial \varphi} e_\varphi + \frac{1}{R^2}\frac{\partial f}{\partial \theta} e_\theta. \quad \quad \quad \text{(14.34''')}$$

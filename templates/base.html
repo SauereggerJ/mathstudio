@@ -234,6 +234,36 @@
             }
         }
 
+        window.formatLatexText = function (str) {
+            if (!str) return '';
+            let text = str;
+            // Basic text macros
+            text = text.replace(/\\textbf{([^}]*)}/g, '<b class="font-bold text-slate-900">$1</b>');
+            text = text.replace(/\\textit{([^}]*)}/g, '<i class="italic">$1</i>');
+            text = text.replace(/\\emph{([^}]*)}/g, '<em class="italic font-medium">$1</em>');
+
+            // Display Math Environments
+            text = text.replace(/\\begin{(equation\*?|gather\*?|multline\*?)}([\s\S]*?)\\end{\1}/g, '$$$$$2$$$$');
+            text = text.replace(/\\begin{(align\*?|eqnarray\*?|aligned\*?)}([\s\S]*?)\\end{\1}/g, '$$$$\\begin{aligned}$2\\end{aligned}$$$$');
+
+            // Structural environments (remove wrappers, keep content)
+            text = text.replace(/\\begin{(theorem|lemma|definition|example|remark|proof|corollary|proposition|axiom|flushleft|flushright|center)}(?:\[.*?\])?([\s\S]*?)\\end{\1}/g, '$2');
+
+            // Lists
+            text = text.replace(/\\begin{itemize}/g, '<ul class="list-disc pl-8 my-4 space-y-2">');
+            text = text.replace(/\\end{itemize}/g, '</ul>');
+            text = text.replace(/\\begin{enumerate}/g, '<ol class="list-decimal pl-8 my-4 space-y-2">');
+            text = text.replace(/\\end{enumerate}/g, '</ol>');
+            text = text.replace(/\\item\s*/g, '<li>');
+
+            // Labels and unwanted commands
+            text = text.replace(/\\label{[^}]*}/g, '');
+            text = text.replace(/\\noindent/g, '');
+            text = text.replace(/\\hfill/g, '');
+
+            return text.trim();
+        };
+
         // --- Core Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             // 1. Draggable Gemini

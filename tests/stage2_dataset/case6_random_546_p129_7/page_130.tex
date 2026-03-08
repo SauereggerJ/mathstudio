@@ -1,0 +1,37 @@
+110
+b. Partitions of an Interval and a Base in the Set of Partitions
+11 Multiple Integrals
+Suppose we are given an interval $I = \{x \in \mathbb{R}^n \mid a^i \le x^i \le b^i, i = 1, \ldots, n\}$. Par-
+titions of the coordinate intervals $[a^i, b^i]$, $i = 1,\ldots, n$, induce a partition of the
+interval $I$ into finer intervals obtained as the direct products of the intervals of the
+partitions of the coordinate intervals.
+Definition 3 The representation of the interval $I$ (as the union $I = \bigcup_{j=1}^k I_j$ of finer
+intervals $I_j$) just described will be called a partition of the interval $I$, and will be
+denoted by $P$.
+Definition 4 The quantity $\lambda(P) := \max_{1\le j\le k} d(I_j)$ (the maximum among the di-
+ameters of the intervals of the partition $P$) is called the mesh of the partition $P$.
+Definition 5 If in each interval $I_j$ of the partition $P$ we fix a point $\xi_j \in I_j$, we say
+that we have a partition with distinguished points.
+The set $\{\xi_1,\ldots, \xi_k\}$, as before, will be denoted by the single letter $\xi$, and the
+partition with distinguished points by $(P, \xi)$.
+In the set $\mathcal{P} = \{(P, \xi)\}$ of partitions with distinguished points on an interval $I$ we
+introduce the base $\lambda(P) \to 0$ whose elements $B_{\lambda > 0}$, as in the one-dimensional
+case, are defined by $B_{\lambda} := \{(P, \xi) \in \mathcal{P} \mid\lambda(P) < d\}$.
+The fact that $\mathcal{B} = \{B_d\}$ really is a base follows from the existence of partitions of
+mesh arbitrarily close to zero.
+c. Riemann Sums and the Integral
+Let $f : I \to \mathbb{R}$ be a real-valued$^1$ function on the interval $I$ and $P = \{I_1, \ldots, I_k\}$ a
+partition of this interval with distinguished points $\xi = \{\xi_1, \ldots, \xi_k\}$.
+Definition 6 The sum
+$$
+\sigma(f, P, \xi) := \sum_{i=1}^k f(\xi_i)|I_i|
+$$
+is called the Riemann sum of the function $f$ corresponding to the partition of the
+interval $I$ with distinguished points $(P, \xi)$.
+Definition 7 The quantity
+$$
+\int_I f(x)dx := \lim_{\lambda(P)\to 0} \sigma(f, P, \xi),
+$$
+$^1$Please note that in the following definitions one could assume that the values of $f$ lie in any
+normed vector space. For example, it might be the space $\mathbb{C}$ of complex numbers or the spaces $\mathbb{R}^n$
+and $\mathbb{C}^n$.

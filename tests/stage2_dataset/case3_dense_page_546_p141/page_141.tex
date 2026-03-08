@@ -1,0 +1,35 @@
+11.2 The Integral over a Set
+121
+\begin{lemma}{3} If $I_1$ and $I_2$ are two intervals, both containing the set $E$, then the inte-
+grals
+$$\int_{I_1} f \chi_E(x)dx \quad \text{and} \quad \int_{I_2} f \chi_E(x)dx$$
+either both exist or both fail to exist, and in the first case their values are the same.
+\end{lemma}
+\begin{proof} Consider the interval $I = I_1 \cap I_2$. By hypothesis $I \supset E$. The points of dis-
+continuity of $f \chi_E$ are either points of discontinuity of $f$ on $E$, or the result of
+discontinuities of $\chi_E$, in which case they lie on $\partial E$. In any case, all these points
+lie in $I = I_1 \cap I_2$. By Lebesgue's criterion (Theorem 1 of Sect. 11.1) it follows that
+the integrals of $f \chi_E$ over the intervals $I, I_1$, and $I_2$ either all exist or all fail to
+exist. If they do exist, we may choose partitions of $I, I_1$, and $I_2$ to suit ourselves.
+Therefore we shall choose only those partitions of $I_1$ and $I_2$ obtained as extensions
+of partitions of $I = I_1 \cap I_2$. Since the function is zero outside $I$, the Riemann sums
+corresponding to these partitions of $I_1$ and $I_2$ reduce to Riemann sums for the cor-
+responding partition of $I$. It then results from passage to the limit that the integrals
+over $I_1$ and $I_2$ are equal to the integral of the function in question over $I$.
+\end{proof}
+Lebesgue's criterion (Theorem 1 of Sect. 11.1) for the existence of the integral
+over an interval and Definition 2 now imply the following theorem.
+\begin{theorem}{1} A function $f : E \to \mathbb{R}$ is integrable over an admissible set if and only
+if it is bounded and continuous at almost all points of $E$.
+\end{theorem}
+\begin{proof} Compared with $f$, the function $f \chi_E$ may have additional points of discon-
+tinuity only on the boundary $\partial E$ of $E$, which by hypothesis is a set of measure
+zero.
+\end{proof}
+\subsubsection{The Measure (Volume) of an Admissible Set}
+\begin{definition}{3} The (Jordan) measure or content of a bounded set $E \subset \mathbb{R}^n$ is
+$$\mu(E) := \int_E 1 \cdot dx,$$
+provided this Riemann integral exists.
+\end{definition}
+Since
+$$\int_E 1 \cdot dx = \int_I \chi_E(x) dx,$$

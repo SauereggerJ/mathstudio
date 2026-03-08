@@ -1,0 +1,67 @@
+\documentclass{article}
+\usepackage{amsmath, amsthm, amssymb}
+
+ewtheorem{theorem}{Theorem}
+
+ewtheorem{remark}{Remark}
+
+ewtheorem{example}{Example}
+
+\begin{document}
+
+\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad 6 \text{ Integration}
+\begin{theorem} \text{(Comparison theorem) Suppose the functions } x \mapsto f(x) \text{ and } x \mapsto g(x)
+\text{are defined on the interval } [a, \omega[ \text{ and integrable on any closed interval } [a, b] \subset
+[a, \omega[.
+\text{If}
+\begin{equation*}
+0 \leq f(x) \leq g(x)
+\end{equation*}
+\text{on } [a, \omega[, \text{ then convergence of the integral (\ref{eq:6.73}) implies convergence of (\ref{eq:6.72}) and}
+\text{the inequality}
+\begin{equation*}
+\int_{a}^{\omega} f(x)dx \leq \int_{a}^{\omega} g(x)dx
+\end{equation*}
+\text{holds. Divergence of the integral (\ref{eq:6.72}) implies divergence of (\ref{eq:6.73}).}
+\end{theorem}
+\begin{proof}
+\text{From the hypotheses of the theorem and the inequalities for proper Riemann}
+\text{integrals we have}
+\begin{equation*}
+F(b) = \int_{a}^{b} f(x)dx \leq \int_{a}^{b} g(x)dx = G(b)
+\end{equation*}
+\text{for any } b \in [a, \omega[. \text{ Since both functions } F \text{ and } G \text{ are nondecreasing on } [a, \omega[, \text{ the}
+\text{theorem follows from this inequality and Proposition 3.}
+\end{proof}
+\begin{remark} \text{If instead of satisfying the inequalities } 0 \leq f (x) \leq g(x) \text{ the functions } f
+\text{and } g \text{ in the theorem are known to be nonnegative and of the same order as } x \to \omega,
+x \in [a, \omega[, \text{ that is, there are positive constants } c_1 \text{ and } c_2 \text{ such that}
+\begin{equation*}
+c_1 f (x) \leq g(x) \leq c_2 f (x),
+\end{equation*}
+\text{then by the linearity of the improper integral and theorem just proved, in this case}
+\text{we can conclude that the integrals (\ref{eq:6.72}) and (\ref{eq:6.73}) either both converge or both}
+\text{diverge.}
+\end{remark}
+\begin{example} \text{The integral}
+\begin{equation*}
+\int_{1}^{+\infty} \frac{\sqrt{x}}{\sqrt{1+x^4}} dx
+\end{equation*}
+\text{converges, since}
+\begin{equation*}
+\frac{\sqrt{x}}{\sqrt{1+x^4}} \sim \frac{1}{x^{3/2}}
+\end{equation*}
+\text{as } x \to +\infty.
+\end{example}
+\begin{example} \text{The integral}
+\begin{equation*}
+\int_{1}^{+\infty} \frac{\cos x}{x^2} dx
+\end{equation*}
+\text{converges absolutely, because}
+\[
+\left|\frac{\cos x}{x^2}\right| \leq \frac{1}{x^2},
+\]
+\text{and the integral } \(\displaystyle \int_{1}^{+\infty} \frac{1}{x^2} dx\) \text{ converges.}
+\end{example}
+
+\end{document}

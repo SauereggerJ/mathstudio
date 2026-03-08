@@ -1,0 +1,35 @@
+120
+a) $\partial E$ is a closed subset of $\mathbb{R}^n$;
+b) $\partial(E_1 \cup E_2) \subset \partial E_1 \cup \partial E_2$;
+c) $\partial(E_1 \cap E_2) \subset \partial E_1 \cup \partial E_2$;
+d) $\partial(E_1 \setminus E_2) \subset \partial E_1 \cup \partial E_2$.
+11 Multiple Integrals
+This lemma and Definition 1 together imply the following lemma.
+\begin{lemma}{2} The union or intersection of a finite number of admissible sets is an ad-
+missible set; the difference of admissible sets is also an admissible set.
+\end{lemma}
+\begin{remark}{1} For an infinite collection of admissible sets Lemma 2 is generally not
+true, and the same is the case with assertions b) and c) of Lemma 1.
+\end{remark}
+\begin{remark}{2} The boundary of an admissible set is not only closed, but also bounded
+in $\mathbb{R}^n$, that is, it is a compact subset of $\mathbb{R}^n$. Hence by Lemma 3 of Sect. 11.1, it can
+even be covered by a finite set of intervals whose total content (volume) is arbitrarily
+close to zero.
+\end{remark}
+We now consider the characteristic function
+$$\chi_E (x) = \begin{cases} 1, & \text{if } x \in E, \\ 0, & \text{if } x \notin E, \end{cases}$$
+of an admissible set $E$. Like the characteristic function of any set $E$, the function
+$\chi_E (x)$ has discontinuities at the boundary points of the set $E$ and at no other points.
+Hence if $E$ is an admissible set, the function $\chi_E (x)$ is continuous at almost all points
+of $\mathbb{R}^n$.
+\subsubsection{The Integral over a Set}
+Let $f$ be a function defined on a set $E$. We shall agree, as before, to denote the
+function equal to $f(x)$ for $x \in E$ and to $0$ outside $E$ by $f \chi_E(x)$ (even though $f$
+may happen to be undefined outside of $E$).
+\begin{definition}{2} The integral of $f$ over $E$ is given by
+$$\int_E f(x)dx := \int_I f \chi_E(x)dx,$$
+where $I$ is any interval containing $E$.
+\end{definition}
+If the integral on the right-hand side of this equality does not exist, we say that $f$
+is (Riemann) nonintegrable over $E$. Otherwise $f$ is (Riemann) integrable over $E$.
+The set of all functions that are Riemann integrable over $E$ will be denoted $\mathcal{R}(E)$.

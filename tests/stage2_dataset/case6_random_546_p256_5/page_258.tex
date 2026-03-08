@@ -1,0 +1,27 @@
+240 \hfill 13 Line and Surface Integrals
+\begin{align*} \int_{\gamma_3} P(x, y) \, dx &:= \int_{[0,1]} \gamma_3^*(P(x, y) \, dx) := \int_0^1 P(x, 1) \, dx, \\ \int_{\gamma_4} P(x, y) \, dx &:= \int_{[0,1]} \gamma_4^*(P(x, y) \, dx) := \int_0^1 0 \, dy = 0, \end{align*}
+and, in addition, by the choice of the orientation of the boundary of the domain,
+taking account of the orientations of $\gamma_1, \gamma_2, \gamma_3, \gamma_4$, it is obvious that
+\[ \oint_{\partial I} \omega = \int_{\gamma_1} \omega + \int_{\gamma_2} \omega + \int_{\gamma_3} \omega + \int_{\gamma_4} \omega = \int_{\gamma_1} \omega + \int_{\gamma_2} \omega - \int_{-\gamma_3} \omega - \int_{-\gamma_4} \omega, \]
+where $-\gamma_i$ is the curve $\gamma_i$ taken with the orientation opposite to the one defined
+by $\gamma_i$.
+Thus Eq. (13.26) is now verified.
+\[ \square \]
+It can be verified similarly that
+\[ \iint_{I} \frac{\partial Q}{\partial x} dx \, dy = \oint_{\partial I} Q \, dy. \tag{13.27} \]
+Adding (13.26) and (13.27), we obtain Green's formula
+\[ \iint_{I} \left( \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y} \right) dx \, dy = \oint_{\partial I} P dx + Q dy \tag{13.25'} \]
+for the square $I$.
+We remark that the asymmetry of $P$ and $Q$ in Green's formula (13.25) and in
+Eqs. (13.26) and (13.27) comes from the asymmetry of $x$ and $y$: after all, $x$ and $y$
+are ordered, and it is that ordering that gives the orientation in $\mathbb{R}^2$ and in $I$.
+In the language of forms, the relation (13.25') just proved can be rewritten as
+\[ \int_{I} d\omega = \int_{\partial I} \omega, \tag{13.25''} \]
+where $\omega$ is an arbitrary smooth 1-form on $I$. The integrand on the right-hand side here
+is the restriction of the form $\omega$ to the boundary $\partial I$ of the square $I$.
+The proof of relation (13.26) just given admits an obvious generalization: If $D_y$
+is not a square, but a ``curvilinear quadrilateral'' whose lateral sides are vertical closed
+intervals (possibly degenerating to a point) and whose other two sides are the graphs
+of piecewise-smooth functions $\varphi_1(x) \le \varphi_2(x)$ over the closed interval $[a, b]$ of the
+$x$-axis, then
+\[ \iint_{D_y} \frac{\partial P}{\partial y} dx \, dy = - \oint_{\partial D_y} P dx. \tag{13.26'} \]

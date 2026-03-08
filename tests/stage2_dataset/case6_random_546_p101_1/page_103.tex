@@ -1,0 +1,36 @@
+10.5 Higher-Order Derivatives
+83
+Then, after computing the value of this operator at the vector $h_2 \in X$, we obtain an
+element of $Y$:
+$$f^{(2)} (x) (h_1, h_2) := (f^{(2)} (x)h_1)h_2 \in Y.$$
+(10.65)
+But
+$$f^{(2)} (x)h = (f')'(x)h = D_h f'(x),$$
+and therefore
+$$f^{(2)} (x) (h_1, h_2) = (D_{h_1} f'(x))h_2.$$
+(10.66)
+If $A \in \mathcal{L}(X; Y)$ and $h \in X$, this pairing with $Ah$ can be regarded not only as a
+mapping $h\mapsto Ah$ from $X$ into $Y$, but as a mapping $A \mapsto Ah$ from $\mathcal{L}(X; Y)$ into $Y$,
+the latter mapping being linear, just like the former.
+Comparing relations (10.62), (10.64), and (10.66), we can write
+$$(D_{h_1} f'(x))h_2 = D_{h_1}(f'(x)h_2) = D_{h_1} D_{h_2} f (x).$$
+Thus we finally obtain
+$$f^{(2)} (x)(h_1, h_2) = D_{h_1} D_{h_2} f (x).$$
+Similarly, one can show that the relation
+$$f^{(n)}(x)(h_1,\ldots, h_n) := (\ldots (f^{(n)}(x)h_1)\ldots h_n) = D_{h_1} D_{h_2} \cdots D_{h_n} f (x) \quad (10.67)$$
+holds for any $n \in \mathbb{N}$, the differentiation with respect to the vectors being carried
+out sequentially, starting with differentiation with respect to $h_n$ and ending with
+differentiation with respect to $h_1$.
+
+10.5.3 Symmetry of the Higher-Order Differentials
+In connection with formula (10.67), which is perfectly adequate for computation as
+it now stands, the question naturally arises: To what extent does the result of the
+computation depend on the order of differentiation?
+Proposition If the form $f^{(n)} (x)$ is defined at the point $x$ for the mapping (10.58), it
+is symmetric with respect to any pair of its arguments.
+Proof The main element in the proof is to verify that the proposition holds in the
+case $n = 2$.
+Let $h_1$ and $h_2$ be two arbitrary fixed vectors in the space $T_Xx \sim X$. Since $U$ is
+open in $X$, the following auxiliary function of $t$ is defined for all values of $t \in \mathbb{R}$
+sufficiently close to zero:
+$$F_t(h_1, h_2) = f (x + t(h_1+h_2)) - f (x + th_1) − f(x + th_2) + f (x).$$

@@ -1,0 +1,36 @@
+82
+10 *Differential Calculus from a More General Point of View
+10.5.2 Derivative with Respect to a Vector and Computation
+of the Values of the $n$th Differential
+When we are making the abstract Definition 1 specific, the concept of the derivative
+with respect to a vector may be used to advantage. This concept is introduced for
+the general mapping (10.58) just as was done earlier in the case $X = \mathbb{R}^m, Y = \mathbb{R}$.
+Definition 2 If $X$ and $Y$ are normed vector spaces over the field $\mathbb{R}$, the derivative
+of the mapping (10.58) with respect to the vector $h \in T_Xx \sim X$ at the point $x \in U$
+is defined as the limit
+$$D_h f (x) := \lim_{t\partial\to 0} \frac{f (x + th) − f (x)}{t},$$
+provided this limit exists.
+It can be verified immediately that
+$$D_{h_1+h_2} f (x) = D_{\lambda h} f (x) = \lambda D_h f (x)$$
+(10.61)
+and that if the mapping $f$ is differentiable at the point $x \in U$, it has a derivative at
+that point with respect to every vector; moreover
+$$D_h f (x) = f'(x)h,$$
+and, by the linearity of the tangent mapping,
+$$D_{\lambda_1 h_1+\lambda_2 h_2} f(x) = \lambda_1 D_{h_1} f (x) + \lambda_2 D_{h_2} f (x).$$
+(10.62)
+(10.63)
+It can also be seen from Definition 2 that the value $D_h f (x)$ of the derivative of
+the mapping $f : U \to Y$ with respect to a vector is an element of the vector space
+$T_{Y_{f(x)}}Y \sim Y$, and that if $L$ is a continuous linear transformation from $Y$ to a normed
+space $Z$, then
+$$D_h(L\circ f)(x) = L \circ D_h f (x).$$
+(10.64)
+We shall now try to give an interpretation to the value $f^{(n)} (h_1,\ldots, h_n)$ of the
+$n$th differential of the mapping $f$ at the point $x$ on the set $(h_1,\ldots,h_n)$ of vectors
+$h_i \in T_{Xx} \sim X$, $i = 1, \ldots, n$.
+We begin with $n = 1$. In this case, by formula (10.62)
+$$f'(x)(h) = f'(x)h = D_h f (x).$$
+We now consider the case $n = 2$. Since $f^{(2)} (x) \in \mathcal{L}(X; \mathcal{L}(X; Y))$, fixing a vector
+$h_1 \in X$, we assign a linear transformation $(f^{(2)}(x)h_1) \in \mathcal{L}(X; Y)$ to it by the rule
+$$h_1\mapsto f^{(2)}(x)h_1.$$

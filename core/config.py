@@ -59,6 +59,13 @@ def get_api_key():
     try:
         import json
         with open(PROJECT_ROOT / "credentials.json", "r") as f:
-            return json.load(f).get("GEMINI_API_KEY")
+            creds = json.load(f)
+            return creds.get("GEMINI_API_KEY"), creds.get("DEEPSEEK_API_KEY")
     except Exception:
-        return os.environ.get("GEMINI_API_KEY")
+        return os.environ.get("GEMINI_API_KEY"), os.environ.get("DEEPSEEK_API_KEY")
+
+GEMINI_API_KEY, DEEPSEEK_API_KEY = get_api_key()
+
+# AI Routing Policy: "gemini_only" or "dual_stack"
+# dual_stack = Gemini for Vision (PDF->LaTeX), DeepSeek for Text/Logic (Repair, Extraction)
+AI_ROUTING_POLICY = os.environ.get("AI_ROUTING_POLICY", "dual_stack")

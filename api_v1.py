@@ -22,6 +22,7 @@ from services.enrichment import enrichment_service
 from services.knowledge import knowledge_service
 from services.compilation import compilation_service
 from services.analytics import analytics_service
+from services.pipeline import pipeline_service
 from core.utils import parse_page_range
 
 api_v1 = Blueprint('api_v1', __name__)
@@ -223,6 +224,16 @@ def msc_tree_endpoint():
     except FileNotFoundError:
         return jsonify({'error': 'MSC tree file not found'}), 404
 
+@api_v1.route('/books', methods=['GET'])
+def get_books_collection():
+    """Returns a minimal list of all books for dropdowns and filtering."""
+    try:
+        with db.get_connection() as conn:
+            books = conn.execute("SELECT id, title, author, year FROM books b WHERE EXISTS (SELECT 1 FROM knowledge_terms kt WHERE kt.book_id = b.id) ORDER BY title ASC").fetchall()
+        return jsonify({'books': [dict(b) for b in books]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api_v1.route('/books/<int:book_id>/deep-index', methods=['POST'])
 def trigger_deep_indexing(book_id):
     try:
@@ -388,9 +399,8 @@ def get_book_pages_latex(book_id):
         if not target_pages:
             return jsonify({'error': 'Invalid page range'}), 400
             
-        results, error = note_service.get_or_convert_pages(
-            book_id, target_pages, force_refresh=force_refresh, min_quality=min_quality
-        )
+        res1 = pipeline_service.run_pass_1(book_id, pages=target_pages)
+        results = res1 # Simplified
         
         if error:
             return jsonify({'error': error}), 500
@@ -1144,87 +1154,57 @@ def pdf_to_note_tool():
         target_pages = parse_page_range(pages_str, row['page_count'])
         if not target_pages: return jsonify({'error': 'Invalid page range'}), 400
         
-        # 1. Standard full-page conversion (fills cache)
-        results, convert_error = note_service.get_or_convert_pages(
-            book_id, target_pages, 
-            force_refresh=force_refresh, 
-            min_quality=min_quality,
-            abort_on_failure=abort_on_failure
-        )
+        # 1. Pipeline Pass 1: Visual Harvester (PDF -> LaTeX)
+        current_app.logger.info(f'API Tool: Pass 1 on book {book_id}, pages {target_pages}')
+        res1 = pipeline_service.run_pass_1(book_id, pages=target_pages)
         
-        if convert_error:
-            # If aborted, results contains partial pages already done
-            return jsonify({
-                'success': False, 
-                'error': convert_error,
-                'partial_results': results
-            }), 422 # 422 Unprocessable Entity for logic errors
-        
-        # 2. Contextual Knowledge Extraction (Batch Optimized)
-        total_terms, err = note_service.extract_and_save_knowledge_terms_batch(
-            book_id, target_pages,
-            window_buffer=max(window_before, window_after),
-            force=force_extract
-        )
-        if err:
-            logger.error(f"Batch extraction encountered an error: {err}")
+        # 2. Pipeline Pass 2: Term Extraction (LaTeX -> KB)
+        current_app.logger.info(f'API Tool: Pass 2 on book {book_id}, pages {target_pages}')
+        res2 = pipeline_service.run_pass_2(book_id, pages=target_pages)
 
-        # Combine for display
-        combined = ""
-        for pr in results:
-            p_num = pr.get('page')
-            p_latex = pr.get('latex') or f"% [Page {p_num} LaTeX missing/failed]"
-            combined += f"\n\n% --- PAGE {p_num} ---\n\n{p_latex}"
-            
         return jsonify({
             'success': True,
-            'content': combined,
-            'pages_converted': len(results),
-            'terms_found': total_terms
+            'pages_converted': res1.get('ok', 0),
+            'terms_extracted': res2.get('saved', 0),
+            'stats': {'pass1': res1, 'pass2': res2}
         })
     except Exception as e:
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-# ── Full Book Scan ──
-
 @api_v1.route('/books/<int:book_id>/scan', methods=['POST'])
-def enqueue_book_scan(book_id):
-    """Enqueue a full book scan with daily limit enforcement."""
+def start_book_scan(book_id):
+    """Queue a full pipeline scan for a book."""
     try:
         with db.get_connection() as conn:
-            # Check book exists
             book = conn.execute("SELECT id, title FROM books WHERE id = ?", (book_id,)).fetchone()
             if not book:
                 return jsonify({'error': 'Book not found'}), 404
             
-            # Check if already scanning or scanned
             existing = conn.execute(
-                "SELECT id, status FROM book_scans WHERE book_id = ?", (book_id,)
+                "SELECT id, status FROM book_scans WHERE book_id = ? AND status IN ('queued', 'running')", 
+                (book_id,)
             ).fetchone()
             if existing:
-                if existing['status'] in ('queued', 'running'):
-                    return jsonify({'error': 'Scan already in progress', 'status': existing['status']}), 409
-                if existing['status'] == 'completed':
-                    return jsonify({'error': 'Book already scanned. Delete the scan to re-run.'}), 409
-                # Failed or cancelled — allow re-queue by deleting old
-                conn.execute("DELETE FROM book_scans WHERE id = ?", (existing['id'],))
+                return jsonify({'error': f'Scan already {existing["status"]} for this book'}), 409
             
-            # Daily limit: max 3 books per day
-            today_count = conn.execute(
-                "SELECT COUNT(*) FROM book_scans WHERE created_at > unixepoch() - 86400"
-            ).fetchone()[0]
-            if today_count >= 3:
-                return jsonify({'error': 'Daily scan limit reached (3/day). Try again tomorrow.'}), 429
+            # Check if recently completed
+            completed = conn.execute(
+                "SELECT id FROM book_scans WHERE book_id = ? AND status = 'completed'", 
+                (book_id,)
+            ).fetchone()
+            if completed:
+                return jsonify({'error': 'This book has already been fully scanned. Re-scanning is disabled to save resources.'}), 400
             
-            # Enqueue
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO book_scans (book_id) VALUES (?)", (book_id,)
+            conn.execute(
+                "INSERT INTO book_scans (book_id, status, created_at, batch_size, cooldown_seconds) VALUES (?, 'queued', unixepoch(), 25, 300)",
+                (book_id,)
             )
-            scan_id = cursor.lastrowid
+            
+            queue_pos = conn.execute(
+                "SELECT COUNT(*) FROM book_scans WHERE status = 'queued'"
+            ).fetchone()[0]
         
-        return jsonify({'success': True, 'scan_id': scan_id, 'daily_used': today_count + 1, 'daily_limit': 3})
+        return jsonify({'success': True, 'queue_position': queue_pos, 'book_title': book['title']})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1234,28 +1214,32 @@ def get_book_scan_status(book_id):
     try:
         with db.get_connection() as conn:
             scan = conn.execute(
-                "SELECT * FROM book_scans WHERE book_id = ?", (book_id,)
+                "SELECT * FROM book_scans WHERE book_id = ? ORDER BY id DESC LIMIT 1", (book_id,)
             ).fetchone()
-            
-            today_count = conn.execute(
-                "SELECT COUNT(*) FROM book_scans WHERE created_at > unixepoch() - 86400"
-            ).fetchone()[0]
         
         if not scan:
-            return jsonify({'exists': False, 'daily_used': today_count, 'daily_limit': 3})
+            return jsonify({'exists': False})
+        
+        # Calculate queue position for queued scans
+        queue_position = 0
+        if scan['status'] == 'queued':
+            with db.get_connection() as conn:
+                queue_position = conn.execute(
+                    "SELECT COUNT(*) FROM book_scans WHERE status = 'queued' AND created_at < ?",
+                    (scan['created_at'],)
+                ).fetchone()[0] + 1
         
         return jsonify({
             'exists': True,
             'scan_id': scan['id'],
             'status': scan['status'],
-            'pages_done': scan['pages_done'],
-            'pages_total': scan['pages_total'],
-            'terms_found': scan['terms_found'],
+            'pages_done': scan['pages_done'] or 0,
+            'pages_total': scan['pages_total'] or 0,
+            'terms_found': scan['terms_found'] or 0,
             'started_at': scan['started_at'],
             'completed_at': scan['completed_at'],
             'error_log': scan['error_log'],
-            'daily_used': today_count,
-            'daily_limit': 3
+            'queue_position': queue_position
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1273,10 +1257,50 @@ def cancel_book_scan(book_id):
             
             if scan['status'] == 'running':
                 conn.execute("UPDATE book_scans SET status = 'cancelled' WHERE id = ?", (scan['id'],))
-                return jsonify({'success': True, 'message': 'Scan will be cancelled after current chunk'})
+                return jsonify({'success': True, 'message': 'Scan will be cancelled after current phase'})
             else:
                 conn.execute("DELETE FROM book_scans WHERE id = ?", (scan['id'],))
                 return jsonify({'success': True, 'message': 'Scan deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_v1.route('/admin/pipeline-queue', methods=['GET'])
+def get_pipeline_queue():
+    """Returns all book_scans grouped by status for the admin queue view."""
+    try:
+        with db.get_connection() as conn:
+            scans = conn.execute("""
+                SELECT s.id, s.book_id, s.status, s.pages_done, s.pages_total, 
+                       s.terms_found, s.started_at, s.completed_at, s.created_at, s.error_log,
+                       b.title, b.author
+                FROM book_scans s
+                JOIN books b ON b.id = s.book_id
+                ORDER BY s.created_at DESC
+            """).fetchall()
+            
+            result = {'running': [], 'queued': [], 'completed': [], 'failed': [], 'cancelled': []}
+            for s in scans:
+                entry = {
+                    'scan_id': s['id'],
+                    'book_id': s['book_id'],
+                    'title': s['title'],
+                    'author': s['author'],
+                    'status': s['status'],
+                    'pages_done': s['pages_done'] or 0,
+                    'pages_total': s['pages_total'] or 0,
+                    'terms_found': s['terms_found'] or 0,
+                    'started_at': s['started_at'],
+                    'completed_at': s['completed_at'],
+                    'created_at': s['created_at'],
+                    'error_log': s['error_log']
+                }
+                bucket = s['status'] if s['status'] in result else 'failed'
+                result[bucket].append(entry)
+            
+            # Sort queued by created_at ascending (FIFO)
+            result['queued'].sort(key=lambda x: x['created_at'] or 0)
+            
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1434,9 +1458,10 @@ def kb_search_terms():
     offset = request.args.get('offset', 0, type=int)
     sort = request.args.get('sort', 'score')
     
+    concept_id = request.args.get('concept_id', type=int)
     results = knowledge_service.search_terms(
         query, kind=kind, status=status, limit=limit, offset=offset, sort=sort,
-        book_id=book_id, msc=msc, year=year
+        book_id=book_id, msc=msc, year=year, concept_id=concept_id
     )
     return jsonify(results)
 
@@ -1473,8 +1498,12 @@ def legacy_kb_browse():
     return list_knowledge_terms()
 
 @api_v1.route('/kb/concepts/search', methods=['GET'])
-def legacy_kb_search():
-    return kb_search_terms()
+def kb_search_concepts():
+    query = request.args.get('q', '')
+    if not query: return jsonify({'error': 'q is required'}), 400
+    limit = request.args.get('limit', 20, type=int)
+    results = knowledge_service.search_concepts(query, limit=limit)
+    return jsonify(results)
 
 @api_v1.route('/kb/concepts/<int:term_id>', methods=['GET'])
 def legacy_kb_get(term_id):

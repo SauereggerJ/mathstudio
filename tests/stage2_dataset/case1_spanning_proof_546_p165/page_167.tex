@@ -1,0 +1,45 @@
+\subsection*{c. Negligible Sets}
+The changes of variable or formulas for transforming coordinates used in practice
+sometimes have various singularities (for example, one-to-oneness may fail in some
+places, or the Jacobian may vanish, or differentiability may fail). As a rule, these
+singularities occur on a set of measure zero and so, to meet the demands of practice,
+the following theorem is very useful.
+\begin{theorem}
+Let $\varphi : D_t \to D_x$ be a mapping of a (Jordan) measurable set $D_t \subset
+\mathbb{R}^m$ onto a set $D_x \subset \mathbb{R}^n$ of the same type. Suppose that there are subsets $S_t$ and $S_x$
+of $D_t$ and $D_x$ respectively having (Lebesgue) measure zero and such that $D_t \setminus S_t$
+and $D_x \setminus S_x$ are open sets and $\varphi$ maps the former diffeomorphically onto the latter
+and with a bounded Jacobian. Then for any function $f \in \mathcal{R}(D_x)$ the function $(f \circ
+\varphi)|\det \varphi'|$ also belongs to $\mathcal{R}(D_t \setminus S_t)$ and
+$$
+\int_{D_x} f(x)dx = \int_{D_t \setminus S_t} (f \circ \varphi)|\det \varphi'| (t) dt.
+\eqno (11.17)
+$$
+If, in addition, the quantity $|\det \varphi'|$ is defined and bounded in $D_t$, then
+$$
+\int_{D_x} f(x)dx = \int_{D_t} (f \circ \varphi)|\det \varphi'| (t) dt.
+\eqno (11.18)
+$$
+\end{theorem}
+\begin{proof}
+By Lebesgue's criterion the function $f$ can have discontinuities in $D_x$ and
+hence also in $D_x \setminus S_x$ only on a set of measure zero. By Lemma 1, the image of this
+set of discontinuities under the mapping $\varphi^{-1} : D_x \setminus S_x \to D_t \setminus S_t$ is a set of measure
+zero in $D_t \setminus S_t$. Thus the relation $(f \circ \varphi)|\det \varphi'| \in \mathcal{R}(D_t \setminus S_t)$ will follow immedi-
+ately from Lebesgue's criterion for integrability if we establish that the set $D_t \setminus S_t$
+is measurable. The fact that this is indeed a Jordan measurable set will be a by-product
+of the reasoning below.
+By hypothesis $D_x \setminus S_x$ is an open set, so that $(D_x \setminus S_x) \cap \partial S_x = \emptyset$. Hence $S_x \subset
+\overline{D_x \setminus S_x}$ and consequently $\partial (D_x \cup S_x) = \partial D_x \cup \partial S_x$, where $\overline{S_x} = S_x \cup \partial S_x$ is the
+closure of $S_x$ in $\mathbb{R}^n$. As a result, $\partial D_x \cup \partial S_x$ is a closed bounded set, that is, it is com-
+pact in $\mathbb{R}^n$, and, being the union of two sets of measure zero, is itself of Lebesgue
+measure zero. From Lemma 3 of Sect. 11.1 we know that then the set $\partial D_x \cup S_x$
+(and along with it, $S_x$) has measure zero, that is, for every $\varepsilon > 0$ there exists a finite
+covering $I_1, \ldots, I_k$ of this set by intervals such that $\sum_{i=1}^k |I_i| < \varepsilon$. Hence it follows,
+in particular, that the set $D_x \setminus S_x$ (and similarly the set $D_t \setminus S_t$) is Jordan measurable:
+indeed, $(D_x \setminus S_x) \subset \overline{D_x \setminus S_x} \subset \overline{\partial D_x \cup \partial S_x} \subset \overline{\partial D_x \cup S_x}$.
+The covering $I_1, \ldots, I_k$ can obviously also be chosen so that every point $x \in
+D_x \setminus S_x$ is an interior point of at least one of the intervals of the covering. Let
+$U_x = \bigcup_{i=1}^k I_i$. The set $U_x$ is measurable, as is $V_x = D_x \setminus U_x$. By construction the set
+$V_x$ is such that $V_x \subset D_x \setminus S_x$ and for every measurable set $E_x \subset D_x$ containing the
+\end{proof}

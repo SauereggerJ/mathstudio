@@ -1,0 +1,24 @@
+271 14.1 The Differential Operations of Vector Analysis
+Example 8 Since in Cartesian, spherical, and cylindrical coordinates we have re-
+spectively
+$$A = A_x e_x + A_y e_y + A_z e_z = \quad \quad \quad \quad \quad \text{(14.31')}$$
+$$= A_r e_r + A_\varphi e_\varphi + A_z e_z = \quad \quad \quad \quad \quad \text{(14.31'')}$$
+$$= A_R e_R + A_\theta e_\theta + A_\varphi e_\varphi,$$
+as follows from the results of Example 6,
+$$\omega^1_A = A_x \mathrm{d}x + A_y \mathrm{d}y + A_z \mathrm{d}z = \quad \quad \quad \quad \quad \text{(14.31')}$$
+$$= A_r \mathrm{d}r + A_\varphi r \mathrm{d}\varphi + A_z \mathrm{d}z = \quad \quad \quad \quad \quad \text{(14.31'')}$$
+$$= A_R \mathrm{d}R + A_\varphi R \cos \varphi \mathrm{d}\varphi + A_\theta R \mathrm{d}\theta. \quad \quad \quad \text{(14.31''')}$$
+g.
+Now let $B = B^1e_1+B^2e_2+ B^3e_3$ and $\omega^2_B = b_1 \mathrm{d}t^2 \wedge \mathrm{d}t^3+b_2 \mathrm{d}t^3 \wedge \mathrm{d}t^1 +b_3 \mathrm{d}t^1 \wedge \mathrm{d}t^2$.
+Then, on the one hand,
+$$\omega^2_B(e_2, e_3) := \mathrm{d}V(B, e_2, e_3) = \sum_{i=1}^3 B^i \mathrm{d}V(e_i, e_2, e_3) = B^1 \cdot \langle e_1, e_2, e_3 \rangle = B^1,$$
+where $\mathrm{d}V$ is the volume element in $T\mathbb{R}^3_t$ see (14.28) and (14.27)).
+On the other hand, by (14.30) we obtain
+$$\omega^2_B(e_2, e_3) = (b_1 \mathrm{d}t^2 \wedge \mathrm{d}t^3 + b_2 \mathrm{d}t^3 \wedge \mathrm{d}t^1 + b_3 \mathrm{d}t^1 \wedge \mathrm{d}t^2) (e_2, e_3)$$
+$$= b_1 \mathrm{d}t^2 \wedge \mathrm{d}t^3 \langle e_2, e_3 \rangle = \frac{b_1}{\sqrt{E_2 E_3}}.$$
+Comparing these results, we conclude that $b_1 = B^1\sqrt{E_2 E_3}$. Similarly, we verify
+that $b_2 = B^2\sqrt{E_1 E_3}$ and $b_3 = B^3\sqrt{E_1 E_2}$.
+Thus we have found the representation
+$$\omega^2_B = B^1\sqrt{E_2 E_3} \mathrm{d}t^2 \wedge \mathrm{d}t^3 + B^2\sqrt{E_3 E_1} \mathrm{d}t^3 \wedge \mathrm{d}t^1 + B^3\sqrt{E_1 E_2} \mathrm{d}t^1 \wedge \mathrm{d}t^2 =$$
+$$\omega^2_B = \sqrt{E_1 E_2 E_3} \left( \frac{B^1}{\sqrt{E_1}} \mathrm{d}t^2 \wedge \mathrm{d}t^3 + \frac{B^2}{\sqrt{E_2}} \mathrm{d}t^3 \wedge \mathrm{d}t^1 + \frac{B^3}{\sqrt{E_3}} \mathrm{d}t^1 \wedge \mathrm{d}t^2 \right) \quad \text{(14.32)}$$
+of the form $\omega^2_B$ corresponding to the expansion $B = B^1e_1 + B^2e_2 + B^3e_3$.

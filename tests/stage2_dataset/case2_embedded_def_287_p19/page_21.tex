@@ -1,0 +1,54 @@
+14 \hfill 1. A first look at Banach and Hilbert spaces
+
+Consequently the norm of a Cauchy sequence $(x_n)_{n=1}^\infty$ can be defined by
+$\|(x_n)_{n=1}^\infty\| = \lim_{n\to\infty} \|x_n\|$ and is independent of the equivalence class (show
+this!). Thus $\overline{\mathcal{X}}$ is a normed space ($\mathcal{X}$ is not! why?).
+
+\noindent\textbf{Theorem 1.10.} $\overline{\mathcal{X}}$ is a Banach space containing $\mathcal{X}$ as a dense subspace if
+we identify $x \in \mathcal{X}$ with the equivalence class of all sequences converging to
+$x$.
+
+\noindent\textbf{Proof.} (Outline) It remains to show that $\overline{\mathcal{X}}$ is complete. Let $\xi_n = [(x_{n,j})_{j=1}^\infty]$
+be a Cauchy sequence in $\overline{\mathcal{X}}$. Then it is not hard to see that $\xi = [(x_{j,j})_{j=1}^\infty]$
+is its limit. $\square$
+
+In particular it is no restriction to assume that a normed linear space or
+an inner product space is complete. However, in the important case of $L^2$ it is
+somewhat inconvenient to work with equivalence classes of Cauchy sequences
+and hence we will give a different characterization using the Lebesgue inte-
+gral later.
+
+\subsection*{1.4. Bounded operators}
+
+A linear map $A$ between two normed spaces $\mathcal{X}$ and $\mathcal{Y}$ will be called a (\textbf{lin-
+ear}) \textbf{operator}
+\[
+A : \mathcal{D}(A) \subseteq \mathcal{X} \to \mathcal{Y}.
+\tag{1.40}
+\]
+The linear subspace $\mathcal{D}(A)$ on which $A$ is defined, is called the \textbf{domain} of $A$
+and is usually required to be dense. The operator $A$ is called \textbf{bounded} if
+the following operator norm
+\[
+\|A\| = \sup_{\|f\|_{\mathcal{X}}=1} \|Af\|_{\mathcal{Y}}
+\tag{1.41}
+\]
+is finite.
+
+The set of all bounded linear operators from $\mathcal{X}$ to $\mathcal{Y}$ is denoted by
+$\mathcal{L}(\mathcal{X},\mathcal{Y})$. If $\mathcal{X} = \mathcal{Y}$ we write $\mathcal{L}(\mathcal{X}, \mathcal{X}) = \mathcal{L}(\mathcal{X})$.
+
+\noindent\textbf{Theorem 1.11.} The space $\mathcal{L}(\mathcal{X}, \mathcal{Y})$ together with the operator norm (1.41)
+is a normed space. It is a Banach space if $\mathcal{Y}$ is.
+
+\noindent\textbf{Proof.} That (1.41) is indeed a norm is straightforward. If $\mathcal{Y}$ is complete
+and $A_n$ is a Cauchy sequence of operators, then $A_n f$ converges to an element
+$g$ for every $f$. Define a new operator $A$ via $Af = g$ and note $A_n \to A$. $\square$
+By construction, a bounded operator is Lipschitz continuous
+\[
+\|Af\|_{\mathcal{Y}} \leq \|A\|\| f \|_{\mathcal{X}}
+\tag{1.42}
+\]
+and hence continuous. The converse is also true
+
+\noindent\textbf{Theorem 1.12.} An operator $A$ is bounded if and only if it is continuous.

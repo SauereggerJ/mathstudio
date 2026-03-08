@@ -1,0 +1,59 @@
+\documentclass{article}
+\usepackage{amsmath, amsthm, amssymb}
+
+
+ewtheorem{proposition}{Proposition}
+
+ewtheorem{corollary}[proposition]{Corollary}
+
+\begin{document}
+
+\section*{6.5 Improper Integrals}
+
+\begin{proposition}
+If a function $f$ satisfies the hypotheses of Definition 3 and $f(x) \geq 0$ on $[a, \omega[$, then the improper integral (\ref{eq:6.71}) exists if and only if the function (\ref{eq:6.74}) is bounded on $[a, \omega[$.
+\end{proposition}
+
+\begin{proof}
+Indeed, if $f(x) \geq 0$ on $[a, \omega[$, then the function (\ref{eq:6.74}) is nondecreasing on $[a, \omega[$, and therefore it has a limit as $b \to \omega$, $b \in [a, \omega[$, if and only if it is bounded.
+\end{proof}
+
+As an example of the use of this proposition, we consider the following corollary of it.
+
+\begin{corollary}[Integral test for convergence of a series]
+If the function $x \mapsto f(x)$ is defined on the interval $[1, +\infty[$, nonnegative, nonincreasing, and integrable on each closed interval $[1, b] \subset [1, +\infty[$, then the series
+\[
+\sum_{n=1}^{\infty} f(n) = f(1) + f(2) + \cdots
+\]
+and the integral
+\[
+\int_{1}^{+\infty} f(x) \, dx
+\]
+either both converge or both diverge.
+\end{corollary}
+
+\begin{proof}
+It follows from the hypotheses that the inequalities
+\[
+f(n + 1) \leq \int_{n}^{n+1} f(x) \, dx \leq f(n)
+\]
+hold for any $n \in \mathbb{N}$. After summing these inequalities, we obtain
+\[
+\sum_{n=1}^{k} f(n + 1) \leq \int_{1}^{k+1} f(x) \, dx \leq \sum_{n=1}^{k} f(n)
+\]
+or
+\[
+s_{k+1} - f(1) < F(k + 1) \leq s_k,
+\]
+where $s_k = \sum_{n=1}^{k} f(n)$ and $F(b) = \int_{1}^{b} f(x) \, dx$. Since $s_k$ and $F(b)$ are nondecreasing functions of their arguments, these inequalities prove the proposition.
+\end{proof}
+
+In particular, one can say that the result of Example 1 is equivalent to the assertion that the series
+\[
+\sum_{n=1}^{\infty} \frac{1}{n^{\alpha}}
+\]
+converges only for $\alpha > 1$.
+
+The most frequently used corollary of Proposition 3 is the following theorem.
+
+\end{document}

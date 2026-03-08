@@ -1,0 +1,543 @@
+[
+  {
+    "name": "case1_spanning_proof_546_p140",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 140,
+        "file": "page_140.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 141,
+        "file": "page_141.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 142,
+        "file": "page_142.tex"
+      }
+    ]
+  },
+  {
+    "name": "case1_spanning_proof_546_p165",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 165,
+        "file": "page_165.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 166,
+        "file": "page_166.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 167,
+        "file": "page_167.tex"
+      }
+    ]
+  },
+  {
+    "name": "case1_spanning_proof_554_p418",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 418,
+        "file": "page_418.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 419,
+        "file": "page_419.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 420,
+        "file": "page_420.tex"
+      }
+    ]
+  },
+  {
+    "name": "case1_spanning_proof_554_p431",
+    "description": "Theorem starts on Page N, Proof starts on Page N+1.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 431,
+        "file": "page_431.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 432,
+        "file": "page_432.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 433,
+        "file": "page_433.tex"
+      }
+    ]
+  },
+  {
+    "name": "case2_embedded_def_287_p16",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "context_files": [
+      {
+        "book_id": 287,
+        "page_number": 16,
+        "file": "page_16.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 17,
+        "file": "page_17.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 18,
+        "file": "page_18.tex"
+      }
+    ]
+  },
+  {
+    "name": "case2_embedded_def_287_p18",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "context_files": [
+      {
+        "book_id": 287,
+        "page_number": 18,
+        "file": "page_18.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 19,
+        "file": "page_19.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 20,
+        "file": "page_20.tex"
+      }
+    ]
+  },
+  {
+    "name": "case2_embedded_def_287_p19",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "context_files": [
+      {
+        "book_id": 287,
+        "page_number": 19,
+        "file": "page_19.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 20,
+        "file": "page_20.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 21,
+        "file": "page_21.tex"
+      }
+    ]
+  },
+  {
+    "name": "case2_embedded_def_546_p33",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 33,
+        "file": "page_33.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 34,
+        "file": "page_34.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 35,
+        "file": "page_35.tex"
+      }
+    ]
+  },
+  {
+    "name": "case2_embedded_def_546_p183",
+    "description": "Embedded text definition without explicit theorem environment.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 183,
+        "file": "page_183.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 184,
+        "file": "page_184.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 185,
+        "file": "page_185.tex"
+      }
+    ]
+  },
+  {
+    "name": "case3_dense_page_287_p32",
+    "description": "Multiple theorems and proofs packed into a single page.",
+    "context_files": [
+      {
+        "book_id": 287,
+        "page_number": 32,
+        "file": "page_32.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 33,
+        "file": "page_33.tex"
+      },
+      {
+        "book_id": 287,
+        "page_number": 34,
+        "file": "page_34.tex"
+      }
+    ]
+  },
+  {
+    "name": "case3_dense_page_546_p141",
+    "description": "Multiple theorems and proofs packed into a single page.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 141,
+        "file": "page_141.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 142,
+        "file": "page_142.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 143,
+        "file": "page_143.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p380_0",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 380,
+        "file": "page_380.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 381,
+        "file": "page_381.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 382,
+        "file": "page_382.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p101_1",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 101,
+        "file": "page_101.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 102,
+        "file": "page_102.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 103,
+        "file": "page_103.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p4_2",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 4,
+        "file": "page_4.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 5,
+        "file": "page_5.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 6,
+        "file": "page_6.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p496_3",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 496,
+        "file": "page_496.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 497,
+        "file": "page_497.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 498,
+        "file": "page_498.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p287_4",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 287,
+        "file": "page_287.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 288,
+        "file": "page_288.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 289,
+        "file": "page_289.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p256_5",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 256,
+        "file": "page_256.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 257,
+        "file": "page_257.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 258,
+        "file": "page_258.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p234_6",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 234,
+        "file": "page_234.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 235,
+        "file": "page_235.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 236,
+        "file": "page_236.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p129_7",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 129,
+        "file": "page_129.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 130,
+        "file": "page_130.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 131,
+        "file": "page_131.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p491_8",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 491,
+        "file": "page_491.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 492,
+        "file": "page_492.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 493,
+        "file": "page_493.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p91_9",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 91,
+        "file": "page_91.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 92,
+        "file": "page_92.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 93,
+        "file": "page_93.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p426_10",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 426,
+        "file": "page_426.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 427,
+        "file": "page_427.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 428,
+        "file": "page_428.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p495_11",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 495,
+        "file": "page_495.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 496,
+        "file": "page_496.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 497,
+        "file": "page_497.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p260_12",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 260,
+        "file": "page_260.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 261,
+        "file": "page_261.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 262,
+        "file": "page_262.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_546_p76_13",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 546,
+        "page_number": 76,
+        "file": "page_76.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 77,
+        "file": "page_77.tex"
+      },
+      {
+        "book_id": 546,
+        "page_number": 78,
+        "file": "page_78.tex"
+      }
+    ]
+  },
+  {
+    "name": "case6_random_554_p316_14",
+    "description": "Randomly selected page for general quality testing.",
+    "context_files": [
+      {
+        "book_id": 554,
+        "page_number": 316,
+        "file": "page_316.tex"
+      },
+      {
+        "book_id": 554,
+        "page_number": 317,
+        "file": "page_317.tex"
+      }
+    ]
+  }
+]

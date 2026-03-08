@@ -1,0 +1,59 @@
+361
+\medskip
+6.3 The Integral and the Derivative
+\medskip
+If $|f(t)| < C < +\infty$ on $[a, b]$ (and $f$, being an integrable function, is bounded
+on $[a, b]$), it follows from the additivity of the integral and the elementary estimate
+of it that
+\[
+|F(x+h) - F(x)| \le C|h|,
+\tag{6.41}
+\]
+if $x, x + h \in [a, b]$.
+\medskip
+Actually, we already discussed this while proving Lemma 3 in the preceding
+section.
+\medskip
+It follows in particular from (6.41) that the function $F$ is continuous on $[a, b]$, so
+that $F \in C[a, b]$.
+\medskip
+We now investigate the function $F$ more thoroughly.
+\medskip
+The following lemma is fundamental for what follows.
+\medskip
+\noindent \textbf{Lemma 1} If $f \in \mathcal{R}[a,b]$ and the function $f$ is continuous at a point $x \in [a, b]$,
+then the function $F$ defined on $[a, b]$ by (6.40) is differentiable at the point $x$, and
+the following equality holds:
+\[
+F'(x) = f(x).
+\]
+\medskip
+Proof Let $x, x + h \in [a, b]$. Let us estimate the difference $F(x + h) – F(x)$. It
+follows from the continuity of $f$ at $x$ that $f(t) = f(x) + \Delta(t)$, where $\Delta(t) \to 0$
+as $t \to x$, $t \in [a, b]$. If the point $x$ is held fixed, the function $\Delta(t) = f(t) - f(x)$
+is integrable on $[a, b]$, being the difference of the integrable function $t \to f(t)$ and
+the constant $f(x)$. We denote by $M(h)$ the quantity $\sup_{t\in I(h)} |\Delta(t)|$, where $I(h)$ is
+the closed interval with endpoints $x, x + h \in [a, b]$. By hypothesis $M(h) \to 0$ as
+$h\to 0$.
+\medskip
+We now write
+\[
+F(x + h) – F(x) = \int_a^{x+h} f(t)\,dt - \int_a^x f(t)\,dt = \int_x^{x+h} f(t)\,dt =
+\]
+\[
+= \int_x^{x+h} (f(x) + \Delta(t))\,dt =
+\]
+\[
+= \int_x^{x+h} f(x)\,dt + \int_x^{x+h} \Delta(t)\,dt = f(x)h + \alpha(h)h,
+\]
+where we have set
+\[
+\int_x^{x+h} \Delta(t)\,dt = \alpha(h)h.
+\]
+\medskip
+Since
+\[
+\left|\int_x^{x+h} \Delta(t)\,dt\right| \le \left|\int_x^{x+h} |\Delta(t)|\,dt\right| \le \left|\int_x^{x+h} M(h)\,dt\right| = M(h)|h|,
+\]
+it follows that $|\alpha(h)| \le M(h)$, and so $\alpha (h) \to 0$ as $h \to 0$ (in such a way that $x + h \in
+[a, b]$).

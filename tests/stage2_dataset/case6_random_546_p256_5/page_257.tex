@@ -1,0 +1,27 @@
+13.3 The Fundamental Integral Formulas of Analysis \hfill 239
+\vspace{12pt}
+\begin{center}
+\includegraphics[width=0.5\textwidth]{page257_fig13_5.png}
+\end{center}
+\vspace{12pt}
+\noindent We shall first consider the simplest version of (13.25) in which $\bar{D}$ is the square
+$I = \{(x, y) \in \mathbb{R}^2 \mid 0 \le x \le 1, 0 \le y \le 1\}$ and $Q = 0$ in $I$. Then Green's theorem
+reduces to the equality
+\[ \iint_{I} -\frac{\partial P}{\partial y} dx \, dy = - \oint_{\partial I} P dx, \tag{13.26} \]
+which we shall prove.
+\vspace{12pt}
+\noindent \textsc{Proof} Reducing the double integral to an iterated integral and applying the funda-
+mental theorem of calculus, we obtain
+\begin{align*} \label{eq:13_26_proof}
+\iint_{I} \frac{\partial P}{\partial y} dx \, dy &= \int_0^1 dx \int_0^1 \frac{\partial P}{\partial y} dy \\
+&= \int_0^1 \left[ P(x, 1) - P(x, 2) \right] dx = - \int_0^1 P(x, 0) \, dx + \int_0^1 P(x, 1) \, dx.
+\end{align*}
+The proof is now finished. What remains is a matter of definitions and interpre-
+tation of the relation just obtained. The point is that the difference of the last two
+integrals is precisely the right-hand side of relation (13.26).
+Indeed, the piecewise-smooth curve $\partial I$ breaks into four pieces (Fig. 13.5), which
+can be regarded as parametrized curves
+\begin{align*} \gamma_1: [0, 1] &\to \mathbb{R}^2, & \text{where } \mathbf{x} \mapsto \gamma_1(x) = (x, 0), \\ \gamma_2 : [0, 1] &\to \mathbb{R}^2, & \text{where } y \mapsto \gamma_2(y) = (1, y), \\ \gamma_3 : [0, 1] &\to \mathbb{R}^2, & \text{where } x \mapsto \gamma_3(x) = (x, 1), \\ \gamma_4: [0, 1] &\to \mathbb{R}^2, & \text{where } y \mapsto \gamma_4(y) = (0, y). \end{align*}
+By definition of the integral of the 1-form $\omega = P \, dx$ over a curve
+\[ \int_{\gamma_1} P(x, y) \, dx := \int_{[0,1]} \gamma_1^*(P(x, y) \, dx) := \int_0^1 P(x, 0) \, dx, \]
+\[ \int_{\gamma_2} P(x, y) \, dx := \int_{[0,1]} \gamma_2^*(P(x, y) \, dx) := \int_0^1 0 \, dy = 0, \]

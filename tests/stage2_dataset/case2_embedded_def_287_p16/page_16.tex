@@ -1,0 +1,58 @@
+\subsection*{1.2. The geometry of Hilbert spaces}
+\hfill 9
+
+Note that $f_n$ will be as smooth as $u_n$, hence the title smoothing lemma.
+The same idea is used to approximate noncontinuous functions by smooth
+ones (of course the convergence will no longer be uniform in this case).
+
+\noindent\textbf{Corollary 1.4.} $\mathcal{C}(I)$ is separable.
+
+The same is true for $l^1(\mathbb{N})$, but not for $l^\infty(\mathbb{N})$ (Problem 1.4)!
+
+\noindent\textbf{Problem 1.1.} Show that $|||f|| - ||g||| \leq ||f - g||$.
+
+\noindent\textbf{Problem 1.2.} Show that the norm, vector addition, and multiplication by
+scalars are continuous. That is, if $f_n \to f$, $g_n \to g$, and $\lambda_n \to \lambda$ then
+$\|f_n\| \to \|f\|$, $f_n + g_n \to f + g$, and $\lambda_n g_n \to \lambda g$.
+
+\noindent\textbf{Problem 1.3.} Show that $l^\infty(\mathbb{N})$ is a Banach space.
+
+\noindent\textbf{Problem 1.4.} Show that $l^1(\mathbb{N})$ is separable. Show that $l^\infty(\mathbb{N})$ is not sep-
+arable (Hint: Consider sequences which take only the value one and zero.
+How many are there? What is the distance between two such sequences?).
+
+\subsection*{1.2. The geometry of Hilbert spaces}
+
+So it looks like $\mathcal{C}(I)$ has all the properties we want. However, there is
+still one thing missing: How should we define orthogonality in $\mathcal{C}(I)$? In
+Euclidean space, two vectors are called orthogonal if their scalar product
+vanishes, so we would need a scalar product:
+
+Suppose $\mathcal{H}$ is a vector space. A map $\langle \cdot, \cdot \rangle: \mathcal{H} \times \mathcal{H} \to \mathbb{C}$ is called skew
+linear form if it is conjugate linear in the first and linear in the second
+argument, that is,
+\begin{align*}
+\langle \lambda_1 f_1 + \lambda_2 f_2, g \rangle &= \lambda_1^* \langle f_1, g \rangle + \lambda_2^* \langle f_2, g \rangle \\
+\langle f, \lambda_1 g_1 + \lambda_2 g_2 \rangle &= \lambda_1 \langle f, g_1 \rangle + \lambda_2 \langle f, g_2 \rangle, \quad \lambda_1, \lambda_2 \in \mathbb{C},
+\end{align*}
+(1.17)
+where $*$ denotes complex conjugation. A skew linear form satisfying the
+requirements
+\begin{enumerate}
+    \item $\langle f, f \rangle > 0$ for $f \neq 0$.
+    \item $\langle f, g \rangle = \langle g, f \rangle^*$
+\end{enumerate}
+is called inner product or scalar product. Associated with every scalar
+product is a norm
+\[
+\|f\| = \sqrt{\langle f, f \rangle}.
+\tag{1.18}
+\]
+The pair $(\mathcal{H}, \langle \cdot, \cdot \rangle)$ is called inner product space. If $\mathcal{H}$ is complete it is
+called a Hilbert space.
+
+\noindent\textbf{Example.} Clearly $\mathbb{C}^n$ with the usual scalar product
+\[
+(a,b) = \sum_{j=1}^n a_j \bar{b}_j
+\tag{1.19}
+\]

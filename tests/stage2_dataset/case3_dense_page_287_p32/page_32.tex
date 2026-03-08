@@ -1,0 +1,46 @@
+2.4. Compact operators 25
+\begin{proof}
+Let $\{f_j^{(0)}\}$ be a bounded sequence. Chose a subsequence $\{f_j^{(1)}\}$ such
+that $A f_j^{(1)}$ converges. From $\{f_j^{(1)}\}$ choose another subsequence $\{f_j^{(2)}\}$ such that
+$A^2 f_j^{(2)}$ converges and so on. Since $\lim_{n \to \infty} f_j^{(n)}$ might disappear as $n \to \infty$, we con-
+sider the diagonal sequence $f_j = f_j^{(j)}$. By construction, $f_j$ is a subsequence
+of $f_n$ for $j \ge n$ and hence $A_n f_j$ is Cauchy for any fixed $n$. Now
+$$\|A f_j - A f_k\| = \|(A - A_n)(f_j - f_k) + A_n(f_j - f_k)\|$$
+$$\leq \|A - A_n\|\| f_j - f_k\| + \|A_n f_j - A_n f_k\|$$
+(2.37)
+shows that $A f_j$ is Cauchy since the first term can be made arbitrary small
+by choosing $n$ large and the second by the Cauchy property of $A_n f_j$.
+\end{proof}
+Note that it suffices to verify compactness on a dense set.
+\begin{theorem}{2.13.}
+Let $X$ be a normed space and $A \in \mathcal{C}(X)$. Let $\overline{X}$ be its
+completion, then $\overline{A} \in \mathcal{C}(\overline{X})$, where $\overline{A}$ is the unique extension of $A$.
+\end{theorem}
+\begin{proof}
+Let $f_n \in X$ be a given bounded sequence. We need to show that
+$A f_n$ has a convergent subsequence. Pick $\tilde{f}_n \in X$ such that $\|\tilde{f}_n - f_n\| \leq \frac{1}{n}$ and
+by compactness of $A$ we can assume that $A\tilde{f}_n \to g$. But then $\|A f_n - g\| \leq$
+$\|A\|\|\tilde{f}_n - f_n\| + \|A\tilde{f}_n - g\|$ shows that $A f_n \to g$.
+\end{proof}
+One of the most important examples of compact operators are integral
+operators:
+\begin{lemma}{2.14.}
+The integral operator
+$$(Kf)(x) = \int_a^b K(x,y)f(y)dy,$$
+(2.38)
+where $K(x, y) \in \mathcal{C}([a, b] \times [a, b])$, defined on $L^2(a,b)$ is compact.
+\end{lemma}
+\begin{proof}
+First of all note that $K(\cdot, \cdot)$ is continuous on $[a, b] \times [a, b]$ and hence
+uniformly continuous. In particular, for every $\varepsilon > 0$ we can find a $\delta > 0$
+such that $|K(y,t) – K(x,t)| \leq \varepsilon$ whenever $|y - x| < \delta$. Let $g(x) = K f(x)$,
+then
+$$|g(x) - g(y)| \leq \int_a^b |K(y,t) – K(x,t)||f(t)|dt$$
+$$\leq \varepsilon \int_a^b |f(t)|dt \leq \varepsilon \|1\| \|f\|,$$,
+(2.39)
+whenever $|y - x| < \delta$. Hence, if $f_n(x)$ is a bounded sequence in $L^2(a,b)$,
+then $g_n(x) = K f_n(x)$ is equicontinuous and has a uniformly convergent
+subsequence by the Arzelà-Ascoli theorem (Theorem 2.15 below). But a
+uniformly convergent sequence is also convergent in the norm induced by
+the scalar product. Therefore $K$ is compact.
+\end{proof}

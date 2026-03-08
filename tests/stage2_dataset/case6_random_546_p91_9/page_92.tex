@@ -1,0 +1,34 @@
+\section*{Differential Calculus from a More General Point of View}
+
+\subsection*{1.}
+c) Write the matrices of the operators $D:P_n[x] \rightarrow P_n[x]$ and $T_a : P_n[x] \rightarrow P_n[x]$ from part b) in the basis $e_i = \binom{x}{n-i} \frac{1}{(n-i)!}$, $1 \le i \le n$, in the space $P_n[x]$ of real polynomials of degree $n$ in one variable.
+
+\subsection*{2.}
+a) If $A, B \in \mathcal{L}(X; X)$ and $\exists B^{-1} \in \mathcal{L}(X; X)$, then $\exp(B^{-1}AB) = B^{-1} (\exp A)B.$
+b) If $AB = BA$, then $\exp(A + B) = \exp A \cdot \exp B.$
+c) Verify that $\exp 0 = E$ and that $\exp A$ always has an inverse, namely $(\exp A)^{-1} = \exp(-A).$
+
+\subsection*{3.}
+Let $A \in \mathcal{L}(X; X)$. Consider the mapping $\varphi_A : \mathbb{R} \rightarrow \mathcal{L}(X; X)$ defined by the correspondence $\mathbb{R} 
+i t \mapsto \exp(tA) \in \mathcal{L}(X; X)$. Show the following.
+a) The mapping $\varphi_A$ is continuous.
+b) $\varphi_A$ is a homomorphism of $\mathbb{R}$ as an additive group into the multiplicative group of invertible operators in $\mathcal{L}(X; X).$
+
+\subsection*{4.}
+Verify the following.
+a) If $\lambda_1,\dots,\lambda_n$ are the eigenvalues of the operator $A \in \mathcal{L}(\mathbb{C}^n; \mathbb{C}^n)$, then $\exp \lambda_1, \dots, \exp \lambda_n$ are the eigenvalues of $\exp A.$
+b) $\det(\exp A) = \exp(\operatorname{tr} A)$, where $\operatorname{tr} A$ is the trace of the operator $A \in \mathcal{L}(\mathbb{C}^n, \mathbb{C}^n).$
+c) If $A \in \mathcal{L}(\mathbb{R}^n, \mathbb{R}^n)$, then $\det(\exp A) > 0.$
+d) If $A^*$ is the transpose of the matrix $A \in \mathcal{L}(\mathbb{C}^n, \mathbb{C}^n)$ and $\bar{A}$ is the matrix whose elements are the complex conjugates of those of $A$, then $(\exp A)^* = \exp A^*$ and $\overline{\exp A} = \exp \bar{A}.$
+e) The matrix $\begin{pmatrix} 1 & 1 \\ 0 & 1 \end{pmatrix}$ is not of the form $\exp A$ for any $2 \times 2$ matrix $A.$
+
+\subsection*{5.}
+We recall that a set endowed with both a group structure and a topology is called a topological group or continuous group if the group operation is continuous. If there is a sense in which the group operation is even analytic, the topological group is called a Lie group.$^2$
+
+A Lie algebra is a vector space $X$ with an anticommutative bilinear operation $[\, , \,]: X \times X \rightarrow X$ satisfying the Jacobi identity: $[[a, b], c] + [[b, c], a] + [[c, a], b] = 0$ for any vectors $a, b, c \in X$. Lie groups and algebras are closely connected with each other, and the mapping $\exp$ plays an important role in establishing this connection (see Problem 1 above).
+
+An example of a Lie algebra is the oriented Euclidean space $E^3$ with the operation of the vector cross product. For the time being we shall denote this Lie algebra by $\mathfrak{L}A_1.$
+
+a) Show that the real $3 \times 3$ skew-symmetric matrices form a Lie algebra (which we denote $\mathfrak{L}A_2$) if the product of the matrices $A$ and $B$ is defined as $[A, B] = AB - BA.$
+
+$^2$For the precise definition of a Lie group and the corresponding reference see Problem 8 in Sect. 15.2.

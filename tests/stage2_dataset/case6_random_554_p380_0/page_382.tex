@@ -1,0 +1,53 @@
+362
+6 Integration
+\medskip
+Thus we have shown that if the function $f$ is continuous at a point $x \in [a, b]$, then
+for displacements $h$ from $x$ such that $x + h \in [a, b]$ the following equality holds:
+\[
+F(x + h) – F(x) = f (x)h + \alpha(h)h,
+\tag{6.42}
+\]
+where $\alpha(h) \to 0$ as $h \to 0$.
+\medskip
+But this means that the function $F(x)$ is differentiable on $[a, b]$ at the point $x \in
+[a, b]$ and that $F'(x) = f(x)$.
+\medskip
+A very important immediate corollary of Lemma 1 is the following.
+\medskip
+\noindent \textbf{Theorem 1} Every continuous function $f : [a, b] \to \mathbb{R}$ on the closed interval $[a, b]$
+has a primitive, and every primitive of $f$ on $[a, b]$ has the form
+\[
+F(x) = \int_a^x f(t)\,dt + c,
+\tag{6.43}
+\]
+where $c$ is a constant.
+\medskip
+Proof We have the implication $(f \in C[a, b]) \Rightarrow (f \in \mathcal{R}[a, b])$, so that by Lemma 1
+the function (6.40) is a primitive for $f$ on $[a, b]$. But two primitives $F(x)$ and $\tilde{F}(x)$
+of the same function on a closed interval can differ on that interval only by a con-
+stant; hence $F(x) = \tilde{F}(x) + c$.
+\medskip
+For later applications it is convenient to broaden the concept of primitive slightly
+and adopt the following definition.
+\medskip
+\noindent \textbf{Definition 1} A continuous function $x \to F(x)$ on an interval of the real line is
+called a primitive (or generalized primitive) of the function $x \to f(x)$ defined on
+the same interval if the relation $F'(x) = f(x)$ holds at all points of the interval, with
+only a finite number of exceptions.
+\medskip
+Taking this definition into account, we can assert that the following theorem
+holds.
+\medskip
+\noindent \textbf{Theorem 1'} A function $f : [a, b] \to \mathbb{R}$ that is defined and bounded on a closed
+interval $[a, b]$ and has only a finite number of points of discontinuity has a (gen-
+eralized) primitive on that interval, and any primitive of $f$ on $[a,b]$ has the form
+(6.43).
+\medskip
+Proof Since $f$ has only a finite set of points of discontinuity, $f \in \mathcal{R}[a, b]$, and by
+Lemma 1 the function (6.40) is a generalized primitive for $f$ on $[a, b]$. Here we have
+taken into account, as already pointed out, the fact that by (6.41) the function (6.40)
+is continuous on $[a, b]$. If $F(x)$ is another primitive of $f$ on $[a, b]$, then $F(x) - \tilde{F}(x)$
+is a continuous function and constant on each of the finite number of intervals into
+which the discontinuities of $f$ divide the closed interval $[a, b]$. But it then follows
+from the continuity of $F(x) - \tilde{F}(x)$ on all of $[a, b]$ that $F(x) - \tilde{F}(x) = \text{const}$ on
+$[a, b]$.

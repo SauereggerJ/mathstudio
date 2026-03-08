@@ -1,0 +1,48 @@
+\section*{8 Differential Calculus in Several Variables}
+\begin{enumerate}
+    \setcounter{enumi}{4}
+    \renewcommand{\theenumi}{\alph{enumi}}
+    \item Let
+    \[
+    D^\alpha f(\mathbf{x}) := \frac{\partial^{|\alpha|} f}{(\partial x^1)^{\alpha_1} \ldots (\partial x^m)^{\alpha_m}}(\mathbf{x}).
+    \]
+    Show that if $f \in C^{(k)}(G; \mathbb{R})$, then the equality
+    \[
+    \sum_{i_1 + \ldots + i_m = k} \frac{k!}{i_1! \ldots i_m!} f^{(i_1, \ldots, i_m)} h^{i_1} \ldots h^{i_m} = \sum_{|\mathbf{\alpha}|=k} \frac{k!}{\mathbf{\alpha}!} D^\mathbf{\alpha} f(\mathbf{x}) h^\mathbf{\alpha},
+    \]
+    where $\mathbf{h} = (h^1, \ldots, h^m)$, holds at any point $\mathbf{x} \in G$.
+    \item Verify that in multi-index notation Taylor's theorem with the Lagrange form
+    of the remainder, for example, can be written as
+    \[
+    f(\mathbf{x} + \mathbf{h}) = \sum_{|\mathbf{\alpha}|=0}^{n-1} \frac{1}{\mathbf{\alpha}!} D^\mathbf{\alpha} f(\mathbf{x}) \mathbf{h}^\mathbf{\alpha} + \sum_{|\mathbf{\alpha}|=n} \frac{1}{\mathbf{\alpha}!} D^\mathbf{\alpha} f(\mathbf{x} + \theta \mathbf{h}) \mathbf{h}^\mathbf{\alpha}.
+    \]
+    \item Write Taylor's formula in multi-index notation with the integral form of the
+    remainder (Theorem 4).
+\end{enumerate}
+\begin{enumerate}
+    \setcounter{enumi}{5}
+    \item a) Let $I^m = \{\mathbf{x} = (x^1, \ldots, x^m) \in \mathbb{R}^m \mid |x^i| \leq c^i, i = 1, \ldots, m\}$ be an $m$-dimensional closed interval and $I$ a closed interval $[a, b] \subset \mathbb{R}$. Show that if the function
+    $f(\mathbf{x}, y) = f(x^1, \ldots, x^m, y)$ is defined and continuous on the set $I^m \times I$, then for any
+    positive number $\varepsilon > 0$ there exists a number $\delta > 0$ such that $|f(\mathbf{x}, y_1) - f(\mathbf{x}, y_2)| <
+    \varepsilon$ if $\mathbf{x} \in I^m, y_1, y_2 \in I$, and $|y_1 - y_2| < \delta$.
+    \item b) Show that the function
+    \[
+    F(\mathbf{x}) = \int_{a}^{b} f(\mathbf{x}, y) dy
+    \]
+    is defined and continuous on the closed interval $I^m$.
+    \item c) Show that if $f \in C(\mathbb{I}^m; \mathbb{R})$, then the function
+    \[
+    F(\mathbf{x}, t) = f(t\mathbf{x})
+    \]
+    is defined and continuous on $I^m \times I^1$, where $I^1 = \{t \in \mathbb{R} \mid |t| \leq 1\}$.
+    \item d) Prove Hadamard's lemma:
+    If $f \in C^{(1)}(\mathbb{I}^m; \mathbb{R})$ and $f(\mathbf{0}) = \mathbf{0}$, there exist functions $g_1, \ldots, g_m \in C(\mathbb{I}^m; \mathbb{R})$
+    such that
+    \[
+    f(x^1, \ldots, x^m) = \sum_{i=1}^m x^i g_i(x^1, \ldots, x^m)
+    \]
+    in $I^m$, and in addition
+    \[
+    g_i(0) = \frac{\partial f}{\partial x^i}(0), \quad i = 1, \ldots, m.
+    \]
+\end{enumerate}

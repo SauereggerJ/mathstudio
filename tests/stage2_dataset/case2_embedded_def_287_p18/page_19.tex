@@ -1,0 +1,59 @@
+12 \hfill 1. A first look at Banach and Hilbert spaces
+
+Now choosing $h=0$ (and using $s(f,0) = 0$) shows $s(f,g) = 2s(f,\frac{g}{2})$ and
+thus $s(f,g) + s(f,h) = s(f,g+h)$. Furthermore, by induction we infer
+$\lambda s(f,g) = s(f, \lambda g)$ for every positive rational $\lambda$.
+By continuity (check this!) this holds for all $\lambda > 0$ and $s(f,-g) = -s(f,g)$
+respectively $s(f, ig) = is(f,g)$ finishes the proof. $\square$
+
+Note that the parallelogram law and the polarization identity even hold
+for skew linear forms.
+
+But how do we define a scalar product on $\mathcal{C}(I)$? One possibility is
+\[
+\langle f,g \rangle = \int_a^b f^*(x)g(x)dx.
+\tag{1.32}
+\]
+The corresponding inner product space is denoted by $L^2(I)$. Note that we
+have
+\[
+\|f\|_\infty \leq \sqrt{b-a} \|f\|_2
+\tag{1.33}
+\]
+and hence the maximum norm is stronger than the $L^2$ norm.
+
+Suppose we have two norms $\|\cdot\|_1$ and $\|\cdot\|_2$ on a space $\mathcal{X}$. Then $\|\cdot\|_2$ is
+said to be \textbf{stronger} than $\|\cdot\|_1$ if there is a constant $m > 0$ such that
+\[
+\|f\|_1 \leq m \|f\|_2.
+\tag{1.34}
+\]
+It is straightforward to check that
+
+\noindent\textbf{Lemma 1.7.} If $\|\cdot\|_2$ is stronger than $\|\cdot\|_1$, then any $\|\cdot\|_2$ Cauchy sequence
+is also a $\|\cdot\|_1$ Cauchy sequence.
+
+Hence if a function $F: \mathcal{X} \to \mathcal{Y}$ is continuous in $(\mathcal{X}, \|\cdot\|_1)$ it is also
+continuos in $(\mathcal{X}, \|\cdot\|_2)$ and if a set is dense in $(\mathcal{X}, \|\cdot\|_2)$ it is also dense in
+$(\mathcal{X}, \|\cdot\|_1)$.
+
+In particular, $L^2$ is separable. But is it also complete? Unfortunately
+the answer is no:
+
+\noindent\textbf{Example.} Take $I = [0, 2]$ and define
+\[
+f_n(x) = \begin{cases}
+0, & 0<x<1-\frac{1}{n} \\
+1 + n(x-1), & 1-\frac{1}{n}\leq x \leq 1 \\
+1, & 1 < x \leq 2
+\end{cases}
+\tag{1.35}
+\]
+then $f_n(x)$ is a Cauchy sequence in $L^2$, but there is no limit in $L^2$! Clearly
+the limit should be the step function which is $0$ for $0 < x < 1$ and $1$ for
+$1 \leq x \leq 2$, but this step function is discontinuous (Problem 1.8)! $\diamondsuit$
+
+This shows that in infinite dimensional spaces different norms will give
+raise to different convergent sequences! In fact, the key to solving prob-
+lems in infinite dimensional spaces is often finding the right norm! This is
+something which cannot happen in the finite dimensional case.

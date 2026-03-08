@@ -1,0 +1,49 @@
+26 2. Hilbert spaces
+Note that (almost) the same proof shows that $K$ is compact when defined
+on $\mathcal{C}[a, b]$.
+\begin{theorem}{2.15 (Arzelà-Ascoli).}
+Suppose the sequence of functions $f_n(x)$,
+$n\in \mathbb{N}$, on a compact interval is (uniformly) equicontinuous, that is, for
+every $\varepsilon > 0$ there is a $\delta > 0$ (independent of $n$) such that
+$$|f_n(x) - f_n(y)| \leq \varepsilon \quad \text{if } |x - y| < \delta.$$
+(2.40)
+If the sequence $f_n$ is bounded, then there is a uniformly convergent subse-
+quence.
+\end{theorem}
+(The proof is not difficult but I still don't want to repeat it here since it
+is covered in most real analysis courses.)
+Compact operators are very similar to (finite) matrices as we will see in
+the next section.
+\begin{problem}{}
+Show that compact operators form an ideal.
+\end{problem}
+\subsection{The spectral theorem for compact
+symmetric operators}
+Let $\tilde{H}$ be an inner product space. A linear operator $A$ is called symmetric
+if its domain is dense and if
+$$\langle g, Af \rangle = \langle Ag, f \rangle \quad f, g \in \mathcal{D}(A).$$
+(2.41)
+A number $z \in \mathbb{C}$ is called eigenvalue of $A$ if there is a nonzero vector
+$u \in \mathcal{D}(A)$ such that
+$$Au = zu.$$
+(2.42)
+The vector $u$ is called a corresponding eigenvector in this case. An eigen-
+value is called simple if there is only one linearly independent eigenvector.
+\begin{theorem}{2.16.}
+Let $A$ be symmetric. Then all eigenvalues are real and
+eigenvectors corresponding to different eigenvalues are orthogonal.
+\end{theorem}
+\begin{proof}
+Suppose $\lambda$ is an eigenvalue with corresponding normalized eigen-
+vector $u$. Then $\lambda = \langle u, Au \rangle = \langle Au, u \rangle = \overline{\lambda}$, which shows that $\lambda$ is real.
+Furthermore, if $A u_1 = \lambda_1 u_1, j = 1, 2$, we have
+$$(\lambda_1 - \lambda_2)\langle u_1, u_2 \rangle = \langle A u_1, u_2 \rangle - \langle u_1, A u_2 \rangle = 0$$
+(2.43)
+finishing the proof.
+\end{proof}
+Now we show that $A$ has an eigenvalue at all (which is not clear in the
+infinite dimensional case)!
+\begin{theorem}{2.17.}
+A symmetric compact operator has an eigenvalue $\alpha_1$ which
+satisfies $|\alpha_1| = \|A\|$.
+\end{theorem}

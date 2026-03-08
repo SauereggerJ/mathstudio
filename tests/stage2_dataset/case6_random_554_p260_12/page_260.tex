@@ -1,0 +1,24 @@
+239
+5.4 Differential Calculus Used to Study Functions
+By elementary algebraic transformations one can obtain a number of classical
+inequalities of great importance for analysis from the inequalities just proved. We
+shall now derive these inequalities.
+a. Young's Inequalities$^{16}$
+If $a > 0$ and $b > 0$, and the numbers $p$ and $q$ such that $\frac{1}{p} + \frac{1}{q} = 1$, then
+$$ a^{1/p}b^{1/q} \le \frac{a}{p} + \frac{b}{q}, \quad \text{if } p > 1, \quad (5.86) $$
+$$ a^{1/p}b^{1/q} \ge \frac{a}{p} + \frac{b}{q}, \quad \text{if } p < 1, \quad (5.87) $$
+and equality holds in (5.86) and (5.87) only when $a = b$.
+Proof It suffices to set $x = a^{\frac{1}{p}}$ and $\alpha = \frac{1}{p}$ in (5.84) and (5.85), and then introduce the
+notation $\frac{1}{q} = 1 - \frac{1}{p}$.
+b. Hölder's Inequalities$^{17}$
+Let $x_i \ge 0, y_i \ge 0, i = 1, \dots, n$, and $\frac{1}{p} + \frac{1}{q} = 1$. Then
+$$ \sum_{i=1}^{n} x_i y_i \le \left(\sum_{i=1}^{n} x_i^p\right)^{1/p} \left(\sum_{i=1}^{n} y_i^q\right)^{1/q} \quad \text{for } p > 1, \quad (5.88) $$
+and
+$$ \sum_{i=1}^{n} x_i y_i \ge \left(\sum_{i=1}^{n} x_i^p\right)^{1/p} \left(\sum_{i=1}^{n} y_i^q\right)^{1/q} \quad \text{for } p < 1, p \ne 0. \quad (5.89) $$
+In the case $p < 0$ it is assumed in (5.89) that $x_i > 0$ ($i = 1, \dots, n$). Equality is
+possible in (5.88) and (5.89) only when the vectors $(x_1,\dots,x_n)$ and $(y_1,\dots, y_n)$
+are proportional.
+Proof Let us verify the inequality (5.88). Let $X = \sum_{i=1}^n x_i^p > 0$ and $Y = \sum_{i=1}^n y_i^q > 0$. Setting $a = \frac{x_i^p}{X}$ and $b = \frac{y_i^q}{Y}$ in (5.86), we obtain
+$$ \frac{x_i y_i}{X^{1/p}Y^{1/q}} \le \frac{1}{p} \frac{x_i^p}{X} + \frac{1}{q} \frac{y_i^q}{Y}. $$
+$^{16}$W.H. Young (1882–1946) – British mathematician.
+$^{17}$O. Hölder (1859–1937) – German mathematician.

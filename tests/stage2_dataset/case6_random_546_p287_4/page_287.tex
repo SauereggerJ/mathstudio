@@ -1,0 +1,30 @@
+270 = $R^2 \cos \theta \mathrm{d}R \wedge \mathrm{d}\varphi \wedge \mathrm{d}\theta.$
+14 Elements of Vector Analysis and Field Theory
+(14.28''')
+What has just been said enables us to write the form $\omega^3 = \rho \mathrm{d}V$ in different
+curvilinear coordinate systems.
+
+e.
+Our main problem (now easily solvable) is, knowing the expansion $A(t) =
+A^1(t)e_1(t)$ for a vector $A(t) \in T\mathbb{R}^3_t$ with respect to the unit vectors $e_i(t) \in T\mathbb{R}^3_t$,
+$i = 1, 2, 3$, of the triorthogonal coordinate system determined by the Riemannian
+metric (14.26), to find the expansion of the forms $\omega^1(t)$ and $\omega^2_A(t)$ in terms of the
+canonical 1-forms $\mathrm{d}t^i$ and the canonical 2-forms $\mathrm{d}t^i \wedge \mathrm{d}t^j$ respectively.
+Since all the reasoning applies at every given point $t$, we shall abbreviate the
+notation by suppressing the letter $t$ that shows that the vectors and forms are attached
+to the tangent space at $t$.
+Thus, $e_1, e_2, e_3$ is a basis in $T\mathbb{R}^3$ consisting of the unit vectors (14.27) along the
+coordinate directions, and $A = A^1e_1 + A^2e_2 + A^3e_3$ is the expansion of $A \in T\mathbb{R}^3$
+in that basis.
+We remark first of all that formula (14.27) implies that
+$$\langle \mathrm{d}t^i (e_j), \cdot \rangle = \frac{1}{\sqrt{E_i}}\delta^i_j, \quad \text{where } \delta^i_j = \begin{cases} 0, & \text{if } i \neq j, \\ 1, & \text{if } i = j, \end{cases} \quad \text{(14.29)}$$
+$$\langle \mathrm{d}t^i \wedge \mathrm{d}t^j (e_k, e_l), \cdot \rangle = \frac{1}{\sqrt{E_i E_j}}\delta^{sij}_{kl}, \quad \text{where } \delta^{sij}_{kl} = \begin{cases} 0, & \text{if } (i, j) \neq (k, l), \\ 1, & \text{if } (i, j) = (k, l). \end{cases} \quad \text{(14.30)}$$
+f.
+Thus, if $\omega^1_A := \langle A, \cdot \rangle = a_1 \mathrm{d}t^1 + a_2 \mathrm{d}t^2 + a_3 \mathrm{d}t^3$, then on the one hand
+$$\omega^1_A(e_i) = \langle A, e_i \rangle = A^i,$$
+and on the other hand, as one can see from (14.29),
+$$\omega^1_A(e_i) = (a_1 \mathrm{d}t^1 + a_2 \mathrm{d}t^2 + a_3 \mathrm{d}t^3)(e_i) = a_i \cdot \frac{1}{\sqrt{E_i}}.$$
+Consequently, $a_i = A^i \sqrt{E_i}$, and we have found the expansion
+$$\omega^1_A = A^1\sqrt{E_1} \mathrm{d}t^1 + A^2\sqrt{E_2} \mathrm{d}t^2 + A^3\sqrt{E_3} \mathrm{d}t^3 \quad \text{(14.31)}$$
+for the form $\omega^1_A$ corresponding to the expansion $A = A^1e_1 + A^2e_2 + A^3e_3$ of the
+vector $A$.

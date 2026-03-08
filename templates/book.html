@@ -236,7 +236,7 @@
                 <div class="toc-container max-h-[600px] overflow-y-auto p-4 space-y-1">
                     {% if chapters %}{% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
                     <div class="flex items-baseline justify-between p-2 hover:bg-slate-50"
-                        style="margin-left: {{ c_level * 1.5 }}rem;">
+                        style="margin-left: {{ (c_level|int) * 1.5 }}rem;">
                         <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600' }}">
                             <a href="/open/{{ path|e }}#page={{ c_page or 1 }}" target="_blank">{{ c_title }}</a>
                         </span>
@@ -359,11 +359,12 @@
                     </div>
 
                     <div id="scan-done" class="hidden text-center">
-                        <i class="fas fa-check-circle text-3xl text-emerald-500 mb-2"></i>
+                        <i class="fas fa-check-double text-3xl text-emerald-500 mb-2"></i>
                         <p id="scan-done-text" class="text-sm font-bold text-emerald-700"></p>
+                        <p class="text-[10px] text-emerald-600 mt-1 uppercase tracking-widest font-black">Federated Search Ready</p>
                         <button onclick="resetScan()"
-                            class="mt-3 text-[10px] text-violet-500 hover:text-violet-700 font-black uppercase tracking-widest">
-                            <i class="fas fa-redo mr-1"></i>Reset & Re-scan
+                            class="mt-4 text-[10px] text-slate-400 hover:text-violet-500 font-black uppercase tracking-widest transition-colors">
+                            <i class="fas fa-redo mr-1"></i>Force Re-scan
                         </button>
                     </div>
 
@@ -517,20 +518,19 @@
         try {
             const resp = await fetch(`/api/v1/books/${BOOK_ID}/scan`);
             const data = await resp.json();
-            document.getElementById('scan-quota').textContent = `${data.daily_used || 0}/3`;
-
+            
             if (!data.exists) {
                 showScanState('idle');
                 return;
             }
 
-            if (data.status === 'queued' || data.status === 'running') {
+            if (data.status !== 'completed' && data.status !== 'failed') {
                 updateScanProgress(data);
                 showScanState('progress');
                 startPolling();
             } else if (data.status === 'completed') {
                 document.getElementById('scan-done-text').textContent =
-                    `Scan complete! ${data.terms_found} terms from ${data.pages_total} pages.`;
+                    `Scan complete! ${data.terms_found} terms processed.`;
                 showScanState('done');
             } else if (data.status === 'failed') {
                 document.getElementById('scan-done-text').textContent =
@@ -551,10 +551,21 @@
 
     function updateScanProgress(data) {
         const pct = data.pages_total > 0 ? Math.round((data.pages_done / data.pages_total) * 100) : 0;
-        document.getElementById('scan-bar').style.width = pct + '%';
+        const bar = document.getElementById('scan-bar');
+        bar.style.width = pct + '%';
         document.getElementById('scan-percent').textContent = pct + '%';
-        document.getElementById('scan-status-text').textContent =
-            data.status === 'queued' ? 'Queued...' : 'Scanning...';
+        
+        let statusText = data.status.toUpperCase();
+        if (data.status === 'queued' && data.queue_position) {
+            statusText = `QUEUED (#${data.queue_position})`;
+            bar.className = 'bg-slate-400 h-3 rounded-full transition-all duration-500';
+        } else if (data.status === 'scanning' || data.status === 'extracting') {
+            bar.className = 'bg-blue-600 h-3 rounded-full transition-all duration-500';
+        } else if (data.status === 'embedding' || data.status === 'anchoring' || data.status === 'syncing') {
+            bar.className = 'bg-indigo-600 h-3 rounded-full transition-all duration-500';
+        }
+
+        document.getElementById('scan-status-text').textContent = statusText;
         document.getElementById('scan-detail').textContent =
             `${data.pages_done}/${data.pages_total} pages · ${data.terms_found} terms`;
     }
@@ -570,9 +581,8 @@
                 btn.disabled = false;
                 return;
             }
-            document.getElementById('scan-quota').textContent = `${data.daily_used}/3`;
             showScanState('progress');
-            updateScanProgress({ pages_done: 0, pages_total: 0, terms_found: 0, status: 'queued' });
+            updateScanProgress({ pages_done: 0, pages_total: 0, terms_found: 0, status: 'queued', queue_position: data.queue_position });
             startPolling();
         } catch (e) {
             alert('Failed to start scan');

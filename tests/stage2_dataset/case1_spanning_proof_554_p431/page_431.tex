@@ -1,0 +1,51 @@
+\subsection{7.1 The Space $\mathbb{R}^m$ and Its Subsets}
+\hfill 411
+\subsection{7.1.2 Open and Closed Sets in $\mathbb{R}^m$}
+\begin{definition} \label{def:ball} For $\delta > 0$ the set
+$$
+B(\mathbf{a}; \delta) = \{\mathbf{x} \in \mathbb{R}^m \mid d(\mathbf{a}, \mathbf{x}) < \delta\}
+$$
+is called the \emph{ball} with center $\mathbf{a} \in \mathbb{R}^m$ of radius $\delta$ or the $\delta$-neighborhood of the point
+$\mathbf{a} \in \mathbb{R}^m$.
+\end{definition}
+
+\begin{definition} \label{def:open} A set $G \subset \mathbb{R}^m$ is \emph{open} in $\mathbb{R}^m$ if for every point $\mathbf{x} \in G$ there is a ball
+$B(\mathbf{x}; \delta)$ such that $B(\mathbf{x}; \delta) \subset G$.
+\end{definition}
+
+\textbf{Example 1} $\mathbb{R}^m$ is an open set in $\mathbb{R}^m$.
+
+\textbf{Example 2} The empty set $\emptyset$ contains no points at all and hence may be regarded as
+satisfying Definition 2, that is, $\emptyset$ is an open set in $\mathbb{R}^m$.
+
+\textbf{Example 3} A ball $B(\mathbf{a}; r)$ is an open set in $\mathbb{R}^m$. Indeed, if $\mathbf{x} \in B(\mathbf{a}; r)$, that is,
+$d(\mathbf{a}, \mathbf{x}) < r$, then for $0 < \delta < r - d(\mathbf{a}, \mathbf{x})$, we have $B(\mathbf{x}; \delta) \subset B(\mathbf{a}; r)$, since
+$$
+(\mathbf{\xi} \in B(\mathbf{x}; \delta)) \implies (d(\mathbf{x}, \mathbf{\xi}) < \delta) \implies
+$$
+$$
+\implies (d(\mathbf{a},\mathbf{\xi}) \le d(\mathbf{a}, \mathbf{x}) + d(\mathbf{x}, \mathbf{\xi}) < d(\mathbf{a}, \mathbf{x}) + r - d(\mathbf{a}, \mathbf{x}) =r).
+$$
+
+\textbf{Example 4} A set $G = \{\mathbf{x} \in \mathbb{R}^m \mid d(\mathbf{a}, \mathbf{x}) > r\}$, that is, the set of points whose dis-
+tance from a fixed point $\mathbf{a} \in \mathbb{R}^m$ is larger than $r$, is open. This fact is easy to verify,
+as in Example 3, using the triangle inequality for the metric.
+
+\begin{definition} \label{def:closed} The set $F \subset \mathbb{R}^m$ is \emph{closed} in $\mathbb{R}^m$ if its complement $G = \mathbb{R}^m \setminus F$ is open
+in $\mathbb{R}^m$.
+\end{definition}
+
+\textbf{Example 5} The set $\overline{B}(\mathbf{a}; r) = \{\mathbf{x} \in \mathbb{R}^m \mid d(\mathbf{a}, \mathbf{x}) \le r\}$, $r > 0$, that is, the set of points
+whose distance from a fixed point $\mathbf{a} \in \mathbb{R}^m$ is at most $r$, is closed, as follows from
+Definition 3 and Example 4. The set $\overline{B}(\mathbf{a}; r)$ is called the \emph{closed ball} with center $\mathbf{a}$
+of radius $r$.
+
+\begin{proposition} \label{prop:open_closed_sets} a) The union $\bigcup_{\alpha \in A} G_\alpha$ of the sets of any system $\{G_\alpha, \alpha \in A\}$ of open
+sets in $\mathbb{R}^m$ is an open set in $\mathbb{R}^m$.
+b) The intersection $\bigcap_{i=1}^n G_i$ of a finite number of open sets in $\mathbb{R}^m$ is an open set
+in $\mathbb{R}^m$.
+a') The intersection $\bigcap_{\alpha \in A} F_\alpha$ of the sets of any system $\{F_\alpha, \alpha \in A\}$ of closed sets
+$F_\alpha$ in $\mathbb{R}^m$ is a closed set in $\mathbb{R}^m$.
+b') The union $\bigcup_{i=1}^n F_i$ of a finite number of closed sets in $\mathbb{R}^m$ is a closed set
+in $\mathbb{R}^m$.
+\end{proposition}

@@ -47,7 +47,10 @@
 <div class="mb-6 border-b border-slate-200">
     <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="adminTabs" data-tabs-toggle="#adminTabsContent" role="tablist">
         <li class="mr-2" role="presentation">
-            <button class="inline-block p-4 border-b-2 rounded-t-lg" id="latexed-tab" data-tabs-target="#latexed" type="button" role="tab" aria-controls="latexed" aria-selected="true">LaTeXed Books</button>
+            <button class="inline-block p-4 border-b-2 rounded-t-lg" id="pipeline-tab" data-tabs-target="#pipeline" type="button" role="tab" aria-controls="pipeline" aria-selected="true">Pipeline Queue</button>
+        </li>
+        <li class="mr-2" role="presentation">
+            <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="latexed-tab" data-tabs-target="#latexed" type="button" role="tab" aria-controls="latexed" aria-selected="false">All Completed</button>
         </li>
         <li class="mr-2" role="presentation">
             <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" id="telemetry-tab" data-tabs-target="#telemetry" type="button" role="tab" aria-controls="telemetry" aria-selected="false">System Telemetry</button>
@@ -56,7 +59,52 @@
 </div>
 
 <div id="adminTabsContent">
-    <!-- TAB: LATEXED BOOKS -->
+    <!-- TAB: PIPELINE QUEUE -->
+    <div class="hidden p-4 rounded-lg bg-gray-50 space-y-8" id="pipeline" role="tabpanel" aria-labelledby="pipeline-tab">
+        
+        <!-- RUNNING -->
+        <section>
+            <h3 class="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center">
+                <span class="relative flex h-2 w-2 mr-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </span>
+                Running Now
+            </h3>
+            <div id="running-list" class="space-y-4">
+                <!-- Data injected -->
+                <div class="bg-white p-8 rounded-2xl border border-slate-100 text-center text-slate-400 italic text-sm">No active scans.</div>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- QUEUED -->
+            <section>
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Up Next (Queued)</h3>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <table class="w-full text-sm text-left text-slate-500">
+                        <tbody id="queued-list">
+                            <!-- Data injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- FAILED -->
+            <section>
+                <h3 class="text-xs font-black text-rose-400 uppercase tracking-widest mb-4">Recent Failures</h3>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <table class="w-full text-sm text-left text-slate-500">
+                        <tbody id="failed-list">
+                            <!-- Data injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- TAB: COMPLETED -->
     <div class="hidden p-4 rounded-lg bg-gray-50" id="latexed" role="tabpanel" aria-labelledby="latexed-tab">
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <table class="w-full text-sm text-left text-slate-500">
@@ -98,63 +146,124 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
+        loadPipelineQueue();
         loadLatexedBooks();
         loadLogs();
         setInterval(loadStats, 30000);
+        setInterval(loadPipelineQueue, 5000);
         setInterval(loadLogs, 5000);
     });
 
     async function loadStats() {
         try {
-            console.log("Fetching stats...");
             const res = await fetch('/api/v1/admin/stats');
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const data = await res.json();
-            console.log("Stats received:", data);
-            
             document.getElementById('stat-total').textContent = (data.total_books || 0).toLocaleString();
             document.getElementById('stat-enriched').textContent = (data.enriched_books || 0).toLocaleString();
             document.getElementById('stat-indexed').textContent = (data.indexed_books || 0).toLocaleString();
             document.getElementById('stat-latexed').textContent = (data.latexed_books || 0).toLocaleString();
             document.getElementById('stat-terms').textContent = (data.knowledge_terms || 0).toLocaleString();
+        } catch (e) { console.error("Stats load failed", e); }
+    }
 
-        } catch (e) { 
-            console.error("Failed to load stats:", e); 
-        }
+    async function loadPipelineQueue() {
+        try {
+            const res = await fetch('/api/v1/admin/pipeline-queue');
+            const data = await res.json();
+            
+            // 1. Running
+            const runningList = document.getElementById('running-list');
+            if (data.running && data.running.length > 0) {
+                runningList.innerHTML = data.running.map(s => {
+                    const pct = s.pages_total > 0 ? Math.round((s.pages_done / s.pages_total) * 100) : 0;
+                    return `
+                        <div class="bg-white p-6 rounded-2xl border border-blue-100 shadow-md">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 class="font-black text-slate-900">${s.title}</h4>
+                                    <p class="text-xs text-slate-500 italic">${s.author || 'Unknown'}</p>
+                                </div>
+                                <span class="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest animate-pulse">${s.status}</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
+                                <div class="bg-blue-600 h-3 transition-all duration-500" style="width: ${pct}%"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                <span>${s.pages_done} / ${s.pages_total} Pages processed</span>
+                                <span>${s.terms_found} Terms found</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                runningList.innerHTML = '<div class="bg-white p-8 rounded-2xl border border-slate-100 text-center text-slate-400 italic text-sm">No active scans.</div>';
+            }
+
+            // 2. Queued
+            const queuedList = document.getElementById('queued-list');
+            if (data.queued && data.queued.length > 0) {
+                queuedList.innerHTML = data.queued.map((s, idx) => `
+                    <tr class="border-b border-slate-50">
+                        <td class="px-6 py-4">
+                            <div class="text-xs font-black text-slate-400 mb-1">#${idx + 1} IN QUEUE</div>
+                            <div class="font-bold text-slate-800">${s.title}</div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="cancelScan(${s.book_id})" class="text-rose-500 hover:text-rose-700 font-black text-[10px] uppercase tracking-widest">
+                                <i class="fas fa-times-circle mr-1"></i>Cancel
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                queuedList.innerHTML = '<tr><td class="px-6 py-8 text-center text-slate-400 italic">Queue is empty.</td></tr>';
+            }
+
+            // 3. Failed
+            const failedList = document.getElementById('failed-list');
+            if (data.failed && data.failed.length > 0) {
+                failedList.innerHTML = data.failed.slice(0, 5).map(s => `
+                    <tr class="border-b border-slate-50">
+                        <td class="px-6 py-4">
+                            <div class="font-bold text-slate-800">${s.title}</div>
+                            <div class="text-[10px] text-rose-500 font-mono mt-1 break-all">${s.error_log || 'Unknown error'}</div>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                failedList.innerHTML = '<tr><td class="px-6 py-8 text-center text-slate-400 italic">No recent failures.</td></tr>';
+            }
+        } catch (e) { console.error("Pipeline queue load failed", e); }
     }
 
     async function loadLatexedBooks() {
         try {
-            console.log("Fetching latexed books...");
             const res = await fetch('/api/v1/admin/latexed-books');
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const data = await res.json();
-            console.log("Latexed books received:", data);
-            
             const list = document.getElementById('latexed-list');
-            if (!Array.isArray(data)) {
-                list.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-rose-500">Error: Invalid data format</td></tr>';
+            if (!data || data.length === 0) {
+                list.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center italic text-slate-400">No books completed yet.</td></tr>';
                 return;
             }
-            
-            if (data.length === 0) {
-                list.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center italic text-slate-400">No books have been LaTeXed yet.</td></tr>';
-                return;
-            }
-
             list.innerHTML = data.map(book => `
                 <tr class="bg-white border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td class="px-6 py-4 font-bold text-slate-900">
+                    <td class="px-6 py-4 font-bold text-slate-900 border-l-4 border-l-transparent hover:border-l-blue-500">
                         <a href="/book/${book.id}" class="hover:text-blue-600">${book.title}</a>
                     </td>
                     <td class="px-6 py-4 italic">${book.author || 'Unknown'}</td>
                     <td class="px-6 py-4 text-center font-mono text-indigo-600 font-bold">${book.terms_found || 0}</td>
-                    <td class="px-6 py-4 text-xs">${new Date(book.completed_at * 1000).toLocaleString()}</td>
+                    <td class="px-6 py-4 text-xs font-medium text-slate-400">${new Date(book.completed_at * 1000).toLocaleString()}</td>
                 </tr>
             `).join('');
-        } catch (e) { 
-            console.error("Failed to load latexed books:", e); 
-        }
+        } catch (e) { console.error("Completed books load failed", e); }
+    }
+
+    async function cancelScan(bookId) {
+        if (!confirm("Cancel this scan?")) return;
+        try {
+            const res = await fetch(`/api/v1/books/${bookId}/scan`, { method: 'DELETE' });
+            if (res.ok) loadPipelineQueue();
+        } catch (e) { alert("Cancel failed"); }
     }
 
     async function loadLogs() {
@@ -164,16 +273,13 @@
             if (data.logs) {
                 const consoleDiv = document.getElementById('console');
                 const lines = data.logs.split('\n').filter(l => l.trim() !== "");
-                consoleDiv.innerHTML = '';
-                lines.forEach(line => {
-                    const div = document.createElement('div');
-                    if (line.includes('ERROR')) div.className = 'text-rose-400 font-bold';
-                    else if (line.includes('DONE')) div.className = 'text-emerald-400';
-                    else if (line.includes('TOOL CALL')) div.className = 'text-blue-300';
-                    else div.className = 'opacity-60';
-                    div.textContent = line;
-                    consoleDiv.appendChild(div);
-                });
+                consoleDiv.innerHTML = lines.map(line => {
+                    let color = 'opacity-60';
+                    if (line.includes('ERROR')) color = 'text-rose-400 font-bold';
+                    else if (line.includes('DONE')) color = 'text-emerald-400';
+                    else if (line.includes('TOOL CALL')) color = 'text-blue-300';
+                    return `<div class="${color}">${line}</div>`;
+                }).join('');
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
         } catch (e) { console.error(e); }

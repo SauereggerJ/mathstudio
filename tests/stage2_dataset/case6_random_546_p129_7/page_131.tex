@@ -1,0 +1,33 @@
+11.1 The Riemann Integral over an n-Dimensional Interval
+111
+provided this limit exists, is called the Riemann integral of the function $f$ over the
+interval $I$.
+We see that this definition, and in general the whole process of constructing the
+integral over the interval $I \subset \mathbb{R}^n$ is a verbatim repetition of the procedure of defining
+the Riemann integral over a closed interval of the real line, which is already familiar
+to us. To highlight the resemblance we have even retained the previous notation
+$\int_I f(x)dx$ for the differential form. Equivalent, but more expanded notations for the
+integral are the following:
+$$
+\int_I f(x^1,\ldots,x^n) dx^1\cdots dx^n \quad \text{or} \quad \int_I f(x^1,\ldots,x^n) dx^1\cdots dx^n.
+$$
+To emphasize that we are discussing an integral over a multidimensional domain
+$I$ we say that this is a multiple integral (double, triple, and so forth, depending on
+the dimension of $I$).
+d. A Necessary Condition for Integrability
+Definition 8 If the finite limit in Definition 7 exists for a function $f : I \to \mathbb{R}$, then
+$f$ is Riemann integrable over the interval $I$.
+We shall denote the set of all such functions by $\mathcal{R}(I)$.
+We now verify the following elementary necessary condition for integrability.
+Proposition 1 $f \in \mathcal{R}(I) \implies f$ is bounded on $I$.
+Proof Let $P$ be an arbitrary partition of the interval $I$. If the function $f$ is un-
+bounded on $I$, then it must be unbounded on some interval $I_{i_0}$ of the partition $P$.
+If $(P, \xi')$ and $(P, \xi'')$ are partitions $P$ with distinguished points such that $\xi'$ and $\xi''$
+differ only in the choice of the points $\xi'_{i_0}$ and $\xi''_{i_0}$, then
+$$
+|\sigma(f, P, \xi') - \sigma(f, P, \xi'')| = |f(\xi'_{i_0}) - f(\xi''_{i_0})| |I_{i_0}|.
+$$
+By changing one of the points $\xi'_{i_0}$ and $\xi''_{i_0}$, as a result of the unboundedness of $f$
+in $I_{i_0}$, we could make the right-hand side of this equality arbitrarily large. By the
+Cauchy criterion, it follows from this that the Riemann sums of $f$ do not have a
+limit as $\lambda(P) \to 0$.

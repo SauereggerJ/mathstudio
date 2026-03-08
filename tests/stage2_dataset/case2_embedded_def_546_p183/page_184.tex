@@ -1,0 +1,45 @@
+12.1 Surfaces in $\mathbb{R}^n$ 165
+
+obviously define a local parametrization of the surface. The converse, as follows
+from the example of the horned sphere mentioned above, is generally not true, if
+the mappings $\varphi$ are merely homeomorphisms. However, if the mappings (12.1) are
+sufficiently regular, the concept of a surface is actually the same in both the old and
+new definitions.
+In essence this has already been shown by Example 8 in Sect. 8.7, but considering
+the importance of the question, we give a precise statement of the assertion and
+recall how the answer is obtained.
+
+Proposition If the mapping (12.1) belongs to class $C^{(1)}(I^k, \mathbb{R}^n)$ and has maximal
+rank at each point of the cube $I^k$, there exists a number $\varepsilon > 0$ and a diffeomorphism
+$\varphi_{\varepsilon}: I^n \rightarrow \mathbb{R}^n$ of the cube $I^n := \{t \in \mathbb{R}^n \mid |t^i| \leq \varepsilon_i, i=1, \ldots, n\}$ of dimension $n$
+in $\mathbb{R}^n$ such that $\varphi|_{\mathbb{R}^k \cap I^n} = \varphi_{\varepsilon}|_{\mathbb{R}^k \cap I^n}$.
+
+In other words, it is asserted that under these hypotheses the mappings (12.1) are
+locally the restrictions of diffeomorphisms of the full-dimensional cubes $I^n$ to the
+$k$-dimensional cubes $I^k = I^k \cap I^n$.
+
+Proof Suppose for definiteness that the first $k$ of the $n$ coordinate functions $x^k =
+\varphi^i (t^1, \ldots, t^k)$, $i=1, \ldots, n$, of the mapping $x = \varphi(t)$ are such that $\det \left( \frac{\partial \varphi^i}{\partial t^j} (0) \right) 
+eq 0$,
+$i, j = 1, \ldots, k$. Then by the implicit function theorem the relations
+$$
+\begin{array}{l}
+x^1 = \varphi^1 (t^1, \ldots, t^k), \\
+\vdots \\
+x^k = \varphi^k (t^1, \ldots, t^k), \\
+x^{k+1} = \varphi^{k+1} (t^1, \ldots, t^k), \\
+\vdots \\
+x^n = \varphi^n (t^1, \ldots, t^k)
+\end{array}
+$$
+near the point $(t_0, x_0) = (0, \varphi(0))$ are equivalent to relations
+$$
+\begin{array}{l}
+t^1 = f^1(x^1,\ldots,x^k), \\
+\vdots \\
+t^k = f^k(x^1,\ldots,x^k), \\
+x^{k+1} = f^{k+1}(x^1,\ldots,x^k), \\
+\vdots \\
+x^n = f^n(x^1,\ldots,x^k).
+\end{array}
+$$

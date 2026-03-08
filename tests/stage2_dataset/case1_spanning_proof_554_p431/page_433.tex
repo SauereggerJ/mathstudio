@@ -1,0 +1,50 @@
+\subsection{7.1 The Space $\mathbb{R}^m$ and Its Subsets}
+\hfill 413
+\begin{definition} \label{def:limit_point} A point $\mathbf{a} \in \mathbb{R}^m$ is a \emph{limit point} of the set $E \subset \mathbb{R}^m$ if for any neighbor-
+hood $O(\mathbf{a})$ of $\mathbf{a}$ the intersection $E \cap O(\mathbf{a})$ is an infinite set.
+\end{definition}
+
+\begin{definition} \label{def:closure} The union of a set $E$ and all its limit points in $\mathbb{R}^m$ is the \emph{closure} of $E$
+in $\mathbb{R}^m$.
+
+The closure of the set $E$ is usually denoted $\overline{E}$.
+\end{definition}
+
+\textbf{Example 10} The set $\overline{B}(\mathbf{a}; r) = B(\mathbf{a}; r) \cup S(\mathbf{a}; r)$ is the set of limit points of the open
+ball $B(\mathbf{a}; r)$; that is why $\overline{B}(\mathbf{a}; r)$, in contrast to $B(\mathbf{a}; r)$, is called a closed ball.
+
+\textbf{Example 11} $S(\mathbf{a}; r) = \overline{S(\mathbf{a}; r)}$.
+
+Rather than proving this last equality, we shall prove the following useful propo-
+sition.
+
+\begin{proposition} \label{prop:closed_iff_equals_closure} ($\text{F}$ is closed in $\mathbb{R}^m$) $\Leftrightarrow$ ($\overline{\text{F}} = \text{F}$ in $\mathbb{R}^m$).
+\end{proposition}
+
+In other words, $F$ is closed in $\mathbb{R}^m$ if and only if it contains all its limit points.
+
+\begin{proof} Let $F$ be closed in $\mathbb{R}^m$, $\mathbf{x} \in \mathbb{R}^m$, and $\mathbf{x} \notin F$. Then the open set $G = \mathbb{R}^m \setminus F$
+is a neighborhood of $\mathbf{x}$ that contains no points of $F$. Thus we have shown that if
+$\mathbf{x} \notin F$, then $\mathbf{x}$ is not a limit point of $F$.
+
+Let $\overline{F} = F$. We shall verify that the set $G = \mathbb{R}^m \setminus \overline{F}$ is open in $\mathbb{R}^m$. If $\mathbf{x} \in G$, then
+$\mathbf{x} \notin \overline{F}$, and therefore $\mathbf{x}$ is not a limit point of $F$. Hence there is a neighborhood of
+$\mathbf{x}$ containing only a finite number of points $\mathbf{x}_1, \ldots, \mathbf{x}_n$ of $F$. Since $\mathbf{x} \notin F$, one can
+construct, for example, balls about $\mathbf{x}$, $O_1(\mathbf{x}), \ldots, O_n(\mathbf{x})$ such that $\mathbf{x}_i \notin O_i(\mathbf{x})$. Then
+$O(\mathbf{x}) = \bigcap_{i=1}^n O_i(\mathbf{x})$ is an open neighborhood of $\mathbf{x}$ containing no points of $F$ at all,
+that is, $O(\mathbf{x}) \subset \mathbb{R}^m \setminus \overline{F}$, and hence the set $\mathbb{R}^m \setminus \overline{F} = \mathbb{R}^m \setminus F$ is open. Therefore $F$ is
+closed in $\mathbb{R}^m$.
+\end{proof}
+
+\subsection{Compact Sets in $\mathbb{R}^m$}
+\begin{definition} \label{def:compact} A set $K \subset \mathbb{R}^m$ is \emph{compact} if from every covering of $K$ by sets that are
+open in $\mathbb{R}^m$ one can extract a finite covering.
+\end{definition}
+
+\textbf{Example 12} A closed interval $[a, b] \subset \mathbb{R}^1$ is compact by the finite covering lemma
+(Heine--Borel theorem).
+
+\textbf{Example 13} A generalization to $\mathbb{R}^m$ of the concept of a closed interval is the set
+$$
+I = \{\mathbf{x} \in \mathbb{R}^m \mid a^i \le x^i \le b^i, i = 1, \ldots, m\},
+$$

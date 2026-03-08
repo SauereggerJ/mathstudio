@@ -58,12 +58,27 @@ def create_mathstudio_indices():
             "properties": {
                 "id": {"type": "integer"},
                 "book_id": {"type": "integer"},
+                "concept_id": {"type": "integer"},
                 "page_start": {"type": "integer"},
-                "name": {"type": "text", "analyzer": "english"},
+                "name": {"type": "text", "analyzer": "english", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
                 "term_type": {"type": "keyword"}, # definition, theorem, lemma, etc.
                 "latex_content": {"type": "text"},
                 "used_terms": {"type": "keyword"},
-                "status": {"type": "keyword"} # draft, approved
+                "status": {"type": "keyword"}, # draft, approved
+                "embedding": {"type": "dense_vector", "dims": 768}
+            }
+        }
+    }
+
+    # 4. mathstudio_concepts: Canonical Mathematical Concepts
+    concepts_mapping = {
+        "mappings": {
+            "properties": {
+                "id": {"type": "integer"},
+                "name": {"type": "text", "analyzer": "english", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
+                "subject_area": {"type": "keyword"},
+                "summary": {"type": "text", "analyzer": "english"},
+                "embedding": {"type": "dense_vector", "dims": 768}
             }
         }
     }
@@ -71,7 +86,8 @@ def create_mathstudio_indices():
     indices = {
         "mathstudio_books": books_mapping,
         "mathstudio_pages": pages_mapping,
-        "mathstudio_terms": terms_mapping
+        "mathstudio_terms": terms_mapping,
+        "mathstudio_concepts": concepts_mapping
     }
 
     for index_name, mapping in indices.items():

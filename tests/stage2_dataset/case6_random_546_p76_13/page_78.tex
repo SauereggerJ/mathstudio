@@ -1,0 +1,31 @@
+58
+10 *Differential Calculus from a More General Point of View
+From now on when we use the symbol $\mathcal{L}(X_1, \ldots, X_n; Y)$ we shall have in mind
+the vector space of continuous $n$-linear transformations normed by this transforma-
+tion norm. In particular $\mathcal{L}(X, Y)$ is the normed space of continuous linear transfor-
+mations from $X$ into $Y.$
+We now prove the following useful supplement to Proposition 2.
+Supplement If $X, Y,$ and $Z$ are normed spaces and $A \in \mathcal{L}(X; Y)$ and $B \in$
+$\mathcal{L}(Y; Z),$ then
+$$||B \circ A|| \le || B || \cdot || A ||.$$
+Proof Indeed,
+$$||B \circ A|| = \sup_{\substack{x \ne 0}} \frac{|(B \circ A)x|}{|x|} \le \sup_{\substack{x \ne 0}} \frac{|| B || |Ax|}{|x|} = || B || \sup_{\substack{x \ne 0}} \frac{|Ax|}{|x|} = || B ||\cdot || A ||.$$
+Proposition 3 If $Y$ is a complete normed space, then $\mathcal{L}(X_1, \ldots, X_n; Y)$ is also a
+complete normed space.
+Proof We shall carry out the proof for the space $\mathcal{L}(X; Y)$ of continuous linear trans-
+formations. The general case, as will be clear from the reasoning below, differs only
+in requiring a more cumbersome notation.
+Let $A_1, A_2, \ldots, A_n, \ldots$ be a Cauchy sequence in $\mathcal{L}(X; Y).$ Since for any $x \in X$
+we have
+$$|A_m x - A_n x| = |(A_m - A_n)x | \le || A_m – A_n|||x|,$$
+it is clear that for any $x \in X$ the sequence $A_1x, A_2x, \ldots, A_nx, \ldots$ is a Cauchy se-
+quence in $Y.$ Since $Y$ is complete, it has a limit in $Y,$ which we denote by $Ax.$
+Thus,
+$$Ax := \lim_{n\to\infty} A_nx.$$
+We shall show that $A : X \to Y$ is a continuous linear transformation.
+The linearity of $A$ follows from the relations
+$$\lim_{n\to\infty} A_n(\lambda_1 x_1 + \lambda_2 x_2) = \lim_{n\to\infty} (\lambda_1 A_n x_1 + \lambda_2 A_n x_2) =$$
+$$= \lambda_1 \lim_{n\to\infty} A_n x_1 + \lambda_2 \lim_{n\to\infty} A_n x_2.$$
+Next, for any fixed $\varepsilon > 0$ and sufficiently large values of $m, n \in \mathbb{N}$ we have $||A_m -$
+$A_n || < \varepsilon,$ and therefore
+$$|A_m x - A_n x| \le \varepsilon |x|$$

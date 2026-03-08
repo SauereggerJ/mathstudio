@@ -1,0 +1,46 @@
+406
+\hfill 6 Integration
+if the integral on the right-hand side exists. This limit is called, following Cauchy,
+the principal value of the integral, and, to distinguish the definitions (6.81) and
+(6.82), we put the letters PV in front of the second to indicate that it is the principal
+value.
+
+In accordance with this convention we have
+\textbf{Example 19}
+$$
+\text{PV} \int_{-1}^{1} \frac{dx}{x} = 0.
+$$
+We also adopt the following definition:
+$$
+\text{PV} \int_{-\infty}^{+\infty} f(x)dx := \lim_{R \to +\infty} \int_{-R}^{R} f(x)dx. \quad (6.83)
+$$
+
+\textbf{Example 20}
+$$
+\text{PV} \int_{-\infty}^{+\infty} x dx = 0.
+$$
+
+Finally, if there are several (finitely many) singularities of one kind or another on
+the interval of integration, at interior points or endpoints, then the nonsingular points
+of the interval are divided into a finite number of such intervals, each containing
+only one singularity, and the integral is computed as the sum of the integrals over
+the closed intervals of the partition.
+
+It can be verified that the result of such a computation is not affected by the
+arbitrariness in the choice of a partition.
+
+\textbf{Example 21} The precise definition of the logarithmic integral can now be written
+as
+$$
+\text{li}x = \begin{cases} \int_{0}^{x} \frac{dt}{\ln t}, & \text{if } 0 < x < 1, \\ \text{PV} \int_{0}^{x} \frac{dt}{\ln t}, & \text{if } 1 < x. \end{cases}
+$$
+In the last case the symbol PV refers to the only interior singularity on the interval
+]0, $x$[ , which is located at 1. We remark that in the sense of the definition in formula
+(6.81) this integral is not convergent.
+
+\subsection{6.5.4 Problems and Exercises}
+\textbf{1.} Show that the following functions have the stated properties.
+a) $\text{Si}(x) = \int_{0}^{x} \frac{\sin t}{t} dt$ (the sine integral) is defined on all of $\mathbb{R}$, is an odd function,
+and has a limit as $x \to +\infty$.
+b) $\text{si}(x) = \int_{x}^{\infty} \frac{\sin t}{t} dt$ is defined on all of $\mathbb{R}$ and differs from $\text{Si}x$ only by a
+constant;

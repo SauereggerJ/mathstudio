@@ -35,6 +35,8 @@ logging.getLogger('services').addHandler(file_handler)
 logging.getLogger('services').setLevel(logging.INFO)
 logging.getLogger('core').addHandler(file_handler)
 logging.getLogger('core').setLevel(logging.INFO)
+logging.getLogger('converter').addHandler(file_handler)
+logging.getLogger('converter').setLevel(logging.INFO)
 
 app.logger.info(f"=== MathStudio App Starting. Log: {log_file} ===")
 

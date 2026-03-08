@@ -1,0 +1,40 @@
+\documentclass{book}
+\usepackage{amsmath,amssymb}
+\begin{document}
+
+\chapter{Multiple Integrals}
+
+\section{The Riemann Integral over an n-Dimensional Interval}
+\subsection{Definition of the Integral}
+\subsubsection*{a. Intervals in $\mathbb{R}^n$ and Their Measure}
+
+\begin{definition}
+The set $I = \{x \in \mathbb{R}^n \mid a^i \le x^i \le b^i, i = 1, \ldots, n\}$ is called an \emph{interval} or a \emph{coordinate parallelepiped} in $\mathbb{R}^n$.
+
+If we wish to note that the interval is determined by the points $a = (a^1, \ldots, a^n)$ and $b = (b^1,\ldots,b^n)$, we often denote it $I_{a,b}$, or, by analogy with the one-dimensional case, we write it as $a \le x \le b$.
+\end{definition}
+
+\begin{definition}
+To the interval $I = \{x \in \mathbb{R}^n \mid a^i \le x^i \le b^i, i = 1, \ldots, n\}$ we assign the number $|I| := \prod_{i=1}^n (b^i - a^i)$, called the \emph{volume} or \emph{measure} of the interval.
+
+The volume (measure) of the interval $I$ is also denoted $v(I)$ and $\mu(I)$.
+\end{definition}
+
+\begin{lemma}
+The measure of an interval in $\mathbb{R}^n$ has the following properties.
+\begin{enumerate}
+    \item[(a)] It is homogeneous, that is, if $\lambda I_{a,b} := I_{\lambda a, \lambda b}$, where $\lambda \ge 0$, then $|\lambda I_{a,b}| = \lambda^n |I_{a,b}|$.
+    \item[(b)] It is additive, that is, if the intervals $I, I_1, \ldots, I_k$ are such that $I = \bigcup_{j=1}^k I_j$ and no two of the intervals $I_1,\ldots, I_k$ have common interior points, then $|I| = \sum_{j=1}^k|I_j|$.
+    \item[(c)] If the interval $I$ is covered by a finite system of intervals $I_1, \ldots, I_k$, that is, $I \subset \bigcup_{j=1}^k I_j$, then $|I| \le \sum_{j=1}^k|I_j|$.
+\end{enumerate}
+All these assertions follow easily from Definitions 1 and 2.
+\end{lemma}
+
+
+oindent
+Springer-Verlag Berlin Heidelberg 2016\\
+V.A. Zorich, \emph{Mathematical Analysis II}, Universitext,\\
+DOI 10.1007/978-3-662-48993-2\_3\\
+109
+
+\end{document}

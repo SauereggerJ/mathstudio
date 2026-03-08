@@ -1,0 +1,43 @@
+145
+11.5 Change of Variable in a Multiple Integral
+$K_t$ to the boundary of $D_t$. Let $\mathcal{I} := \{I_j\}$ be the intervals of the partition $P$ that have
+a nonempty intersection with $K_t$. It is clear that if $I_j \in \mathcal{I}$, then $I_j \subset D_t$ and
+$$
+\int_{D_t} (f \circ \varphi)|\det \varphi'| (t) dt = \int_{D_x} ((f \circ \varphi)|\det \varphi'| \chi_{D_x})(x) dt =
+$$
+$$
+= \sum_{j} \int_{I_j} ((f \circ \varphi)|\det \varphi'|) (t) dt.
+\eqno (11.13)
+$$
+By Lemma 1 the image $E_j = \varphi(I_j)$ of the intervals $I_j$ is a measurable set. Then
+the set $E = \bigcup_j E_j$ is also measurable and $\text{supp} f \subset E = \overline{E} \subset D_x$. Using the addi-
+tivity of the integral, we deduce from this that
+$$
+\int_{D_x} f(x) dx = \int_{I \times D_x} f \chi_{D_x}(x) dx = \int_{I \times E} f \chi_{D_x}(x) dx + \int_{I \times D_x \setminus E} f \chi_{D_x}(x) dx =
+$$
+$$
+= \int_{E} f \chi_{D_x}(x) dx = \sum_j \int_{E_j} f(x) dx = \sum_j \int_{E} f(x) dx.
+\eqno (11.14)
+$$
+By construction every interval $I_j \in \mathcal{I}$ is contained in some neighborhood $U(x_j)$
+inside which the diffeomorphism $\varphi$ decomposes into a composition of elementary
+diffeomorphisms. Hence on the basis of Lemmas 3 and 4 we can write
+$$
+\int_{E_j} f(x) dx = \int_{I_j} (f \circ \varphi)|\det \varphi'| (t) dt.
+\eqno (11.15)
+$$
+Comparing relations (11.13), (11.14), and (11.15), we obtain formula (11.10).
+\vspace{1em}
+\noindent \textbf{11.5.7 Corollaries and Generalizations of the Formula for Change}
+\textbf{of Variable in a Multiple Integral}
+\subsection*{a. Change of Variable Under Mappings of Measurable Sets}
+\begin{proposition}
+1 Let $\varphi : D_t \to D_x$ be a diffeomorphism of a bounded open set $D_t \subset
+\mathbb{R}^m$ onto a set $D_x \subset \mathbb{R}^n$ of the same type; let $E_t$ and $E_x$ be subsets of $D_t$ and $D_x$
+respectively and such that $E_t \subset D_t$, $E_x \subset D_x$, and $E_x = \varphi(E_t)$. If $f \in \mathcal{R}(E_x)$, then
+$f \circ \varphi |\det \varphi'| \in \mathcal{R}(E_t)$, and the following equality holds:
+$$
+\int_{E_x} f(x)dx = \int_{E_t} (f \circ \varphi |\det \varphi'|) (t) dt.
+\eqno (11.16)
+$$
+\end{proposition}

@@ -1,0 +1,60 @@
+\subsection*{1.2. The geometry of Hilbert spaces}
+\hfill 11
+
+As a first consequence we obtain the \textbf{Cauchy-Schwarz-Bunjakowski}
+inequality:
+
+\noindent\textbf{Theorem 1.5 (Cauchy-Schwarz-Bunjakowski).} Let $\mathcal{H}_0$ be an inner product
+space, then for every $f, g \in \mathcal{H}_0$ we have
+\[
+|\langle f,g \rangle| \leq \|f\|\|g\|
+\tag{1.26}
+\]
+with equality if and only if $f$ and $g$ are parallel.
+
+\noindent\textbf{Proof.} It suffices to prove the case $\|g\| = 1$. But then the claim follows
+from $\|f\|^2 = |\langle g, f \rangle|^2 + \|f_{\perp}\|^2$.
+
+Note that the Cauchy-Schwarz inequality implies that the scalar product
+is continuous in both variables, that is, if $f_n \to f$ and $g_n \to g$ we have
+$\langle f_n, g_n \rangle \to \langle f, g \rangle$.
+
+As another consequence we infer that the map $\|\cdot\|$ is indeed a norm.
+\[
+\|f + g\|^2 = \|f\|^2 + \langle f, g \rangle + \langle g, f \rangle + \|g\|^2 \leq (\|f\| + \|g\|)^2.
+\tag{1.27}
+\]
+But let us return to $\mathcal{C}(I)$. Can we find a scalar product which has the
+maximum norm as associated norm? Unfortunately the answer is no! The
+reason is that the maximum norm does not satisfy the parallelogram law
+(Problem 1.7).
+
+\noindent\textbf{Theorem 1.6 (Jordan-von Neumann).} A norm is associated with a scalar
+product if and only if the \textbf{parallelogram law}
+\[
+\|f + g\|^2 + \|f - g\|^2 = 2\|f\|^2 + 2\|g\|^2
+\tag{1.28}
+\]
+holds.
+
+In this case the scalar product can be recovered from its norm by virtue
+of the \textbf{polarization identity}
+\[
+\langle f,g \rangle = \frac{1}{4} \left( \|f + g\|^2 - \|f – g\|^2 + i\|f + ig\|^2 – i\|f + ig\|^2 \right).
+\tag{1.29}
+\]
+
+\noindent\textbf{Proof.} If an inner product space is given, verification of the parallelogram
+law and the polarization identity is straight forward (Problem 1.6).
+To show the converse, we define
+\[
+s(f,g) = \frac{1}{4} \left( \|f + g\|^2 - \|f – g\|^2 + i\|f + ig\|^2 – i\| f + ig\|^2 \right).
+\tag{1.30}
+\]
+Then $s(f, f) = \|f\|^2$ and $s(f,g) = s(g, f)^*$ are straightforward to check.
+Moreover, another straightforward computation using the parallelogram law
+shows
+\[
+s(f,g) + s(f,h) = 2s\left(f, \frac{g+h}{2}\right).
+\tag{1.31}
+\]

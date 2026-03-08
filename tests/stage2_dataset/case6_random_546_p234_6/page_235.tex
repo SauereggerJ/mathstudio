@@ -1,0 +1,38 @@
+13.1 The Integral of a Differential Form
+assume that
+$$ F := \lim_{\lambda(P)\to 0} \sum_i \omega^2(x_i)(\xi_1, \xi_2) =: \int_S \omega^2. $$
+(13.3)
+This last symbol is the integral of the 2-form $\omega^2$ over the oriented surface $S$.
+Recalling (formula (12.22) of Sect. 12.5) the coordinate expression for the flux
+2
+form $\omega^2$ in Cartesian coordinates, we may now also write
+$$ F = \int_S V^1 dx^2 \wedge dx^3 + V^2 dx^3 \wedge dx^1 + V^3 dx^1 \wedge dx^2. $$
+(13.4)
+We have discussed here only the general principle for solving this problem. In
+essence all we have done is to give the precise definition (13.3) of the flux $F$ and
+introduced certain notation (13.3) and (13.4); we have still not obtained any effective
+computational formula similar to formula (13.1) for the work.
+We remark that formula (13.1) can be obtained from (13.2) by replacing
+$x^1, \ldots, x^n$ with the functions $(x^1, \ldots, x^n)(t) = x(t)$ that define the path $\gamma$. We re-
+call (Sect. 12.5) that such a substitution can be interpreted as the transfer of the form
+$\omega$ defined in $G$ to the closed interval $I = [a, b]$.
+In a completely analogous way, a computational formula for the flux can be ob-
+tained by direct substitution of the parametric equations of the surface into (13.4).
+In fact,
+$$ \omega^2(\varphi'(t_1) \tau_1, \varphi'(t_1) \tau_2) = (\varphi^*\omega^2)(t_1)(\tau_1, \tau_2) $$
+and
+$$ \sum_i \omega^2(x_i)(\xi_1, \xi_2) = \sum_i (\varphi^*\omega^2)(t_i)(\tau_1, \tau_2). $$
+The form $\varphi^*\omega^2$ is defined on a two-dimensional interval $I \subset \mathbb{R}^2$. Any 2-form
+in $I$ has the form $f(t) dt^1 \wedge dt^2$, where $f$ is a function on $I$ depending on the form.
+Therefore
+$$ \varphi^*\omega^2(t_i)(\tau_1, \tau_2) = f(t_i) dt^1 \wedge dt^2(\tau_1, \tau_2). $$
+But $dt^1 \wedge dt^2(\tau_1, \tau_2) = \tau_1 \cdot \tau_2$ is the area of the rectangle $I_i$ spanned by the
+orthogonal vectors $\tau_1, \tau_2$.
+Thus,
+$$ \sum_i f(t_i) dt^1 \wedge dt^2(\tau_1, \tau_2) = \sum_i f(t_i) |I_i|. $$
+As the partition is refined we obtain in the limit
+$$ \int_I f(t) dt^1 \wedge dt^2 = \int_I f(t) dt^1 dt^2, $$
+(13.5)
+where, according to (13.3), the left-hand side contains the integral of the 2-form
+$\omega^2 = f(t) dt^1 \wedge dt^2$ over the elementary oriented surface $I$, and the right-hand side
+the integral of the function $f$ over the rectangle $I$.

@@ -1,0 +1,46 @@
+\subsection{6.5 Improper Integrals}
+\hfill 407
+\medskip
+c) $\text{Ci}x = \int_{x}^{+\infty} \frac{\cos t}{t} dt$ (the cosine integral) can be computed for sufficiently
+large values of $x$ by the approximate formula $\text{Ci}x \approx \frac{\sin x}{x}$; estimate the region of
+values where the absolute error of this approximation is less than $10^{-4}$.
+
+\textbf{2.} Show that
+$$
+\int_{1}^{+\infty} \frac{\sin x}{x^\alpha} dx, \quad \int_{1}^{+\infty} \frac{\cos x}{x^\alpha} dx
+$$
+absolutely only for $\alpha > 1$;
+b) the Fresnel integrals
+$$
+C(x)= \frac{1}{\sqrt{2}} \int_{0}^{x} \cos t^2 dt, \quad S(x)= \frac{1}{\sqrt{2}} \int_{0}^{x} \sin t^2 dt
+$$
+are infinitely differentiable functions on the interval $]0, +\infty[$, and both have a limit
+as $x \to +\infty$.
+
+\textbf{3.} Show that
+a) the elliptic integral of first kind
+$$
+F(k, \varphi) := \int_{0}^{\varphi} \frac{dt}{\sqrt{(1-t^2)(1-k^2t^2)}}
+$$
+is defined for $0 \le k < 1, 0 \le \varphi \le \frac{\pi}{2}$ and can be brought into the form
+$$
+F(k, \varphi) = \int_{0}^{\varphi} \frac{d\psi}{\sqrt{1-k^2 \sin^2 \psi}};
+$$
+b) the complete elliptic integral of first kind
+$$
+K(k) = \int_{0}^{\pi/2} \frac{d\psi}{\sqrt{1-k^2 \sin^2 \psi}}
+$$
+increases without bound as $k \to 1-0$.
+
+\textbf{4.} Show that
+a) the exponential integral $\text{Ei}(x) = \int_{x}^{+\infty} \frac{e^t}{t} dt$ is defined and infinitely differen-
+tiable for $x < 0$;
+b) $-\text{Ei}(-x) = \frac{e^{-x}}{x} \left(1 - \frac{1}{x} + \frac{2!}{x^2} - \frac{3!}{x^3} + \dots + \frac{(-1)^n n!}{x^n} + o\left(\frac{1}{x^n}\right)\right)$ as $x \to +\infty$;
+c) the series $\sum_{n=0}^{\infty} \frac{(-1)^n x^n}{n \cdot n!}$ does not converge for any value of $x \in \mathbb{R}$;
+d) $\text{li}(x) \sim \frac{x}{\ln x}$ as $x \to +0$. (For the definition of the logarithmic integral $\text{li}(x)$
+see Example 21.)
+
+\textbf{5.} Show that
+a) the function $\Phi(x) = \frac{1}{\sqrt{\pi}} \int_{0}^{x} e^{-t^2} dt$, called the error function and often de-
+noted $\text{erf}(x)$, is defined, even, and infinitely differentiable on $\mathbb{R}$ and has a limit as
+$x \to +\infty$;

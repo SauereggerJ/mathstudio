@@ -1,0 +1,26 @@
+10.2 Linear and Multilinear Transformations
+57
+From here on $\mathcal{L}(X_1, \ldots, X_n; Y)$ will denote the set of continuous multilinear
+transformations mapping the direct product of the normed vector spaces $X_1, \ldots, X_n$
+into the normed vector space $Y.$
+In particular, $\mathcal{L}(X; Y)$ is the set of continuous linear transformations from $X$
+into $Y.$
+In the set $\mathcal{L}(X_1, \ldots, X_n; Y)$ we introduce a natural vector-space structure:
+$$(A + B)(x_1,\ldots, x_n) := A(x_1,\ldots,x_n) + B(x_1,\ldots,x_n)$$
+and
+$$(\lambda A)(x_1,\ldots,x_n) := \lambda A(x_1,\ldots,x_n).$$
+It is obvious that if $A, B \in \mathcal{L}(X_1, \ldots, X_n; Y),$ then $(A + B) \in \mathcal{L}(X_1, \ldots, X_n; Y)$
+and $(\lambda A) \in \mathcal{L}(X_1, \ldots, X_n; Y).$
+Thus $\mathcal{L}(X_1,\ldots, X_n; Y)$ can be regarded as a vector space.
+Proposition 2 The norm of a multilinear transformation is a norm in the vector
+space $\mathcal{L}(X_1,\ldots, X_n; Y)$ of continuous multilinear transformations.
+Proof We observe first of all that by Proposition 1 the nonnegative number $||A|| < \infty$
+is defined for every transformation $A \in \mathcal{L}(X_1, \ldots, X_n; Y).$
+Inequality (10.27) shows that
+$$||A|| = 0 \iff A = 0.$$
+Next, by definition of the norm of a multilinear transformation
+$$\|\lambda A\| = \sup_{\substack{X_1,\ldots, X_n \\ x_i \ne 0}} \frac{|(\lambda A)(x_1,\ldots,x_n)|}{|x_1|\cdots|x_n|} = \sup_{\substack{X_1,\ldots, X_n \\ x_i \ne 0}} \frac{|\lambda||A(x_1,\ldots,x_n)|}{|x_1|\cdots|x_n|} = |\lambda| ||A||.$$
+Finally, if $A$ and $B$ are elements of the space $\mathcal{L}(X_1, \ldots, X_n; Y),$ then
+$$\|A + B \| = \sup_{\substack{X_1,\ldots, X_n \\ x_i \ne 0}} \frac{|(A + B)(x_1,\ldots,x_n)|}{|x_1|\cdots|x_n|} =$$
+$$= \sup_{\substack{X_1,\ldots, X_n \\ x_i \ne 0}} \frac{|A(x_1,\ldots,x_n) + B(x_1,\ldots,x_n)|}{|x_1|\cdots|x_n|} \le$$
+$$\le \sup_{\substack{X_1,\ldots, X_n \\ x_i \ne 0}} \frac{|A(x_1,\ldots,x_n)|}{|x_1|\cdots|x_n|} + \sup_{\substack{X_1,\ldots, X_n \\ x_i \ne 0}} \frac{|B(x_1,\ldots,x_n)|}{|x_1|\cdots|x_n|} = ||A|| + || B || . \quad \Box$$

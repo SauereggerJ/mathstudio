@@ -1,0 +1,32 @@
+218
+13 Line and Surface Integrals
+It remains only to recall that the coordinate representation $f(t) dt^1 \wedge dt^2$ of the
+form $\varphi^*\omega^2$ is obtained from the coordinate expression for the form $\omega^2$ by the direct
+substitution $x = \varphi(t)$, where $\varphi : I \to G$ is a chart of the surface $S$.
+Carrying out this change of variable, we obtain from (13.4)
+$$ F = \int_{S=\varphi(I)} \omega^2 = \int_I \varphi^*\omega^2 = \int_I \left[ V^1(\varphi(t)) \frac{\partial x^2}{\partial t^1} \frac{\partial x^3}{\partial t^2} - \frac{\partial x^3}{\partial t^1} \frac{\partial x^2}{\partial t^2} + V^2(\varphi(t)) \frac{\partial x^3}{\partial t^1} \frac{\partial x^1}{\partial t^2} - \frac{\partial x^1}{\partial t^1} \frac{\partial x^3}{\partial t^2} \right] dt^1 \wedge dt^2 $$
+$$ \left. + V^3(\varphi(t)) \frac{\partial x^1}{\partial t^1} \frac{\partial x^2}{\partial t^2} - \frac{\partial x^2}{\partial t^1} \frac{\partial x^1}{\partial t^2} \right] dt^1 dt^2. $$
+This last integral, as Eq. (13.5) shows, is the ordinary Riemann integral over the
+rectangle $I$.
+Thus we have found that
+$$ F = \int_I \begin{pmatrix} V^1(\varphi(t)) \\ V^2(\varphi(t)) \\ V^3(\varphi(t)) \end{pmatrix} \cdot \begin{pmatrix} \frac{\partial \varphi^1}{\partial t^1} & \frac{\partial \varphi^1}{\partial t^2} \\ \frac{\partial \varphi^2}{\partial t^1} & \frac{\partial \varphi^2}{\partial t^2} \\ \frac{\partial \varphi^3}{\partial t^1} & \frac{\partial \varphi^3}{\partial t^2} \end{pmatrix} \begin{pmatrix} dt^1 \\ dt^2 \end{pmatrix} dt^1 dt^2, $$
+$$ F = \int_I \begin{pmatrix} V^1(\varphi(t)) \\ V^2(\varphi(t)) \\ V^3(\varphi(t)) \end{pmatrix} \cdot \begin{pmatrix} \frac{\partial \varphi^1}{\partial t^1} & \frac{\partial \varphi^2}{\partial t^1} & \frac{\partial \varphi^3}{\partial t^1} \\ \frac{\partial \varphi^1}{\partial t^2} & \frac{\partial \varphi^2}{\partial t^2} & \frac{\partial \varphi^3}{\partial t^2} \end{pmatrix} \begin{pmatrix} dt^1 \\ dt^2 \end{pmatrix} dt^1 dt^2, \quad \text{(13.6)} $$
+where $x = \varphi(t) = (\varphi^1, \varphi^2, \varphi^3)(t_1, t_2)$ is a chart of the surface $S$ defining the same
+orientation as the field of normals we have given. If the chart $\varphi : I \to S$ gives $S$ the
+opposite orientation, Eq. (13.6) does not generally hold. But, as follows from the
+considerations at the beginning of this subsection, the left- and right-hand sides will
+differ only in sign in that case.
+The final formula (13.6) is obviously merely the limit of the sums of the elemen-
+tary fluxes $\Delta F_i \approx (V(x_i), \xi_1, \xi_2)$ familiar to us, written accurately in the coordi-
+nates $t^1$ and $t^2$.
+We have considered the case of a surface defined by a single chart. In general
+a smooth surface can be decomposed into smooth pieces $S_i$ having essentially no
+intersections with one another, and then we can find the flux through $S$ as the sum
+of the fluxes though the pieces $S_i$.
+Example 3 Suppose a medium is advancing with constant velocity $V = (1, 0, 0)$.
+If we take any closed surface in the domain of the flow, then, since the density of
+the medium does not change, the amount of matter in the volume bounded by this
+surface must remain constant. Hence the total flux of the medium through such a
+surface must be zero.
+In this case, let us check formula (13.6) by taking $S$ to be the sphere $x^2 + y^2 +
+z^2 = R^2$.

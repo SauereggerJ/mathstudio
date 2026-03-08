@@ -1,0 +1,36 @@
+216
+13 Line and Surface Integrals
+Fig. 13.2
+$\eta$
+$V$
+$\xi_2$
+$\xi_1$
+$S$
+$\tau_2$ $\tau_1$
+$I$
+precisely, we ask how to find the volume of fluid that flows across the surface $S$ per
+unit time in the direction indicated by the orienting field of normals to the surface.
+To solve the problem, we remark that if the velocity field of the flow is constant
+and equal to $V$, then the flow per unit time across a parallelogram $\Pi$ spanned by
+vectors $\xi_1$ and $\xi_2$ equals the volume of the parallelepiped constructed on the vectors
+$V, \xi_1, \xi_2$. If $\eta$ is normal to $\Pi$ and we seek the flux across $\Pi$ in the direction of $\eta$,
+it equals the scalar triple product $(V, \xi_1, \xi_2)$, provided $\eta$ and the frame $\xi_1, \xi_2$ give
+$\Pi$ the same orientation (that is, if $(\eta, \xi_1, \xi_2)$ is a frame having the given orientation
+in $\mathbb{R}^3$). If the frame $\xi_1, \xi_2$ gives the orientation opposite to the one given by $\eta$ in $\Pi$,
+then the flow in the direction of $\eta$ is $- (V, \xi_1, \xi_2)$.
+We now return to the original statement of the problem. For simplicity let us
+assume that the entire surface $S$ admits a smooth parametrization $\varphi : I \to S \subset G$,
+where $I$ is a two-dimensional interval in the plane $\mathbb{R}^2$. We partition $I$ into small
+intervals $I_i$ (Fig. 13.2). We approximate the image $\varphi(I_i)$ of each such interval by
+the parallelogram spanned by the images $\xi_1 = \varphi'(t_i)\tau_1$ and $\xi_2 = \varphi'(t_i)\tau_2$ of the
+displacement vectors $\tau_1, \tau_2$ along the coordinate directions. Assuming that $V(x)$
+varies by only a small amount inside the piece of surface $\varphi(I_i)$ and replacing $\varphi(I_i)$
+by this parallelogram, we may assume that the flux $\Delta F_i$ across the piece $\varphi(I_i)$ of
+the surface is equal, with small relative error, to the flux of a constant velocity field
+$V(x_i) = V(\varphi(t_i))$ across the parallelogram spanned by the vectors $\xi_1, \xi_2$.
+Assuming that the frame $\xi_1, \xi_2$ gives the same orientation on $S$ as $\eta$, we find
+$$ \Delta F_i \approx (V(x_i), \xi_1, \xi_2). $$
+Summing the elementary fluxes, we obtain
+$$ F = \sum_i \Delta F_i \approx \sum_i \omega^2(x_i)(\xi_1, \xi_2), $$
+where $\omega^2(x) = (V(x), \cdot, \cdot)$ is the flux 2-form (studied in Example 8 of Sect. 12.5).
+If we pass to the limit, taking ever finer partitions $P$ of the interval $I$, it is natural to

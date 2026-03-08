@@ -1,0 +1,57 @@
+\section*{2.5. The spectral theorem for compact symmetric operators}
+\begin{proof}
+We set $\alpha = \|A\|$ and assume $\alpha 
+eq 0$ (i.e, $A 
+eq 0$) without loss of
+generality. Since
+\[
+\|A\|^2 = \sup_{\|f\|=1} \|Af\|^2 = \sup_{\|f\|=1} \langle Af, Af \rangle = \sup_{\|f\|=1} \langle f, A^2 f \rangle
+\tag{2.44}
+\]
+there exists a normalized sequence $u_n$ such that
+\[
+\lim_{n\to\infty} \langle u_n, A^2 u_n \rangle = \alpha^2.
+\tag{2.45}
+\]
+Since $A$ is compact, it is no restriction to assume that $A^2 u_n$ converges, say
+$\lim_{n\to\infty} A^2 u_n = \alpha^2 u$. Now
+\begin{align*}
+\| (A^2 - \alpha^2)u_n \|^2 &= \| A^2 u_n\|^2 - 2\alpha^2 \langle u_n, A^2 u_n \rangle + \alpha^4 \\
+&\leq 2\alpha^2(\alpha^2 - \langle u_n, A^2 u_n \rangle)
+\tag{2.46}
+\end{align*}
+(where we have used $\| A^2 u_n\| \leq \|A\|\|A u_n\| \leq \|A\|^2\|u_n\| = \alpha^2$) implies
+$\lim_{n\to\infty}(A^2 u_n - \alpha^2 u_n) = 0$ and hence $\lim_{n\to\infty} u_n = u$. In addition, $u$ is
+a normalized eigenvector of $A^2$ since $\langle (A^2 - \alpha^2)u, u \rangle = 0$. Factorizing this last
+equation according to $(A - \alpha)u = v$ and $(A + \alpha)v = 0$ show that either
+$v 
+eq 0$ is an eigenvector corresponding to $-\alpha$ or $v = 0$ and hence $u 
+eq 0$ is an
+eigenvector corresponding to $\alpha$.
+\end{proof}
+Note that for a bounded operator $A$, there cannot be an eigenvalue with
+absolute value larger than $\|A\|$, that is, the set of eigenvalues is bounded by
+$\|A\|$ (Problem 2.2).
+
+Now consider a symmetric compact operator $A$ with eigenvalue $\alpha_1$ (as
+above) and corresponding normalized eigenvector $u_1$. Setting
+\begin{align*}
+\tilde{\mathcal{H}}_1 &= \{u_1\}^\perp = \{f \in \tilde{H} \mid \langle u_1, f \rangle = 0\} \\
+\mathcal{D}(A|_1) &= \mathcal{D}(A) \cap \tilde{\mathcal{H}}_1 = \{f \in \mathcal{D}(A) \mid \langle u_1, f \rangle = 0\}
+\end{align*}
+we can restrict $A$ to $\tilde{\mathcal{H}}_1$ using
+\[
+\langle u_1, Af \rangle = \langle Au_1, f \rangle = \alpha_1 \langle u_1, f \rangle = 0
+\tag{2.47}
+\]
+since $f \in \mathcal{D}(A|_1)$ implies $\langle u_1, f \rangle = 0$ and hence $Af \in \tilde{\mathcal{H}}_1$. Denoting this restriction by $A|_1$, it is not hard to
+see that $A|_1$ is again a symmetric compact operator. Hence we can apply
+Theorem 2.17 iteratively to obtain a sequence of eigenvalues $\alpha_j$ with corresponding normalized eigenvectors $u_j$. Moreover, by construction, $u_n$ is
+orthogonal to all $u_j$ with $j < n$ and hence the eigenvectors $\{u_j\}$ form an
+orthonormal set. This procedure will not stop unless $\tilde{H}$ is finite dimensional.
+However, note that $\alpha_j = 0$ for $j > n$ might happen if $A^n = 0$.
+
+\begin{theorem}{2.18.}
+Suppose $\tilde{H}$ is a Hilbert space and $A : \tilde{H} \to \tilde{H}$ is a compact
+symmetric operator. Then there exists a sequence of real eigenvalues $\alpha_j$
+\end{theorem}

@@ -1,0 +1,33 @@
+56
+10 *Differential Calculus from a More General Point of View
+Proposition 1 For a multilinear transformation $A : X_1 \times \cdots \times X_n \to Y$ mapping a
+product of normed spaces $X_1, \ldots, X_n$ into a normed space $Y$ the following condi-
+tions are equivalent:
+a) $A$ has a finite norm,
+b) $A$ is a bounded transformation,
+c) $A$ is a continuous transformation,
+d) $A$ is continuous at the point $(0, \ldots, 0) \in X_1 \times \cdots \times X_n.$
+Proof We prove a closed chain of implications $a) \Rightarrow b) \Rightarrow c) \Rightarrow d) \Rightarrow a).$
+It is obvious from relation (10.27) that $a) \Rightarrow b).$
+Let us verify that $b) \Rightarrow c),$ that is, that (10.29) implies that the operator $A$ is
+continuous. Indeed, taking account of the multilinearity of $A,$ we can write that
+$$A(x_1+ h_1, x_2 + h_2, \ldots, x_n + h_n) – A(x_1, x_2, \ldots, x_n) =$$
+$$= A(h_1, x_2, \ldots, x_n) + \ldots + A(x_1, x_2, \ldots, x_{n-1}, h_n) =$$
+$$+ A(h_1,h_2, x_3, \ldots, x_n) + \ldots + A(x_1,\ldots, x_{n-2}, h_{n-1}, h_n) +$$
+$$+ \cdots +A(h_1,\ldots, h_n).$$
+From (10.29) we now obtain the estimate
+$$|A(x_1+ h_1, x_2 + h_2, \ldots, x_n + h_n) - A(x_1, x_2,\ldots,x_n) | \le$$
+$$\le M(|h_1|\cdot|x_2|\cdots|x_n| + \cdots +|x_1|\cdot|x_2|\cdots |x_{n-1}|\cdot|h_n|+$$
+$$\left. + \cdots + |h_1|\cdots |h_n| \right),$$
+from which it follows that $A$ is continuous at each point $(x_1, \ldots, x_n) \in X_1 \times \cdots \times$
+$X_n.$
+In particular, if $(x_1, \ldots, x_n) = (0, \ldots, 0)$ we obtain $d)$ from $c).$
+It remains to be shown that $d) \Rightarrow a).$
+Given $\varepsilon > 0$ we find $\delta = \delta(\varepsilon) > 0$ such that $|A(x_1,\ldots,x_n)| < \varepsilon$ when $\max\{|x_1|,$
+$\ldots, |x_n|\} < \delta.$ Then for any set $e_1, \ldots, e_n$ of unit vectors we obtain
+$$\frac{1}{\delta^n} |A(e_1,\ldots, e_n)| = \left|A\left(\frac{\delta e_1}{\delta}, \ldots, \frac{\delta e_n}{\delta}\right)\right| < \frac{\varepsilon}{\delta^n},$$
+that is, $||A|| < \infty.$
+We have seen above (Example 1) that not every linear transformation has a finite
+norm, that is, a linear transformation is not always continuous. We have also pointed
+out that continuity can fail for a linear transformation only when the transformation
+is defined on an infinite-dimensional space.

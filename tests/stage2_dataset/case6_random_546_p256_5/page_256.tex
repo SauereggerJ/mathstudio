@@ -1,0 +1,38 @@
+238 \hfill 13 Line and Surface Integrals
+\vspace{12pt}
+d) Verify that if $f : D \to \mathbb{R}$ and $\mathbf{u} : D \to \mathbb{R}^n$ are smooth functions in a regular
+domain $D \subset \mathbb{R}^n$ and $\mathbf{u}$ has no critical points in $D$, then
+\[ \int_{D} f \, d\mathbf{v} = \int_{\mathbf{u}^{-1}(\mathbf{t})} \frac{f}{|\nabla \mathbf{u}|} \, d\sigma. \]
+e) Let $V_f(t)$ be the measure (volume) of the set $\{x \in D \mid f(x) > t\}$, and let the
+function $f$ be nonnegative and bounded in the domain $D$.
+Show that $\int_D f \, dV = \int_0^\infty \text{meas} \{V_f(t)\} \, dt = \int_0^\infty V_f(t) \, dt$.
+f) Let $\varphi \in C^{(1)}(\mathbb{R}, \mathbb{R}^+)$ and $\varphi(0) = 0$, while $f \in C^{(1)}(D, \mathbb{R})$ and $V_{|f|}(t)$
+is the measure of the set $\{x \in D \mid |f(x)| > t\}$. Verify that $\int_D \varphi \circ f \, dV =
+\int_0^\infty \varphi'(t) V_{|f|}(t) \, dt$.
+\vspace{12pt}
+\noindent \textbf{13.3 The Fundamental Integral Formulas of Analysis}
+\vspace{12pt}
+The most important formula of analysis is the Newton–Leibniz formula (funda-
+mental theorem of calculus). In the present section we shall obtain the formulas of
+Green, Gauss-Ostrogradskii, and Stokes, which on the one hand are an extension of
+the Newton-Leibniz formula, and on the other hand, taken together, constitute the
+most-used part of the machinery of integral calculus.
+In the first three subsections of this section, without striving for generality in our
+statements, we shall obtain the three classical integral formulas of analysis using
+visualizable material. They will be reduced to one general Stokes formula in the
+fourth subsection, which can be read formally independently of the others.
+\vspace{12pt}
+\noindent \textbf{13.3.1 Green's Theorem}
+\vspace{12pt}
+Green's theorem is the following.
+\vspace{12pt}
+\noindent \textbf{Proposition 1} Let $\mathbb{R}^2$ be the plane with a fixed coordinate grid $x, y$, and let $\bar{D}$ be
+a compact domain in this plane bounded by piecewise-smooth curves. Let $P$ and $Q$
+be smooth functions in the closed domain $\bar{D}$. Then the following relation holds:
+\[ \iint_{\bar{D}} \left( \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y} \right) dx \, dy = \oint_{\partial \bar{D}} P dx + Q dy, \tag{13.25} \]
+in which the right-hand side contains the integral over the boundary $\partial \bar{D}$ of the
+domain $\bar{D}$ oriented consistently with the orientation of the domain $\bar{D}$ itself.
+\vspace{12pt}
+\noindent $^7$G. Green (1793–1841) – British mathematician and mathematical physicist. Newton's grave in
+Westminster Abbey is framed by five smaller gravestones with brilliant names: Faraday, Thomson
+(Lord Kelvin), Green, Maxwell, and Dirac.

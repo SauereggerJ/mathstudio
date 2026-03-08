@@ -1,0 +1,53 @@
+412
+\hfill 7 Functions of Several Variables: Their Limits and Continuity
+\begin{proof} a) If $\mathbf{x} \in \bigcup_{\alpha \in A} G_\alpha$, then there exists $\alpha_0 \in A$ such that $\mathbf{x} \in G_{\alpha_0}$, and conse-
+quently there is a $\delta$-neighborhood $B(\mathbf{x}; \delta)$ of $\mathbf{x}$ such that $B(\mathbf{x}; \delta) \subset G_{\alpha_0}$. But then
+$B(\mathbf{x}; \delta) \subset \bigcup_{\alpha \in A} G_\alpha$.
+b) Let $\mathbf{x} \in \bigcap_{i=1}^n G_i$. Then $\mathbf{x} \in G_i$ ($i = 1, \ldots, n$). Let $\delta_1, \ldots, \delta_n$ be positive num-
+bers such that $B(\mathbf{x}; \delta_i) \subset G_i$ ($i = 1, \ldots, n$). Setting $\delta = \min\{\delta_1, \ldots, \delta_n\}$, we obvi-
+ously find that $\delta > 0$ and $B(\mathbf{x}; \delta) \subset \bigcap_{i=1}^n G_i$.
+a') Let us show that the set $C\left(\bigcap_{\alpha \in A} F_\alpha\right)$ complementary to $\bigcap_{\alpha \in A} F_\alpha$ in $\mathbb{R}^m$ is
+an open set in $\mathbb{R}^m$.
+Indeed,
+$$
+C\left(\bigcap_{\alpha \in A} F_\alpha\right) = \bigcup_{\alpha \in A} (C F_\alpha) = \bigcup_{\alpha \in A} G_\alpha,
+$$
+where the sets $G_\alpha = C F_\alpha$ are open in $\mathbb{R}^m$. Part a') now follows from a).
+b') Similarly, from b) we obtain
+$$
+C\left(\bigcup_{i=1}^n F_i\right) = \bigcap_{i=1}^n (C F_i) = \bigcap_{i=1}^n G_i.
+$$
+\end{proof}
+
+\textbf{Example 6} The set $S(\mathbf{a}; r) = \{\mathbf{x} \in \mathbb{R}^m \mid d(\mathbf{a}, \mathbf{x}) = r\}$, $r > 0$, is called the \emph{sphere} of
+radius $r$ with center $\mathbf{a} \in \mathbb{R}^m$. The complement of $S(\mathbf{a}; r)$ in $\mathbb{R}^m$, by Examples 3
+and 4, is the union of open sets. Hence by the proposition just proved it is open, and
+the sphere $S(\mathbf{a}; r)$ is closed in $\mathbb{R}^m$.
+
+\begin{definition} \label{def:neighborhood} An open set in $\mathbb{R}^m$ containing a given point is called a \emph{neighborhood}
+of that point in $\mathbb{R}^m$.
+\end{definition}
+
+In particular, as follows from Example 3, the $\delta$-neighborhood of a point is a
+neighborhood of it.
+
+\begin{definition} \label{def:interior_exterior_boundary} In relation to a set $E \subset \mathbb{R}^m$ a point $\mathbf{x} \in \mathbb{R}^m$ is
+\begin{itemize}
+    \item an \emph{interior point} if some neighborhood of it is contained in $E$;
+    \item an \emph{exterior point} if it is an interior point of the complement of $E$ in $\mathbb{R}^m$;
+    \item a \emph{boundary point} if it is neither an interior point nor an exterior point.
+\end{itemize}
+\end{definition}
+
+It follows from this definition that the characteristic property of a boundary point
+of a set is that every neighborhood of it contains both points of the set and points
+not in the set.
+
+\textbf{Example 7} The sphere $S(\mathbf{a}; r)$, $r > 0$ is the set of boundary points of both the open
+ball $B(\mathbf{a}; r)$ and the closed ball $\overline{B}(\mathbf{a}; r)$.
+
+\textbf{Example 8} A point $\mathbf{a} \in \mathbb{R}^m$ is a boundary point of the set $\mathbb{R}^m \setminus \{\mathbf{a}\}$, which has no
+exterior points.
+
+\textbf{Example 9} All points of the sphere $S(\mathbf{a}; r)$ are boundary points of it; regarded as a
+subset of $\mathbb{R}^m$, the sphere $S(\mathbf{a}; r)$ has no interior points.

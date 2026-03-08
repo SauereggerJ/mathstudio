@@ -6,22 +6,32 @@ import logging
 from pathlib import Path
 from google import genai
 from google.genai import types
-from .config import get_api_key, GEMINI_MODEL
+
+from .config import GEMINI_API_KEY, DEEPSEEK_API_KEY, GEMINI_MODEL, AI_ROUTING_POLICY
 
 logger = logging.getLogger(__name__)
 
-class AIService:
+class AIProvider:
+    def upload_file(self, file_path: Path, display_name: str = None):
+        raise NotImplementedError
+    def delete_file(self, file_name: str):
+        raise NotImplementedError
+    def generate_json(self, contents, retry_count=5, schema=None):
+        raise NotImplementedError
+    def generate_text(self, prompt, retry_count=3):
+        raise NotImplementedError
+    def generate_xml_blocks(self, prompt_or_contents, tag: str, retry_count=3):
+        raise NotImplementedError
+
+class GeminiProvider(AIProvider):
     def __init__(self, model_name=GEMINI_MODEL):
-        self.api_key = get_api_key()
-        if not self.api_key:
+        if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY not found in credentials.json or environment.")
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model_name = model_name
 
     def upload_file(self, file_path: Path, display_name: str = None):
-        """Uploads a file to Google File API and returns the file object."""
         try:
-            # Correct SDK syntax for uploading files
             file = self.client.files.upload(
                 file=str(file_path),
                 config=types.UploadFileConfig(display_name=display_name or file_path.name)
@@ -33,7 +43,6 @@ class AIService:
             return None
 
     def delete_file(self, file_name: str):
-        """Removes a file from Google File API."""
         try:
             self.client.files.delete(name=file_name)
             logger.info(f"File deleted from Gemini: {file_name}")
@@ -41,10 +50,7 @@ class AIService:
             logger.error(f"Failed to delete file from Gemini: {e}")
 
     def generate_json(self, contents, retry_count=5, schema=None):
-        """Generates a structured JSON response. 'contents' can be a string or SDK types.
-        If schema is provided, it is passed to the API as response_schema for structured output."""
         backoff = 10
-        # Normalize to Content object if string
         if isinstance(contents, str):
             contents = types.Content(role="user", parts=[types.Part.from_text(text=contents)])
             
@@ -62,25 +68,22 @@ class AIService:
                     config=gen_config
                 )
                 
-                # Check for non-STOP finish reasons (SAFETY, RECITATION, MAX_TOKENS, etc.)
                 try:
                     finish_reason = response.candidates[0].finish_reason if response.candidates else None
                     if finish_reason and str(finish_reason) not in ('FinishReason.STOP', 'STOP', '1', 'None'):
-                        logger.error(f"[AI] Generation blocked — finish_reason: {finish_reason}. Safety/policy refusal.")
+                        logger.error(f"[Gemini] Generation blocked — finish_reason: {finish_reason}.")
                         return None
                 except Exception:
                     pass
 
                 text = response.text
                 
-                # DEBUG LOGGING: Write raw response to the NAS for guaranteed visibility
                 try:
                     with open("/home/jure/nasi_data/math/New_Research_Library/mathstudio/ai_debug_raw.log", "w") as f:
                         f.write(text)
                 except:
                     pass
 
-                # Clean up markdown code blocks if Gemini accidentally includes them
                 if text.startswith("```json"):
                     text = re.sub(r'^```json\s*', '', text)
                     text = re.sub(r'\s*```$', '', text)
@@ -88,57 +91,36 @@ class AIService:
                     text = re.sub(r'^```\s*', '', text)
                     text = re.sub(r'\s*```$', '', text)
                 
-                # SANITIZATION: Strip only the most problematic control chars (0-8, 11-12, 14-31)
-                # Keep \n (10), \r (13), \t (9) as strict=False below will handle them in strings.
-                # This fixes errors like the Vertical Tab (\x0b / 11) found on Page 232.
+                # Strip problematic control chars (0-8, 11-12, 14-31)
                 text = "".join(char for char in text if ord(char) >= 32 or char in "\n\r\t")
 
                 try:
-                    # strict=False allows literal control characters (like real tabs/newlines) inside strings
                     return json.loads(text, strict=False)
                 except json.JSONDecodeError as e:
                     logger.warning(f"JSON Decode failed, attempting repair: {e}")
-                    
-                    # 1. Aggressive backslash repair for LaTeX
-                    # In LaTeX, almost every \ should be realized as a literal backslash.
-                    # We double any \ that isn't already part of a valid JSON escape (\", \\, \/)
-                    # or a unicode escape (\uXXXX).
-                    import re
-                    # We don't exclude b,f,n,r,t here because in LaTeX \textbf, \newline etc. 
-                    # they are usually meant as literal backslashes, and if the AI wanted 
-                    # a real newline it would use a literal LF or a double-escaped \\n.
                     repaired = re.sub(r'\\(?!["\\/]|u[0-9a-fA-F]{4})', r'\\\\', text)
-                    
                     try:
                         return json.loads(repaired, strict=False)
-                    except Exception as e2:
-                        # 2. Last resort: Total backslash doubling
+                    except Exception:
                         repaired2 = text.replace('\\', '\\\\').replace('\\\\\\\\', '\\\\').replace('\\\\"', '\\"')
                         try:
                             return json.loads(repaired2, strict=False)
                         except Exception as e3:
-                            logger.error(f"JSON repair failed completely: {e3}")
-                            # Write the problematic response to the debug log for inspection
-                            try:
-                                with open("/home/jure/nasi_data/math/New_Research_Library/mathstudio/ai_debug_raw.log", "a") as f:
-                                    f.write(f"\n\n=== JSON REPAIR FAILURE ===\n{text[:2000]}\n")
-                            except Exception:
-                                pass
+                            logger.error(f"JSON repair failed completely.")
                             return None
             except Exception as e:
                 err_str = str(e)
                 if ('429' in err_str or '503' in err_str) and attempt < retry_count - 1:
-                    logger.warning(f"[AI] Rate/capacity limit hit (attempt {attempt+1}), backing off {backoff}s...")
+                    logger.warning(f"[Gemini] Rate limit hit, backing off {backoff}s...")
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                logger.error(f"[AI Error] Attempt {attempt+1} failed: {e}")
+                logger.error(f"[Gemini] Error (Attempt {attempt+1}): {e}")
                 if attempt == retry_count - 1:
                     return None
         return None
 
     def generate_text(self, prompt, retry_count=3):
-        """Generates plain text response with basic retry logic."""
         backoff = 10
         for attempt in range(retry_count):
             try:
@@ -150,14 +132,187 @@ class AIService:
             except Exception as e:
                 err_str = str(e)
                 if ('429' in err_str or '503' in err_str) and attempt < retry_count - 1:
-                    logger.warning(f"[AI Text] Rate/capacity limit hit (attempt {attempt+1}), backing off {backoff}s...")
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                print(f"[AI Error] {e}", file=sys.stderr)
                 if attempt == retry_count - 1:
                     return None
         return None
 
-# Global instance
+    def generate_xml_blocks(self, prompt_or_contents, tag: str, retry_count=3):
+        # Instruct Gemini to output delimited tags
+        if isinstance(prompt_or_contents, str):
+            prompt_or_contents += f"\n\nIMPORTANT: Output your result wrapped EXACTLY within <{tag}> and </{tag}> delimiters."
+        elif isinstance(prompt_or_contents, list):
+            # Append string to the last text part
+            last_content = prompt_or_contents[-1]
+            if hasattr(last_content, 'parts') and len(last_content.parts) > 0:
+                last_content.parts.append(types.Part.from_text(text=f"\n\nIMPORTANT: Output your result wrapped EXACTLY within <{tag}> and </{tag}> delimiters."))
+
+        raw_text = self.generate_text(prompt_or_contents, retry_count=retry_count)
+        if not raw_text: return []
+
+        # Find all blocks matching <tag>...</tag>
+        pattern = re.compile(rf"<{tag}>(.*?)</{tag}>", re.DOTALL)
+        matches = pattern.findall(raw_text)
+        return [m.strip() for m in matches]
+
+
+class DeepSeekProvider(AIProvider):
+    def __init__(self, model_name="deepseek-chat"):
+        import openai
+        if not DEEPSEEK_API_KEY:
+            raise ValueError("DEEPSEEK_API_KEY not found.")
+        self.client = openai.OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com", timeout=60.0)
+        self.model_name = model_name
+
+    def _to_string_prompt(self, contents):
+        # DeepSeek doesn't support Gemini's multimodal types.Content. 
+        # Attempt to extract purely the text.
+        if isinstance(contents, str):
+            return contents
+        
+        extracted_text = []
+        if isinstance(contents, list):
+            for c in contents:
+                if hasattr(c, 'parts'):
+                    for p in c.parts:
+                        if hasattr(p, 'text') and p.text:
+                            extracted_text.append(p.text)
+        return "\n".join(extracted_text)
+
+    def upload_file(self, file_path: Path, display_name: str = None):
+        logger.warning("DeepSeek Provider does not support File Uploads natively.")
+        return None
+
+    def delete_file(self, file_name: str):
+        pass
+
+    def generate_json(self, contents, retry_count=5, schema=None):
+        prompt = self._to_string_prompt(contents)
+        prompt += "\nOutput strict JSON."
+        
+        backoff = 10
+        for attempt in range(retry_count):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"}
+                )
+                text = response.choices[0].message.content
+                
+                try:
+                    with open("/home/jure/nasi_data/math/New_Research_Library/mathstudio/ai_debug_raw.log", "w") as f:
+                        f.write(text)
+                except:
+                    pass
+                
+                return json.loads(text, strict=False)
+            except Exception as e:
+                if attempt < retry_count - 1:
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                logger.error(f"[DeepSeek] Error generating JSON: {e}")
+                return None
+        return None
+
+    def generate_text(self, prompt, retry_count=3):
+        prompt_str = self._to_string_prompt(prompt)
+        backoff = 10
+        for attempt in range(retry_count):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt_str}]
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                if attempt < retry_count - 1:
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                logger.error(f"[DeepSeek] Error generating text: {e}")
+                return None
+        return None
+
+    def generate_xml_blocks(self, prompt_or_contents, tag: str, retry_count=3):
+        prompt_str = self._to_string_prompt(prompt_or_contents)
+        prompt_str += f"\n\nIMPORTANT: Output your result wrapped EXACTLY within <{tag}> and </{tag}> delimiters. Do not use Markdown formatting for the wrapper, just the raw XML tags."
+        
+        raw_text = self.generate_text(prompt_str, retry_count=retry_count)
+        if not raw_text: return []
+
+        pattern = re.compile(rf"<{tag}>(.*?)</{tag}>", re.DOTALL)
+        matches = pattern.findall(raw_text)
+        return [m.strip() for m in matches]
+
+
+class AIService:
+    def __init__(self, routing_policy=AI_ROUTING_POLICY):
+        self.routing_policy = routing_policy
+        self.gemini = GeminiProvider()
+        self.deepseek = None
+        if self.routing_policy == "dual_stack" and DEEPSEEK_API_KEY:
+            try:
+                self.deepseek = DeepSeekProvider()
+            except Exception as e:
+                logger.error(f"Failed to load DeepSeek: {e}")
+
+    @property
+    def client(self):
+        # Fallback to Gemini's client for scripts that access ai.client... directly
+        return self.gemini.client
+
+    def _is_multimodal(self, contents):
+        if isinstance(contents, str): return False
+        if isinstance(contents, list):
+            for content in contents:
+                # Handle types.Content objects
+                if hasattr(content, 'parts'):
+                    for part in content.parts:
+                        # Check for file_data (URI-based)
+                        file_data = getattr(part, 'file_data', None)
+                        if file_data and getattr(file_data, 'file_uri', None):
+                            return True
+                        # Check for inline_data (bytes-based)
+                        if getattr(part, 'inline_data', None):
+                            return True
+                # Handle raw parts list if passed directly
+                elif hasattr(content, 'file_data') or hasattr(content, 'inline_data'):
+                    if getattr(content, 'file_data', None) and getattr(content.file_data, 'file_uri', None):
+                        return True
+                    if getattr(content, 'inline_data', None):
+                        return True
+        return False
+
+    def upload_file(self, *args, **kwargs):
+        return self.gemini.upload_file(*args, **kwargs)
+
+    def delete_file(self, *args, **kwargs):
+        return self.gemini.delete_file(*args, **kwargs)
+
+    def generate_json(self, contents, retry_count=5, schema=None):
+        if self.routing_policy == "dual_stack" and self.deepseek and not self._is_multimodal(contents):
+            logger.info("Routing JSON request to DeepSeek")
+            return self.deepseek.generate_json(contents, retry_count, schema)
+        logger.info("Routing JSON request to Gemini")
+        return self.gemini.generate_json(contents, retry_count, schema)
+
+    def generate_text(self, prompt, retry_count=3):
+        if self.routing_policy == "dual_stack" and self.deepseek and not self._is_multimodal(prompt):
+            logger.info("Routing Text request to DeepSeek")
+            return self.deepseek.generate_text(prompt, retry_count)
+        logger.info("Routing Text request to Gemini")
+        return self.gemini.generate_text(prompt, retry_count)
+
+    def generate_xml_blocks(self, prompt_or_contents, tag: str, retry_count=3):
+        if self.routing_policy == "dual_stack" and self.deepseek and not self._is_multimodal(prompt_or_contents):
+            logger.info("Routing XML requests to DeepSeek")
+            return self.deepseek.generate_xml_blocks(prompt_or_contents, tag, retry_count)
+        logger.info("Routing XML requests to Gemini")
+        return self.gemini.generate_xml_blocks(prompt_or_contents, tag, retry_count)
+
+# Global singleton instance
 ai = AIService()

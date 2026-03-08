@@ -1,0 +1,39 @@
+241
+5.4 Differential Calculus Used to Study Functions
+Fig. 5.11
+$$ \begin{array}{c} (x_2, f(x_2)) \\ \end{array} $$
+$$ \begin{array}{c} (\alpha_1x_1 + \alpha_2x_2, \alpha_1 f(x_1) + \alpha_2 f (x_2)) \\ \end{array} $$
+$$ \begin{array}{c} \text{II} \\ \end{array} $$
+$$ \begin{array}{c} \text{I} \\ \end{array} $$
+$$ \begin{array}{c} (x_1, f(x_1)) \\ \end{array} $$
+$$ x_1 \quad x = \alpha_1x_1 + \alpha_2x_2 \quad x_2 $$
+$$ \begin{array}{c} (x, f(x)) \\ \end{array} $$
+Example 8 Let us consider another elementary example of the use of higher-order
+derivatives to find local extrema. Let $f (x) = \sin x$. Since $f'(x) = \cos x$ and $f''(x) =
+-\sin x$, all the points where $f'(x) = \cos x = 0$ are local extrema of $\sin x$, since
+$f''(x) = - \sin x \ne 0$ at these points. Here $f''(x) < 0$ if $\sin x > 0$ and $f''(x) > 0$
+if $\sin x < 0$. Thus the points where $\cos x = 0$ and $\sin x > 0$ are local maxima and
+those where $\cos x = 0$ and $\sin x < 0$ are local minima for $\sin x$ (which, of course,
+was already well-known).
+
+5.4.3 Conditions for a Function to be Convex
+Definition 1 A function $f : ]a, b[ \to \mathbb{R}$ defined on an open interval $]a, b[ \subset \mathbb{R}$ is
+convex if the inequalities
+$$ f (\alpha_1x_1 + \alpha_2x_2) \le \alpha_1 f (x_1) + \alpha_2 f (x_2) \quad (5.92) $$
+hold for any points $x_1, x_2 \in ]a, b[$ and any numbers $\alpha_1 \ge 0, \alpha_2 \ge 0$ such that $\alpha_1 +
+\alpha_2 = 1$. If this inequality is strict whenever $x_1 \ne x_2$ and $\alpha_1\alpha_2 \ne 0$, the function is
+strictly convex on $]a, b[$.
+Geometrically, condition (5.92) for convexity of a function $f : ]a, b[ \to \mathbb{R}$ means
+that the points of any arc of the graph of the function lie below the chord subtended
+by the arc (see Fig. 5.11).
+In fact, the left-hand side of (5.92) contains the value $f(x)$ of the function at
+the point $x = \alpha_1x_1 + \alpha_2x_2 \in [x_1, x_2]$ and the right-hand side contains the value at
+the same point of the linear function whose (straight-line) graph passes through the
+points $(x_1, f(x_1))$ and $(x_2, f (x_2))$.
+Relation (5.92) means that the set $E = \{(x, y) \in \mathbb{R}^2 | x \in ]a, b[, f (x) < y\}$ of the
+points of the plane lying above the graph of the function is convex; hence the term
+"convex”, as applied to the function itself.
+Definition 2 If the opposite inequality holds for a function $f : ]a, b[ \to \mathbb{R}$, that
+function is said to be concave on the interval $]a, b[$, or, more often, convex upward
+in the interval, as opposed to a convex function, which is then said to be convex
+downward on $]a, b[$.

@@ -7,15 +7,70 @@
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <style>
-    .draft-container { display: grid; grid-template-columns: 350px 1fr; gap: 2rem; height: calc(100vh - 180px); }
-    .draft-list { overflow-y: auto; background: white; border-radius: 1rem; border: 1px solid #e2e8f0; }
-    .draft-detail { overflow-y: auto; background: white; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 2rem; position: relative; }
-    .draft-item { cursor: pointer; padding: 1rem; border-bottom: 1px solid #f1f5f9; transition: all 0.2s; }
-    .draft-item:hover { background: #f8fafc; }
-    .draft-item.active { border-left: 4px solid #3b82f6; background: #eff6ff; }
-    .latex-preview { background: #fcfcfc; border: 1px solid #f1f5f9; border-radius: 0.5rem; padding: 1.5rem; margin-top: 1rem; }
-    .status-badge { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; padding: 0.2rem 0.5rem; rounded: 999px; }
-    .badge-review { background: #fef3c7; color: #92400e; }
+    .draft-container {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 2rem;
+        height: calc(100vh - 180px);
+    }
+
+    .draft-list {
+        overflow-y: auto;
+        background: white;
+        border-radius: 1rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .draft-detail {
+        overflow-y: auto;
+        background: white;
+        border-radius: 1rem;
+        border: 1px solid #e2e8f0;
+        padding: 2rem;
+        position: relative;
+    }
+
+    .draft-item {
+        cursor: pointer;
+        padding: 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        transition: all 0.2s;
+    }
+
+    .draft-item:hover {
+        background: #f8fafc;
+    }
+
+    .draft-item.active {
+        border-left: 4px solid #3b82f6;
+        background: #eff6ff;
+    }
+
+    .latex-preview {
+        background: #ffffff;
+        border: 1px solid #f1f5f9;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+        font-size: 1.125rem;
+        line-height: 1.75;
+        color: #1e293b;
+        white-space: pre-wrap;
+    }
+
+    .status-badge {
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        padding: 0.2rem 0.5rem;
+        rounded: 999px;
+    }
+
+    .badge-review {
+        background: #fef3c7;
+        color: #92400e;
+    }
 </style>
 {% endblock %}
 
@@ -26,7 +81,8 @@
         <p class="text-slate-500">Review and finalize mathematical concepts extracted by the LLM.</p>
     </div>
     <div class="flex gap-2">
-        <button onclick="loadDrafts()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors"><i class="fas fa-sync-alt"></i></button>
+        <button onclick="loadDrafts()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors"><i
+                class="fas fa-sync-alt"></i></button>
     </div>
 </div>
 
@@ -53,7 +109,7 @@
         const resp = await fetch('/api/v1/kb/drafts?status=review');
         const drafts = await resp.json();
         const listDiv = document.getElementById('draftList');
-        
+
         if (drafts.length === 0) {
             listDiv.innerHTML = '<div class="p-8 text-center text-slate-400">No pending drafts.</div>';
             return;
@@ -75,9 +131,9 @@
         currentDraftId = id;
         document.querySelectorAll('.draft-item').forEach(el => el.classList.remove('active'));
         event.currentTarget.classList.add('active');
-        
+
         await refreshDraftDetail();
-        
+
         // Start polling for this specific draft to see LLM updates
         if (pollInterval) clearInterval(pollInterval);
         pollInterval = setInterval(refreshDraftDetail, 3000);
@@ -87,7 +143,7 @@
         if (!currentDraftId) return;
         const resp = await fetch(`/api/v1/kb/drafts/${currentDraftId}`);
         const d = await resp.json();
-        
+
         const detailDiv = document.getElementById('draftDetail');
         detailDiv.innerHTML = `
             <div class="flex justify-between items-start mb-8">
@@ -104,13 +160,13 @@
             <div class="space-y-6">
                 <section>
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Statement</h3>
-                    <div class="latex-preview" id="statement-preview">${d.statement || '*No statement provided*'}</div>
+                    <div class="latex-preview" id="statement-preview">${window.formatLatexText ? window.formatLatexText(escapeHtml(d.statement || '*No statement provided*')) : escapeHtml(d.statement || '*No statement provided*')}</div>
                 </section>
 
                 ${d.proof ? `
                 <section>
                     <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Proof</h3>
-                    <div class="latex-preview" id="proof-preview">${d.proof}</div>
+                    <div class="latex-preview" id="proof-preview">${window.formatLatexText ? window.formatLatexText(escapeHtml(d.proof)) : escapeHtml(d.proof)}</div>
                 </section>
                 ` : ''}
             </div>
@@ -119,16 +175,16 @@
                 <p class="text-xs text-slate-400 font-medium italic"><i class="fas fa-robot mr-2"></i> This draft is being iteratively refined by the LLM. You can provide feedback in the chat.</p>
             </div>
         `;
-        
+
         // Render LaTeX
         renderMathInElement(detailDiv, {
             delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false},
-                {left: '\(', right: '\)', display: false},
-                {left: '\[', right: '\]', display: true}
+                { left: '$$', right: '$$', display: true },
+                { left: '$', right: '$', display: false },
+                { left: '\(', right: '\)', display: false },
+                { left: '\[', right: '\]', display: true }
             ],
-            throwOnError : false
+            throwOnError: false
         });
     }
 
@@ -155,6 +211,11 @@
             document.getElementById('draftDetail').innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-300"><i class="fas fa-trash fa-4x mb-4"></i><p>Draft Deleted</p></div>';
             loadDrafts();
         }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[<>]/g, m => ({ '<': '&lt;', '>': '&gt;' }[m]));
     }
 
     document.addEventListener('DOMContentLoaded', loadDrafts);

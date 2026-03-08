@@ -1,0 +1,51 @@
+360
+6 Integration
+\medskip
+\begin{enumerate}
+    \setcounter{enumi}{3}
+    \item a) Show that if $f \in \mathcal{R}[a, b]$, then $| f |^p \in \mathcal{R}[a, b]$ for $p \ge 0$.
+    \medskip
+    b) Starting from Hölder's inequality for sums, obtain Hölder's inequality for
+    integrals:$^6$
+    \[
+    \left| \int_a^b (f \cdot g)(x)\,dx \right| \le \left( \int_a^b |f|^p(x)\,dx \right)^{1/p} \left( \int_a^b |g|^q(x)\,dx \right)^{1/q},
+    \]
+    if $f, g \in \mathcal{R}[a, b]$, $p > 1$, $q > 1$, and $\frac{1}{p} + \frac{1}{q} = 1$.
+    \medskip
+    c) Starting from Minkowski's inequality for sums, obtain Minkowski's inequal-
+    ity for integrals:
+    \[
+    \left( \int_a^b |f + g|^p(x)\,dx \right)^{1/p} \le \left( \int_a^b |f|^p(x)\,dx \right)^{1/p} + \left( \int_a^b |g|^p(x)\,dx \right)^{1/p},
+    \]
+    if $f, g \in \mathcal{R}[a, b]$ and $p \ge 1$. Show that this inequality reverses direction if $0 <
+    p < 1$.
+    \medskip
+    d) Verify that if $f$ is a continuous convex function on $\mathbb{R}$ and $\varphi$ an arbitrary
+    continuous function on $\mathbb{R}$, then Jensen's inequality
+    \[
+    f\left(\frac{1}{c}\int_0^c \varphi(t)\,dt\right) \le \frac{1}{c}\int_0^c f(\varphi(t))\,dt
+    \]
+    holds for $c\neq 0$.
+\end{enumerate}
+\medskip
+\noindent \textbf{6.3 The Integral and the Derivative}
+\medskip
+\noindent \textbf{6.3.1 The Integral and the Primitive}
+\medskip
+Let $f$ be a Riemann-integrable function on a closed interval $[a, b]$. On this interval
+let us consider the function
+\[
+F(x) = \int_a^x f(t)\,dt,
+\tag{6.40}
+\]
+often called an integral with variable upper limit.
+\medskip
+Since $f \in \mathcal{R}[a, b]$, it follows that $f|_{[a,x]} \in \mathcal{R}[a, x]$ if $[a,x] \subset [a, b]$; therefore
+the function $x \to F(x)$ is unambiguously defined for $x \in [a, b]$.
+\medskip
+\noindent $^6$The algebraic Hölder inequality for $p = q = 2$ was first obtained in 1821 by Cauchy and bears his
+name. Hölder's inequality for integrals with $p = q = 2$ was first discovered in 1859 by the Russian
+mathematician B.Ya. Bunyakovskii (1804–1889). This important integral inequality (in the case
+$p = q = 2$) is called Bunyakovskii's inequality or the Cauchy–Bunyakovskii inequality. One also
+some-times sees the less accurate name “Schwarz inequality" after the German mathematician
+H.K.A. Schwarz (1843–1921), in whose work it appeared in 1884.

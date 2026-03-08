@@ -14,58 +14,7 @@ from core.config import TEMP_UPLOADS_DIR
 logger = logging.getLogger(__name__)
 
 # --- JSON Schemas for Gemini Structured Output ---
-PAGE_CONVERSION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "pages": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "page_number": {"type": "integer"},
-                    "latex": {"type": "string"}
-                },
-                "required": ["page_number", "latex"]
-            }
-        }
-    },
-    "required": ["pages"]
-}
-
-TERM_EXTRACTION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "terms": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "type": {
-                        "type": "string", 
-                        "enum": ["definition", "theorem", "lemma", "proposition", "corollary", "example", "exercise", "axiom", "notation", "remark"]
-                    },
-                    "page_start": {"type": "integer"},
-                    "used_terms": {"type": "array", "items": {"type": "string"}},
-                    "start_marker": {"type": "string"},
-                    "end_marker": {"type": "string"}
-                },
-                "required": ["name", "type", "page_start", "start_marker"]
-            }
-        }
-    },
-    "required": ["terms"]
-}
-
-REPAIR_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "repaired_latex": {"type": "string"}
-    },
-    "required": ["repaired_latex"]
-}
-
-
+# JSON Schemas removed in favor of XML block extraction
 def _render_djvu_page_to_image(book_path: str, page_num: int, out_path: Path) -> str | None:
     """Render a single DjVu page to a PNG image.
     Uses ddjvu to render to TIFF first (as some versions lack PNG support),
@@ -218,42 +167,34 @@ def convert_pages_batch(book_path: str, pages: list[int]):
         uploaded_files = []
         parts = []
         
-        # Build prompt: Request flattened schema, ONLY LATEX, NO DISCOVERIES
+        # Build prompt: Request XML formatting with strict labels
         prompt = (
             "You are an expert mathematical typesetter and LaTeX transcription specialist.\n"
             f"Transcribe the following {len(page_files)} textbook pages into clean, COMPILABLE LaTeX.\n\n"
             "=== STRICT ANTI-CRASH RULES ===\n"
-            "1. NO TIKZ: Never use \\begin{tikzpicture} or any diagram packages. If a figure or diagram is present, replace it with: % [DIAGRAM OMITTED]\n"
-            "2. NO \\tag IN DISPLAY MATH: Never use \\tag{...} inside $$ ... $$. Use \\begin{equation} ... \\end{equation} for numbered equations.\n"
-            "3. DELIMITER BALANCE: Every \\left MUST have a corresponding \\right. Every $ MUST have a closing $.\n"
-            "4. VARIABLE PROTECTION: Ensure every single mathematical variable (e.g., x, f, n) is wrapped in $...$.\n"
-            "5. NO METADATA: Ignore DOIs, ISBNs, and copyright footers. Do NOT transcribe them. They often contain underscores (_) that cause errors.\n"
-            "6. NO CUSTOM MACROS: Use only standard amsmath/amssymb commands.\n"
-            "7. PRESERVE TEXT: Every word in the original text is separated by a space. You MUST preserve these spaces and the exact prose.\n\n"
-            "=== REQUIREMENTS ===\n"
-            "- Use amsmath, amssymb, amsthm.\n"
-            "- IGNORE page numbers, running headers, and footers.\n\n"
+            "1. NO TIKZ: Never use \\begin{tikzpicture}.\n"
+            "2. DELIMITER BALANCE: Every \\left MUST have a corresponding \\right.\n"
+            "3. PRESERVE TEXT: Preserve exact prose and spaces.\n\n"
             "=== OUTPUT FORMAT ===\n"
-            "Return a strictly valid JSON object with a 'pages' array where each object has:\n"
-            "- 'page_number': (integer)\n"
-            "- 'latex': (string)\n\n"
-            "IMPORTANT: Return ONLY the JSON object. Accuracy and compilability are the highest priorities."
+            "For each page, output an XML block structured EXACTLY like this:\n"
+            "<page>\n  <pdf_page_idx>THE_PROVIDED_INDEX</pdf_page_idx>\n  <latex>... transcribed LaTeX code here ...</latex>\n</page>\n\n"
+            "Output nothing else but the XML blocks."
         )
         parts.append(types.Part.from_text(text=prompt))
 
         for pnum, fpath, mime, rtxt in page_files:
             up = ai.client.files.upload(
                 file=str(fpath),
-                config=types.UploadFileConfig(display_name=f"page_{pnum}")
+                config=types.UploadFileConfig(display_name=f"p{pnum}")
             )
             uploaded_files.append(up)
-            parts.append(types.Part.from_text(text=f"PAGE {pnum}:"))
+            parts.append(types.Part.from_text(text=f"PDF_PAGE_IDX {pnum}:"))
             parts.append(types.Part.from_uri(file_uri=up.uri, mime_type=mime))
 
         # 3. Process via AI
         contents = [types.Content(role="user", parts=parts)]
-        data = ai.generate_json(contents, schema=PAGE_CONVERSION_SCHEMA)
-
+        raw_text = ai.generate_text(contents)
+        
         # 4. Cleanup
         for up in uploaded_files:
             try: ai.client.files.delete(name=up.name) 
@@ -261,14 +202,48 @@ def convert_pages_batch(book_path: str, pages: list[int]):
         for _, fpath, _, _ in page_files:
             if fpath.exists(): fpath.unlink()
 
-        if data and 'pages' in data:
-            # Reattach raw text from local extraction
-            raw_map = {pnum: rtxt for pnum, _, _, rtxt in page_files}
-            for p_res in data['pages']:
-                p_res['raw_text'] = raw_map.get(p_res['page_number'], "")
-            return data['pages'], None
+        # 5. Parse
+        if raw_text:
+            import re
+            pages_data = []
+            page_blocks = re.findall(r'<page>(.*?)</page>', raw_text, re.DOTALL)
+            requested_pnums = [p for p, _, _, _ in page_files]
+            raw_map = {p: rtxt for p, _, _, rtxt in page_files}
+
+            for i, block in enumerate(page_blocks):
+                num_match = re.search(r'<pdf_page_idx>(.*?)</pdf_page_idx>', block, re.DOTALL)
+                latex_match = re.search(r'<latex>(.*?)</latex>', block, re.DOTALL)
+                if latex_match:
+                    try:
+                        p_num = None
+                        if num_match:
+                            try:
+                                candidate = int(re.sub(r'\D', '', num_match.group(1)))
+                                if candidate in requested_pnums:
+                                    p_num = candidate
+                            except: pass
+                        
+                        if p_num is None and i < len(requested_pnums):
+                            p_num = requested_pnums[i] # Fallback to order
+                        
+                        if p_num is not None:
+                            latex_code = latex_match.group(1).strip()
+                            if latex_code.startswith("```latex"):
+                                latex_code = latex_code[8:].strip()
+                            if latex_code.endswith("```"):
+                                latex_code = latex_code[:-3].strip()
+                            
+                            pages_data.append({
+                                'page_number': p_num,
+                                'latex': latex_code,
+                                'raw_text': raw_map.get(p_num, "")
+                            })
+                    except: pass
             
-        return None, "Gemini failed to return valid JSON for the batch."
+            if pages_data:
+                return pages_data, None
+            
+        return None, "Gemini failed to return valid XML blocks for the batch."
 
     except Exception as e:
         # Cleanup on failure
@@ -299,28 +274,80 @@ def extract_terms_batch(concatenated_latex, start_page, end_page, metadata=None)
         "   - DO NOT imagine terms if none exist. If the page contains only text or titles, return an empty array: {\"terms\": []}.\n"
         f"2. RANGE: Only extract terms that explicitly begin their statement within PDF PAGE {start_page} to {end_page}.\n"
         "   - NO ORPHANS: If a Proof or Remark continues in this range, but its parent started BEFORE PDF PAGE {start_page}, SKIP IT.\n"
-        "3. METADATA ONLY:\n"
-        "   - 'name': SEMANTIC CONCEPT NAME followed by label. Example: 'Banach-Steinhaus Theorem (Theorem 5.1)'.\n"
-        "   - 'type': MUST be one of the enum values.\n"
-        "   - 'page_start': The PDF PAGE index where the term begins.\n"
-        "   - 'used_terms': Technical keywords.\n"
-        "   - 'start_marker': First 15-30 chars of the LaTeX statement (e.g., '\\textbf{5.1 Theorem}').\n"
-        "   - 'end_marker': First 15-30 chars of the NEXT section or term (essential for multi-page proofs).\n"
-        "4. Return ONLY the JSON object. Do NOT include full LaTeX snippets.\n\n"
+        "3. METADATA ONLY XML FORMAT:\n"
+        "   For each term, output a strict XML block like this:\n"
+        "   <term>\n"
+        "     <name>Banach-Steinhaus Theorem (Theorem 5.1)</name>\n"
+        "     <type>theorem</type>\n"
+        "     <page_start>THE_PDF_PAGE_INDEX</page_start>\n"
+        "     <used_terms>keyword1, keyword2</used_terms>\n"
+        "     <start_marker>\\textbf{5.1 Theorem}</start_marker>\n"
+        "     <end_marker>first 30 chars of the NEXT section</end_marker>\n"
+        "   </term>\n"
+        "4. DO NOT use JSON. Only output sequences of <term> blocks.\n\n"
         "LATEX CONTENT TO ANALYZE:\n"
         f"{concatenated_latex}"
     )
 
     logger.info(f"Full prompt start: {prompt[:500]}")
     try:
-        data = ai.generate_json(prompt, schema=TERM_EXTRACTION_SCHEMA)
-        if data and 'terms' in data:
-            return data['terms'], None
-        return [], "Failed to parse terms from AI response."
+        import re
+        term_blocks = ai.generate_xml_blocks(prompt, "term")
+        
+        parsed_terms = []
+        for block in term_blocks:
+            term_dict = {}
+            for field in ['name', 'type', 'page_start', 'used_terms', 'start_marker', 'end_marker']:
+                m = re.search(rf'<{field}>(.*?)</{field}>', block, re.DOTALL)
+                if m:
+                    val = m.group(1).strip()
+                    if field == 'page_start':
+                        try: val = int(val)
+                        except: val = start_page
+                    elif field == 'used_terms':
+                        val = [x.strip() for x in val.split(',')]
+                    term_dict[field] = val
+            
+            if 'name' in term_dict and 'type' in term_dict and 'page_start' in term_dict:
+                parsed_terms.append(term_dict)
+
+        if parsed_terms:
+            return parsed_terms, None
+        return [], "Failed to parse terms from XML response."
     except Exception as e:
         logger.error(f"Batch contextual extraction failed: {e}")
         return None, str(e)
 
+
+def lint_latex(latex: str) -> list[str]:
+    """Basic LaTeX sanity checks to detect common Gemini hallucinations."""
+    errors = []
+    if not latex or len(latex.strip()) < 10:
+        errors.append("Empty LaTeX code")
+        return errors
+        
+    # Check delimiters
+    if latex.count('$') % 2 != 0:
+        errors.append("Unbalanced $ delimiters")
+    if latex.count('\\begin{') != latex.count('\\end{'):
+        errors.append("Unbalanced \\begin/\\end environments")
+    if latex.count('\\left') != latex.count('\\right'):
+        errors.append("Unbalanced \\left/\\right delimiters")
+        
+    # Check for forbidden TIKZ
+    if '\\begin{tikzpicture}' in latex:
+        errors.append("Contains forbidden TikZ environment")
+        
+    return errors
+
+def is_term_extractable(latex: str) -> bool:
+    """Check if converted LaTeX has actual mathematical content worth extracting."""
+    if not latex or len(latex) < 150:
+        return False
+    lower = latex.lower()
+    has_math = '$' in latex or '\\begin{' in latex
+    is_biblio = lower.count('\\bibitem') > 3 or lower.count('[') > 20
+    return has_math and not is_biblio
 
 def repair_latex(latex_content: str, original_text_preview: str, error_msg: str) -> str | None:
     """Active Repair Loop: Takes failed LaTeX and attempts to fix it based on error messages."""
@@ -337,13 +364,13 @@ def repair_latex(latex_content: str, original_text_preview: str, error_msg: str)
         "1. Analyze the error message and the failed LaTeX.\n"
         "2. Cross-reference with the original text to ensure mathematical fidelity.\n"
         "3. Return the COMPLETE REPAIRED LaTeX code.\n"
-        "4. Return ONLY the JSON object: {\"repaired_latex\": \"...\"}"
     )
     
     try:
-        data = ai.generate_json(prompt, schema=REPAIR_SCHEMA)
-        if data and 'repaired_latex' in data:
-            return data['repaired_latex'].replace('\\n', '\n')
+        blocks = ai.generate_xml_blocks(prompt, "repaired_latex")
+        if blocks:
+            # Return the first repaired block
+            return blocks[0].replace('\\n', '\n')
     except Exception as e:
         logger.error(f"Repair attempt failed: {e}")
     return None

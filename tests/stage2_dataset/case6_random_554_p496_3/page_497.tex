@@ -1,0 +1,71 @@
+8.4 Real-valued Functions of Several Variables
+477
+    \begin{enumerate}
+        \setcounter{enumi}{5}
+        \renewcommand{\theenumi}{\alph{enumi}}
+        \item Let
+        \[
+        D^\mathbf{\alpha} f(\mathbf{x}) := \frac{\partial^{|\mathbf{\alpha}|} f}{(\partial x^1)^{\alpha_1} \ldots (\partial x^m)^{\alpha_m}}(\mathbf{x}).
+        \]
+        Show that if $f \in C^{(k)}(G; \mathbb{R})$, then the equality
+        \[
+        \sum_{i_1 + \ldots + i_m = k} \frac{k!}{i_1! \ldots i_m!} f^{(i_1, \ldots, i_m)} h^{i_1} \ldots h^{i_m} = \sum_{|\mathbf{\alpha}|=k} \frac{k!}{\mathbf{\alpha}!} D^\mathbf{\alpha} f(\mathbf{x}) \mathbf{h}^\mathbf{\alpha},
+        \]
+        where $\mathbf{h} = (h^1, \ldots, h^m)$, holds at any point $\mathbf{x} \in G$.
+        \item Verify that in multi-index notation Taylor's theorem with the Lagrange form
+        of the remainder, for example, can be written as
+        \[
+        f(\mathbf{x} + \mathbf{h}) = \sum_{|\mathbf{\alpha}|=0}^{n-1} \frac{1}{\mathbf{\alpha}!} D^\mathbf{\alpha} f(\mathbf{x}) \mathbf{h}^\mathbf{\alpha} + \sum_{|\mathbf{\alpha}|=n} \frac{1}{\mathbf{\alpha}!} D^\mathbf{\alpha} f(\mathbf{x} + \theta \mathbf{h}) \mathbf{h}^\mathbf{\alpha}.
+        \]
+        \item Write Taylor's formula in multi-index notation with the integral form of the
+        remainder (Theorem 4).
+    \end{enumerate}
+    \item Prove the following generalization of Rolle's theorem for functions of several
+    variables.
+    If the function $f$ is continuous in a closed ball $B(\mathbf{0}; r)$, equal to zero on the
+    boundary of the ball, and differentiable in the open ball $B(\mathbf{0}; r)$, then at least one of
+    the points of the open ball is a critical point of the function.
+    \item Verify that the function
+    \[
+    f(x, y) = (y - x^2)(y - 3x^2)
+    \]
+    does not have an extremum at the origin, even though its restriction to each line
+    passing through the origin has a strict local minimum at that point.
+    \item The method of least squares. This is one of the commonest methods of processing
+    the results of observations. It consists of the following. Suppose it is known that the
+    physical quantities $x$ and $y$ are linearly related:
+    \[
+    y = ax + b \tag{8.79}
+    \]
+    or suppose an empirical formula of this type has been constructed on the basis of
+    experimental data.
+    Let us assume that $n$ observations have been made, in each of which both $x$ and $y$
+    were measured, resulting in $n$ pairs of values $x_1, y_1; \ldots; x_n, y_n$. Since the measure-
+    ments have errors, even if the relation (8.79) is exact, the equalities
+    \[
+    y_k = ax_k + b
+    \]
+    may fail to hold for some of the values of $k \in \{1, \ldots, n\}$, no matter what the coeffi-
+    cients $a$ and $b$ are.
+    The problem is to determine the unknown coefficients $a$ and $b$ in a reasonable
+    way from these observational results.
+    Basing his argument on analysis of the probability distribution of the magnitude
+    of observational errors, Gauss established that the most probable values for the co-
+    efficients $a$ and $b$ with a given set of observational results should be sought by use
+    of the following least-squares principle:
+    If $\delta_k = (ax_k + b) - y_k$ is the discrepancy in the $k$th observation, then $a$ and $b$
+    should be chosen so that the quantity
+    \[
+    \Delta = \sum_{k=1}^n \delta_k^2
+    \]
+    that is, the sum of the squares of the discrepancies, has a minimum.
+    \begin{enumerate}
+        \item[(a)] Show that the least-squares principle for relation (8.79) leads to the following
+        system of linear equations
+        \[
+        \begin{cases}
+        [x_k, x_k]a + [x_k, 1]b = [x_k, y_k], \\
+        [1, x_k]a + [1, 1]b = [1, y_k],
+        \end{cases}
+        \]
+    \end{enumerate}
