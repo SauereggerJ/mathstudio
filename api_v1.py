@@ -1294,7 +1294,14 @@ def get_pipeline_queue():
                     'created_at': s['created_at'],
                     'error_log': s['error_log']
                 }
-                bucket = s['status'] if s['status'] in result else 'failed'
+                # Improved bucketing: Treat intermediate active statuses as 'running'
+                if s['status'] in ('scanning', 'extracting', 'embedding', 'anchoring', 'syncing'):
+                    bucket = 'running'
+                elif s['status'] in result:
+                    bucket = s['status']
+                else:
+                    bucket = 'failed'
+                
                 result[bucket].append(entry)
             
             # Sort queued by created_at ascending (FIFO)

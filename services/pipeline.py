@@ -152,7 +152,7 @@ class PipelineService:
             processable = pages
         else:
             with db.get_connection() as conn:
-                rows = conn.execute("SELECT page_number FROM extracted_pages WHERE book_id = ? AND status = 'ok'", (book_id,)).fetchall()
+                rows = conn.execute("SELECT page_number FROM extracted_pages WHERE book_id = ? AND status = 'ok' AND harvested_at IS NULL", (book_id,)).fetchall()
             cached_pages = {r['page_number'] for r in rows}
             total_range = list(range(page_start, page_end + 1))
             processable = [p for p in total_range if p in cached_pages]
@@ -174,6 +174,14 @@ CRITICAL RULES:
 3. Therefore: NEVER extract an isolated "Proof" as its own term.
 4. NAMING: If a term has an explicitly written name (e.g. "Cauchy-Schwarz Inequality"), use it. If the term is unnamed (e.g. just "Lemma 1.7", "Theorem 2.13", or "Example"), YOU MUST formulate a concise, descriptive name based on its mathematical content (e.g., "Lemma 1.7: Continuity of Stronger Norms" or "Example: Incomplete L^2 Sequence"). Do not output generic names like "Lemma 2.14" without adding descriptive context.
 
+6. EXCLUDE STRUCTURAL NOISE: DO NOT extract terms that are purely technical or structural book elements, such as:
+   - Table of Contents / Contents
+   - Index / Bibliography / References
+   - Preface / Foreword / Acknowledgements / Dedication
+   - Series List / Copyright / Title Page / Author Bios
+7. CLEAN BODIES: The LaTeX Body MUST only contain mathematical content. STRIP OUT any page footers (e.g. "Page 13", "Book Title - Author") or headers that appear at the beginning or end of the extracted block.
+8. FORBIDDEN NAMES: Never use names like "Contents", "Index", "Notation" (unless it's a specific mathematical notation definition), or "•".
+
 Format:
 ### [Name] ([Type])
 Keywords: kw1, kw2
@@ -181,7 +189,7 @@ Keywords: kw1, kw2
 
 ---
 
-Return exactly the string NO_TERMS_FOUND if no valid terms begin on PAGE {p}."""
+Return exactly the string NO_TERMS_FOUND if no valid mathematical terms (Definition, Theorem, Lemma, etc.) begin on PAGE {p}."""
 
         for i, p in enumerate(processable):
             text_n = self._load_page_text(book_id, p)
@@ -209,6 +217,10 @@ Return exactly the string NO_TERMS_FOUND if no valid terms begin on PAGE {p}."""
                 time.sleep(0.2)
                 if progress_callback:
                     progress_callback(i + 1, stats["saved"])
+                
+                # Mark page as harvested
+                with self.db.get_connection() as conn:
+                    conn.execute("UPDATE extracted_pages SET harvested_at = unixepoch() WHERE book_id = ? AND page_number = ?", (book_id, p))
             except Exception as e:
                 logger.error(f"Pass 2 Error on p{p}: {e}")
                 stats["error"] += 1
@@ -249,11 +261,21 @@ Return exactly the string NO_TERMS_FOUND if no valid terms begin on PAGE {p}."""
                 body_start = kw_match.end() if kw_match else header.end()
                 body = block[body_start:].strip()
                 
+                # Blacklist filter for structural garbage
+                garbage_names = ['contents', 'index', 'bibliography', 'preface', 'notation', 'dedication', 'acknowledgements', 'table of contents']
+                if name.strip().lower() in garbage_names or len(name.strip()) < 3:
+                    continue
+                
+                # Strip common footer/header noise from body
+                body = re.sub(r'(?i)Page \d+', '', body)
+                body = re.sub(r'(?i)Introduction to Modern Analysis', '', body)
+                body = re.sub(r'=== PAGE \d+ ===', '', body)
+                
                 terms.append({
                     'name': name.strip(),
                     'type': t_type.lower().strip(),
                     'used_terms': keywords,
-                    'latex_content': body,
+                    'latex_content': body.strip(),
                     'page_start': page
                 })
         return terms

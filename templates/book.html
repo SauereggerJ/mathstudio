@@ -236,7 +236,7 @@
                 <div class="toc-container max-h-[600px] overflow-y-auto p-4 space-y-1">
                     {% if chapters %}{% for c_title, c_level, c_page, c_msc, c_topics in chapters %}
                     <div class="flex items-baseline justify-between p-2 hover:bg-slate-50"
-                        style="margin-left: {{ (c_level|int) * 1.5 }}rem;">
+                        style="margin-left: {{ (c_level|default(0)|int) * 1.5 }}rem;">
                         <span class="text-sm {{ 'font-bold text-slate-900' if c_level == 0 else 'text-slate-600' }}">
                             <a href="/open/{{ path|e }}#page={{ c_page or 1 }}" target="_blank">{{ c_title }}</a>
                         </span>
@@ -276,7 +276,7 @@
                                     class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-sm">PAGE
                                     {{ p.page_number }}</span>
                                 <span class="ml-3 text-xs font-bold text-slate-500 uppercase tracking-tighter">
-                                    Quality: {{ (p.quality_score * 100)|round|int }}%
+                                    Quality: {{ ((p.quality_score|default(0)) * 100)|round|int }}%
                                 </span>
                             </div>
                             <div class="flex gap-2">
