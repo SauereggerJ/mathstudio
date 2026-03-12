@@ -16,7 +16,7 @@ from datetime import datetime
 # Google Libraries for Drive API
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 
 # MathStudio Services & Config
 from core.config import (
@@ -50,11 +50,13 @@ class DriveMonitor:
         self.root_folder_name = "MathNotes"
         self.input_folder_name = "Input"
         self.processed_folder_name = "Processed"
+        self.output_folder_name = "Output"
         
         # Initialize folder IDs
         self.root_id = self._find_or_create_folder(self.root_folder_name)
         self.input_id = self._find_or_create_folder(self.input_folder_name, self.root_id)
         self.processed_id = self._find_or_create_folder(self.processed_folder_name, self.root_id)
+        self.output_id = self._find_or_create_folder(self.output_folder_name, self.root_id)
 
     def _authenticate(self, path: Path):
         try:
@@ -127,6 +129,21 @@ class DriveMonitor:
             logger.error(f"Failed to move file {file_id}: {e}")
             return False
 
+    def upload_file(self, local_path: Path, parent_id: str):
+        """Upload a local file to a specific Drive folder."""
+        try:
+            file_metadata = {
+                'name': local_path.name,
+                'parents': [parent_id]
+            }
+            media = MediaFileUpload(str(local_path), resumable=True)
+            file = self.service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            logger.info(f"Uploaded {local_path.name} to Drive (ID: {file.get('id')})")
+            return file.get('id')
+        except Exception as e:
+            logger.error(f"Failed to upload {local_path.name}: {e}")
+            return None
+
 def run_processor():
     logger.info("Starting MathStudio Note Processor...")
     
@@ -158,19 +175,29 @@ def run_processor():
                 continue
             
             # 2. Transcribe via Gemini (using modern AIService)
-            # We use the note_service logic for transcription but ensure it uses our AIService
             try:
-                # Note: note_service.transcribe_note already uses AIService internally
                 transcription = note_service.transcribe_note(image_data)
                 
                 if transcription:
-                    # 3. Process, Save files and DB record
-                    # Using the standard pipeline method
-                    note_id = note_service.process_uploaded_note(transcription, image_data)
-                    logger.info(f"Successfully processed note {note_id}: {transcription.get('title')}")
+                    # 3. Decoupled Processing: Save files and compile PDF WITHOUT DB record
+                    result = note_service.process_note_silent(transcription, image_data)
                     
-                    # 4. Cleanup Drive
-                    monitor.mark_processed(file_id)
+                    if result.get("success"):
+                        logger.info(f"Successfully processed note: {result.get('title')}")
+                        pdf_path = result.get('pdf_path')
+                        logger.info(f"Saved to: {pdf_path}")
+                        
+                        # 4. Upload graded PDF back to Drive (Both Output and Processed)
+                        if pdf_path and Path(pdf_path).exists():
+                            # Upload to Output folder for user convenience
+                            monitor.upload_file(Path(pdf_path), monitor.output_id)
+                            # Also keep a copy in Processed for archival
+                            monitor.upload_file(Path(pdf_path), monitor.processed_id)
+                        
+                        # 5. Cleanup Drive (move original image to Processed)
+                        monitor.mark_processed(file_id)
+                    else:
+                        logger.error(f"Post-processing failed for {filename}")
                 else:
                     logger.error(f"Transcription failed for {filename}")
                     

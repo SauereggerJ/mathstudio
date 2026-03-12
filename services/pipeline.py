@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class PipelineService:
     def __init__(self):
-        pass
+        self.db = db
 
     def run_pass_0(self, book_id: int) -> bool:
         """Pass 0: Content Boundary Detection. Determines content_start and content_end."""

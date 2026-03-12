@@ -327,14 +327,29 @@ class NoteService:
         def make_rel(p):
             if not p: return None
             try:
+                p_str = str(p)
                 path_obj = Path(p)
-                if path_obj.is_absolute() and PROJECT_ROOT in path_obj.parents:
+                
+                # If already relative, just return it
+                if not path_obj.is_absolute():
+                    return p_str
+                
+                # 1. Try relativizing to PROJECT_ROOT
+                if path_obj.is_relative_to(PROJECT_ROOT):
                     return str(path_obj.relative_to(PROJECT_ROOT))
-                elif path_obj.is_absolute() and LIBRARY_ROOT in path_obj.parents:
-                    # If it's in the library but outside mathstudio (unlikely for notes)
+                
+                # 2. Try relativizing to LIBRARY_ROOT
+                if path_obj.is_relative_to(LIBRARY_ROOT):
                     return str(path_obj.relative_to(LIBRARY_ROOT))
-                return str(p)
-            except:
+                
+                # 3. Fallback: if it's absolute but contains 'mathstudio', truncate to that
+                if 'mathstudio' in p_str:
+                    parts = path_obj.parts
+                    idx = parts.index('mathstudio')
+                    return str(Path(*parts[idx+1:]))
+                
+                return p_str
+            except Exception:
                 return str(p)
 
         rel_latex = make_rel(latex_path)
@@ -397,11 +412,21 @@ class NoteService:
             
             # Resolve relative paths to absolute paths
             for path_key in ['latex_path', 'markdown_path', 'pdf_path', 'json_meta_path']:
-                if note.get(path_key):
-                    # Check if it's already absolute (legacy)
-                    p = Path(note[path_key])
-                    if not p.is_absolute():
-                        note[path_key] = str((PROJECT_ROOT / p).resolve())
+                val = note.get(path_key)
+                if not val: continue
+                
+                p = Path(val)
+                if p.is_absolute():
+                    # If absolute but doesn't exist, it might be a host path in a container
+                    if not p.exists() and 'mathstudio' in val:
+                        parts = p.parts
+                        if 'mathstudio' in parts:
+                            idx = parts.index('mathstudio')
+                            rel_p = Path(*parts[idx+1:])
+                            note[path_key] = str((PROJECT_ROOT / rel_p).resolve())
+                else:
+                    # Relative path, expand it
+                    note[path_key] = str((PROJECT_ROOT / p).resolve())
             
             # Fetch book details if applicable
             if note['source_book_id']:
@@ -1444,6 +1469,133 @@ class NoteService:
                 count += 1
                 
         return count
+
+    def safe_filename(self, text: str) -> str:
+        """Sanitizes text for use as a filename."""
+        if not text: return "unnamed_note"
+        # Remove non-alphanumeric except spaces, then replace spaces with underscores
+        import re
+        s = re.sub(r'[^\w\s-]', '', text).strip()
+        s = re.sub(r'[-\s]+', '_', s)
+        return s[:80] # Truncate to reasonable length
+
+    def _get_grading(self, latex_content: str) -> str:
+        """Sends LaTeX to DeepSeek for grading and correction by a 'University Professor'."""
+        prompt = (
+            "You are a distinguished University Professor of Mathematics. Grade the student's mathematical work provided below.\n"
+            "TASK:\n"
+            "1. Identify what is correct and what is incorrect.\n"
+            "2. Provide a clear, rigorous correction for any errors.\n"
+            "3. BE STRICT: Your entire response MUST be valid LaTeX. Do NOT use Markdown headers (# or ##). Do NOT use Markdown code blocks (```).\n"
+            "4. Structure your response using LaTeX sections: \\section*{Professor's Evaluation}, \\subsection*{Corrected Work}, etc.\n"
+            "5. Use standard amsmath environments.\n\n"
+            f"STUDENT WORK (LaTeX):\n{latex_content}"
+        )
+        
+        try:
+            # Generate text (DeepSeek is preferred for this reasoning task via policy)
+            contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+            grading_latex = self.ai.generate_text(contents)
+            
+            if not grading_latex:
+                return "% Grading failed to generate content."
+                
+            # Post-processing: Strip Markdown code blocks if the model ignored instructions
+            import re
+            grading_latex = re.sub(r'```latex\s*', '', grading_latex)
+            grading_latex = re.sub(r'```\s*', '', grading_latex)
+            
+            # Remove any leading/trailing whitespace that might include stray Markdown
+            return grading_latex.strip()
+            
+        except Exception as e:
+            logger.error(f"Grading failed: {e}")
+            return f"\\section*{{Professor's Evaluation}}\nError during grading: {str(e)}"
+
+    def process_note_silent(self, transcription, image_data):
+        """Saves transcription, gets Professor grading, and compiles combined PDF."""
+        title = transcription.get('title', 'Handwritten Note')
+        filename_base = self.safe_filename(title)
+        
+        # Ensure filename is unique
+        from core.config import NOTES_OUTPUT_DIR
+        final_base = filename_base
+        counter = 1
+        while (NOTES_OUTPUT_DIR / f"{final_base}.tex").exists():
+            final_base = f"{filename_base}_{counter}"
+            counter += 1
+            
+        tex_path = NOTES_OUTPUT_DIR / f"{final_base}.tex"
+        json_path = NOTES_OUTPUT_DIR / f"{final_base}.json"
+        img_path = NOTES_OUTPUT_DIR / f"{final_base}.jpg"
+        
+        student_raw = transcription.get('latex_source', '')
+        
+        # Clean up student LaTeX (remove preamble if Gemini included one)
+        import re
+        def clean_latex(text):
+            text = re.sub(r'\\documentclass\{.*?\}', '', text)
+            text = re.sub(r'\\usepackage\{.*?\}', '', text)
+            text = re.sub(r'\\begin\{document\}', '', text)
+            text = re.sub(r'\\end\{document\}', '', text)
+            text = re.sub(r'\\maketitle', '', text)
+            text = re.sub(r'\\title\{.*?\}', '', text)
+            text = re.sub(r'\\author\{.*?\}', '', text)
+            text = re.sub(r'\\date\{.*?\}', '', text)
+            return text.strip()
+
+        student_latex = clean_latex(student_raw)
+        
+        # NEW STEP: Get Grading from DeepSeek
+        logger.info(f"Requesting Professor's grading for: {title}")
+        professor_raw = self._get_grading(student_latex)
+        professor_grading = clean_latex(professor_raw)
+        
+        # Combine into a single professional document
+        combined_latex = [
+            "\\documentclass{article}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry,xcolor}",
+            "\\geometry{margin=1in}",
+            "\\newtheorem{theorem}{Theorem}[section]",
+            "\\newtheorem{definition}{Definition}[section]",
+            f"\\title{{{title}}}",
+            "\\author{Student Work \\& Professor's Feedback}",
+            "\\date{\\today}",
+            "\\begin{document}",
+            "\\maketitle",
+            "\\section{Student's Original Submission}",
+            student_latex,
+            "\\newpage",
+            "\\section{Professor's Evaluation \\& Corrections}",
+            professor_grading,
+            "\\end{document}"
+        ]
+        
+        with open(tex_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(combined_latex))
+
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump({**transcription, "professor_grading": professor_grading}, f, indent=2)
+        with open(img_path, 'wb') as f:
+            f.write(image_data)
+            
+        from services.compilation import compilation_service
+        pdf_path = compilation_service.compile_tex(tex_path)
+        
+        # Cleanup LaTeX auxiliary files
+        for ext in ['.aux', '.log', '.out']:
+            aux_file = tex_path.with_suffix(ext)
+            if aux_file.exists():
+                try: os.remove(aux_file)
+                except: pass
+
+        return {
+            "title": title,
+            "tex_path": str(tex_path),
+            "pdf_path": str(pdf_path) if pdf_path else None,
+            "success": True
+        }
 
     def process_uploaded_note(self, transcription, image_data):
         """Saves transcription files and creates a DB record."""

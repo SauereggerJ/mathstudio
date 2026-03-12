@@ -48,8 +48,8 @@ for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_
     d.mkdir(parents=True, exist_ok=True)
 
 # AI Settings
-GEMINI_MODEL = "gemini-2.5-flash-lite-preview-09-2025"
-EMBEDDING_MODEL = "models/gemini-embedding-001"
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+EMBEDDING_MODEL = "models/gemini-embedding-002"
 
 # Search Infrastructure
 ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "http://localhost:9200")
