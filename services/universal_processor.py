@@ -145,19 +145,19 @@ class UniversalProcessor:
         meta = final_data.get('metadata', {})
         toc = final_data.get('toc', [])
         
-        # Defensive conversion for author (might be list or dict from AI)
+        # Helper for defensive string conversion
+        def to_str(val):
+            if val is None: return None
+            if isinstance(val, list): return ", ".join([str(v) for v in val])
+            return str(val)
+
+        # Defensive conversion for author
         author_val = meta.get('author')
-        if isinstance(author_val, list):
-            author_str = ", ".join([str(a) for a in author_val])
-        else:
-            author_str = str(author_val) if author_val else "Unknown"
+        author_str = to_str(author_val) if author_val else "Unknown"
 
         # Defensive conversion for index_terms
         index_terms = final_data.get('index_terms', [])
-        if isinstance(index_terms, list):
-            index_text = ", ".join([str(t) for t in index_terms])
-        else:
-            index_text = str(index_terms)
+        index_text = to_str(index_terms)
 
         with db.get_connection() as conn:
             conn.execute("""
@@ -167,12 +167,23 @@ class UniversalProcessor:
                 content_start_page=?, content_end_page=?,
                 last_metadata_refresh=unixepoch() WHERE id=?
             """, (
-                meta.get('title'), author_str, meta.get('publisher'), meta.get('year'),
-                meta.get('isbn'), meta.get('doi'), meta.get('msc_class'), meta.get('summary'),
-                meta.get('description'), meta.get('audience'),
-                1 if meta.get('has_exercises') else 0, 1 if meta.get('has_solutions') else 0,
-                index_text, final_data.get('page_offset', 0), meta.get('language'),
-                final_data.get('content_start_page'), final_data.get('content_end_page'),
+                to_str(meta.get('title')), 
+                author_str, 
+                to_str(meta.get('publisher')), 
+                meta.get('year'), # Keep as int if possible, but SQLite handles it
+                to_str(meta.get('isbn')), 
+                to_str(meta.get('doi')), 
+                to_str(meta.get('msc_class')), 
+                to_str(meta.get('summary')),
+                to_str(meta.get('description')), 
+                to_str(meta.get('audience')),
+                1 if meta.get('has_exercises') else 0, 
+                1 if meta.get('has_solutions') else 0,
+                index_text, 
+                final_data.get('page_offset', 0), 
+                to_str(meta.get('language')),
+                final_data.get('content_start_page'), 
+                final_data.get('content_end_page'),
                 book_id
             ))
             

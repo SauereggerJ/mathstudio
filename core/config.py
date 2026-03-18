@@ -22,6 +22,7 @@ TEMP_UPLOADS_DIR = PROJECT_ROOT / "temp_uploads"
 BIB_EXTRACTS_DIR = PROJECT_ROOT / "bib_extracts"
 COMPILED_NOTES_DIR = PROJECT_ROOT / "compiled_notes"
 EXPORTS_DIR = PROJECT_ROOT / "exports"
+THUMBNAIL_DIR = STATIC_DIR / "thumbnails"
 DUPLICATES_DIR = LIBRARY_ROOT / "_Admin" / "Duplicates"
 UNSORTED_DIR = LIBRARY_ROOT / "99_General_and_Diverse" / "Unsorted"
 
@@ -38,7 +39,7 @@ IGNORED_FOLDERS = {
 
 # Ensure directories exist
 for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_DIR,
-          COMPILED_NOTES_DIR, EXPORTS_DIR,
+          COMPILED_NOTES_DIR, EXPORTS_DIR, THUMBNAIL_DIR,
           KNOWLEDGE_GENERATED_DIR, KNOWLEDGE_DRAFTS_DIR,
           KNOWLEDGE_GENERATED_DIR / "Definitions",
           KNOWLEDGE_GENERATED_DIR / "Theorems",
@@ -49,7 +50,7 @@ for d in [CONVERTED_NOTES_DIR, NOTES_OUTPUT_DIR, TEMP_UPLOADS_DIR, BIB_EXTRACTS_
 
 # AI Settings
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-EMBEDDING_MODEL = "models/gemini-embedding-002"
+EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 # Search Infrastructure
 ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "http://localhost:9200")

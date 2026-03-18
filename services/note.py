@@ -138,10 +138,15 @@ class NoteService:
             "You are a mathematical transcription expert. Convert this handwritten note into two formats:\n"
             "1. High-quality, clean LaTeX code for PDF generation.\n"
             "2. Obsidian-flavored Markdown for digital notes.\n\n"
+            "TRIGGER DETECTION:\n"
+            "Look at the bottom-right corner of the image for a single, possibly circled, uppercase letter: 'G', 'B', or 'S'.\n"
+            "- 'G' (default): Grading mode.\n"
+            "- 'B': Blank mode (transcription only).\n"
+            "- 'S': Solve mode (solve the exercise).\n\n"
             "Requirements:\n"
             "- **LaTeX**: Use standard amsmath environments. Expand abbreviations.\n"
             "- **Markdown**: Use $...$ for inline math and $$...$$ for block math. Include a YAML frontmatter.\n"
-            "- **Output**: Return a JSON object with keys: 'latex_source', 'markdown_source', 'title', 'tags', 'msc'.\n"
+            "- **Output**: Return a JSON object with keys: 'latex_source', 'markdown_source', 'title', 'tags', 'msc', 'trigger_mode'.\n"
             "IMPORTANT: Return ONLY the JSON object. Ensure all LaTeX backslashes are properly escaped within the JSON strings."
         )
         
@@ -320,7 +325,7 @@ class NoteService:
 
     def add_note(self, title, source_type, source_book_id=None, source_page_number=None,
                  latex_path=None, markdown_path=None, pdf_path=None, json_meta_path=None,
-                 tags=None, msc=None, content_preview=None):
+                 tags=None, msc=None, content_preview=None, processing_mode='B'):
         """Adds a note record to the database and syncs FTS."""
         
         # Convert absolute paths to relative paths (relative to PROJECT_ROOT)
@@ -362,11 +367,11 @@ class NoteService:
             cursor.execute("""
                 INSERT INTO notes (title, source_type, source_book_id, source_page_number,
                                   latex_path, markdown_path, pdf_path, json_meta_path, 
-                                  tags, msc, content_preview)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  tags, msc, content_preview, processing_mode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (title, source_type, source_book_id, source_page_number,
                   rel_latex, rel_markdown, rel_pdf, rel_json,
-                  tags, msc, content_preview))
+                  tags, msc, content_preview, processing_mode))
             note_id = cursor.lastrowid
             
             # Sync FTS
@@ -484,7 +489,7 @@ class NoteService:
 
     def update_note_metadata(self, note_id, data):
         """Updates title, tags, msc, etc."""
-        allowed = {'title', 'tags', 'msc', 'content_preview'}
+        allowed = {'title', 'tags', 'msc', 'content_preview', 'processing_mode'}
         updates = {k: v for k, v in data.items() if k in allowed}
         if not updates: return False
         
@@ -1479,45 +1484,129 @@ class NoteService:
         s = re.sub(r'[-\s]+', '_', s)
         return s[:80] # Truncate to reasonable length
 
+    def latex_escape(self, text: str) -> str:
+        """Escapes common LaTeX special characters for use in text mode."""
+        if not text: return ""
+        # Order matters for backslash
+        chars = [
+            ('\\', r'\textbackslash{}'),
+            ('&', r'\&'),
+            ('%', r'\%'),
+            ('$', r'\$'),
+            ('#', r'\#'),
+            ('_', r'\_'),
+            ('{', r'\{'),
+            ('}', r'\}'),
+            ('~', r'\textasciitilde{}'),
+            ('^', r'\textasciicircum{}'),
+        ]
+        s = text
+        for old, new in chars:
+            s = s.replace(old, new)
+        return s
+
     def _get_grading(self, latex_content: str) -> str:
-        """Sends LaTeX to DeepSeek for grading and correction by a 'University Professor'."""
+        """Sends LaTeX to DeepSeek Reasoner for rigorous grading and logical verification."""
         prompt = (
-            "You are a distinguished University Professor of Mathematics. Grade the student's mathematical work provided below.\n"
+            "You are a Rigorous Proseminar Grader of Mathematics. Grade the student's mathematical work provided below.\n"
             "TASK:\n"
-            "1. Identify what is correct and what is incorrect.\n"
-            "2. Provide a clear, rigorous correction for any errors.\n"
-            "3. BE STRICT: Your entire response MUST be valid LaTeX. Do NOT use Markdown headers (# or ##). Do NOT use Markdown code blocks (```).\n"
-            "4. Structure your response using LaTeX sections: \\section*{Professor's Evaluation}, \\subsection*{Corrected Work}, etc.\n"
-            "5. Use standard amsmath environments.\n\n"
+            "1. Use your internal reasoning trace to perform a step-by-step verification of the mathematical logic, specifically looking for subtle errors in sequences, continuity, and vector space axioms.\n"
+            "2. Identify what is correct and what is incorrect. Provide a clear, rigorous correction for any errors.\n"
+            "3. BE STRICT: Your final output MUST be a pure LaTeX payload. DO NOT use Markdown headers (# or ##). DO NOT use Markdown code blocks (```latex or ```). The output must be ready for immediate inclusion in a .tex document template. Omit all introductory conversational phrases.\n"
+            "4. Structure your response using standard LaTeX sections ONLY: \\section*{Evaluation}, \\subsection*{Corrected Work}, and you MUST provide a \\section*{Model Solution} at the end, which serves as the definitive reference for the student.\n"
+            "5. Use standard amsmath environments.\n"
+            "6. Verify each logical transition before committing to the final LaTeX output.\n\n"
             f"STUDENT WORK (LaTeX):\n{latex_content}"
         )
         
         try:
-            # Generate text (DeepSeek is preferred for this reasoning task via policy)
-            contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
-            grading_latex = self.ai.generate_text(contents)
+            # Directly use DeepSeek Provider for this specific task
+            if self.ai.routing_policy == "dual_stack" and self.ai.deepseek:
+                logger.info("Using deepseek-reasoner for grading pipeline...")
+                response = self.ai.deepseek.client.chat.completions.create(
+                    model="deepseek-reasoner",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                msg = response.choices[0].message
+                reasoning = getattr(msg, 'reasoning_content', '')
+                content = msg.content or ""
+                
+                if reasoning:
+                    logger.info(f"[Grader] Reasoning trace generated ({len(reasoning)} chars). Logging to file.")
+                    try:
+                        from core.config import PROJECT_ROOT
+                        log_path = PROJECT_ROOT / "logs" / "ai_reasoning.log"
+                        log_path.parent.mkdir(exist_ok=True)
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            import datetime
+                            now = datetime.datetime.now().isoformat()
+                            f.write(f"\n\n--- REASONING TRACE [{now}] ---\n{reasoning}\n")
+                    except Exception as e:
+                        logger.warning(f"[Grader] Failed to log reasoning: {e}")
+                        
+                grading_latex = content
+            else:
+                # Fallback to general AI text generation
+                from google.genai import types
+                contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+                grading_latex = self.ai.generate_text(contents)
             
             if not grading_latex:
-                return "% Grading failed to generate content."
+                return "% Generation Error: Grading failed to generate content."
                 
-            # Post-processing: Strip Markdown code blocks if the model ignored instructions
+            # Post-processing: Aggressively sanitize of markdown and chat context
             import re
             grading_latex = re.sub(r'```latex\s*', '', grading_latex)
             grading_latex = re.sub(r'```\s*', '', grading_latex)
+            grading_latex = re.sub(r'</?think>', '', grading_latex)
             
-            # Remove any leading/trailing whitespace that might include stray Markdown
-            return grading_latex.strip()
+            grading_latex = grading_latex.strip()
+            
+            if not grading_latex:
+                return "% Generation Error: Output was malformed or empty."
+                
+            return grading_latex
             
         except Exception as e:
             logger.error(f"Grading failed: {e}")
-            return f"\\section*{{Professor's Evaluation}}\nError during grading: {str(e)}"
+            return f"% Generation Error: {str(e)}"
+
+    def _get_solution(self, latex_content: str) -> str:
+        """Sends LaTeX exercise to DeepSeek Reasoner for a detailed step-by-step solution."""
+        prompt = (
+            "You are a Master Teacher of Mathematics. Solve the mathematical exercise provided below.\n"
+            "TASK:\n"
+            "1. Provide a comprehensive, step-by-step solution that is mathematically rigorous and educationally clear.\n"
+            "2. Explain the intuition behind key steps. Ensure all edge cases or constraints are addressed.\n"
+            "3. BE STRICT: Your final output MUST be a pure LaTeX payload. DO NOT use Markdown headers or code blocks. The output must be ready for immediate inclusion in a .tex document template.\n"
+            "4. Structure your response using: \\section*{Problem Statement}, \\section*{Step-by-Step Solution}, and \\section*{Final Answer}.\n"
+            "5. Use standard amsmath environments.\n"
+            f"EXERCISE (LaTeX):\n{latex_content}"
+        )
+        
+        try:
+            if self.ai.routing_policy == "dual_stack" and self.ai.deepseek:
+                logger.info("Using deepseek-reasoner for solution pipeline...")
+                response = self.ai.deepseek.client.chat.completions.create(
+                    model="deepseek-reasoner",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                content = response.choices[0].message.content or ""
+                return re.sub(r'```latex\s*|```\s*|</?think>', '', content).strip()
+            else:
+                from google.genai import types
+                contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+                return self.ai.generate_text(contents)
+        except Exception as e:
+            logger.error(f"Solution generation failed: {e}")
+            return f"% Generation Error: {str(e)}"
 
     def process_note_silent(self, transcription, image_data):
-        """Saves transcription, gets Professor grading, and compiles combined PDF."""
+        """Saves transcription, handles triggered mode (G, B, S), and compiles PDF."""
         title = transcription.get('title', 'Handwritten Note')
+        mode = transcription.get('trigger_mode', 'G').upper()
         filename_base = self.safe_filename(title)
         
-        # Ensure filename is unique
         from core.config import NOTES_OUTPUT_DIR
         final_base = filename_base
         counter = 1
@@ -1531,57 +1620,122 @@ class NoteService:
         
         student_raw = transcription.get('latex_source', '')
         
-        # Clean up student LaTeX (remove preamble if Gemini included one)
         import re
         def clean_latex(text):
-            text = re.sub(r'\\documentclass\{.*?\}', '', text)
-            text = re.sub(r'\\usepackage\{.*?\}', '', text)
-            text = re.sub(r'\\begin\{document\}', '', text)
-            text = re.sub(r'\\end\{document\}', '', text)
-            text = re.sub(r'\\maketitle', '', text)
-            text = re.sub(r'\\title\{.*?\}', '', text)
-            text = re.sub(r'\\author\{.*?\}', '', text)
-            text = re.sub(r'\\date\{.*?\}', '', text)
+            text = re.sub(r'\\documentclass\{.*?\}', '', text, flags=re.DOTALL)
+            text = re.sub(r'\\usepackage\{.*?\}', '', text, flags=re.DOTALL)
+            text = re.sub(r'\\begin\{document\}', '', text, flags=re.DOTALL)
+            text = re.sub(r'\\end\{document\}', '', text, flags=re.DOTALL)
             return text.strip()
 
-        student_latex = clean_latex(student_raw)
+        student_latex = clean_latex(student_raw).replace('\\n', '\n')
+        safe_title = self.latex_escape(title)
         
-        # NEW STEP: Get Grading from DeepSeek
-        logger.info(f"Requesting Professor's grading for: {title}")
-        professor_raw = self._get_grading(student_latex)
-        professor_grading = clean_latex(professor_raw)
+        # --- Mode Branching ---
+        ai_payload = ""
+        doc_subtitle = ""
         
-        # Combine into a single professional document
+        if mode == 'B':
+            logger.info(f"Mode B (Blank): Just transcribing {title}")
+            doc_subtitle = "Note Transcription"
+        elif mode == 'S':
+            logger.info(f"Mode S (Solve): Solving exercise {title}")
+            ai_payload = self._get_solution(student_latex).replace('\\n', '\n')
+            doc_subtitle = "Exercise Solution"
+        else: # Default to 'G'
+            logger.info(f"Mode G (Grading): Grading submission {title}")
+            ai_payload = self._get_grading(student_latex).replace('\\n', '\n')
+            doc_subtitle = "Student Work \\& Professor's Feedback"
+
+        # Handle potential AI errors
+        if ai_payload.startswith("% Generation Error"):
+            logger.error(f"AI Generation Error for {title}: {ai_payload}")
+            # Fallback to just student work if AI failed
+            ai_payload = f"\\section*{{AI Error}}\n{ai_payload}\n\\section*{{Original Transcription}}\n{student_latex}"
+
+        # --- Build LaTeX Document ---
         combined_latex = [
             "\\documentclass{article}",
             "\\usepackage[utf8]{inputenc}",
             "\\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry,xcolor}",
             "\\geometry{margin=1in}",
             "\\newtheorem{theorem}{Theorem}[section]",
+            "\\newtheorem{lemma}[theorem]{Lemma}",
+            "\\newtheorem{proposition}[theorem]{Proposition}",
+            "\\newtheorem{corollary}[theorem]{Corollary}",
             "\\newtheorem{definition}{Definition}[section]",
-            f"\\title{{{title}}}",
-            "\\author{Student Work \\& Professor's Feedback}",
+            "\\newtheorem{remark}[theorem]{Remark}",
+            "\\newtheorem{example}[theorem]{Example}",
+            "\\newtheorem{exercise}[theorem]{Exercise}",
+            "\\title{" + safe_title + "}",
+            "\\author{" + doc_subtitle + "}",
             "\\date{\\today}",
             "\\begin{document}",
-            "\\maketitle",
-            "\\section{Student's Original Submission}",
-            student_latex,
-            "\\newpage",
-            "\\section{Professor's Evaluation \\& Corrections}",
-            professor_grading,
-            "\\end{document}"
+            "\\maketitle"
         ]
+
+        if mode == 'B':
+            combined_latex.append(student_latex)
+        elif mode == 'S':
+            combined_latex.append(ai_payload)
+        else: # G
+            combined_latex.extend([
+                "\\section{Original Submission}",
+                student_latex,
+                "\\newpage",
+                ai_payload
+            ])
+            
+        combined_latex.append("\\end{document}")
         
+        # --- Build Markdown Summary (for search and hub) ---
+        tags = transcription.get('tags', 'handwritten')
+        if isinstance(tags, list): tags = ", ".join(tags)
+        msc = transcription.get('msc', '')
+        
+        md_path = NOTES_OUTPUT_DIR / f"{final_base}.md"
+        
+        md_content = f"# {title}\n\n"
+        md_content += f"**Processing Mode**: {mode} ({doc_subtitle})\n"
+        if msc: md_content += f"**MSC**: {msc}\n"
+        if tags: md_content += f"**Tags**: {tags}\n\n"
+        
+        md_content += "## Transcription\n"
+        md_content += f"```latex\n{student_latex}\n```\n\n"
+        
+        if ai_payload:
+            md_content += "## AI Results\n"
+            md_content += f"```latex\n{ai_payload}\n```\n"
+
+        with open(md_path, 'w', encoding='utf-8') as f:
+            f.write(md_content)
+
+        # --- Save and Compile ---
         with open(tex_path, 'w', encoding='utf-8') as f:
             f.write("\n".join(combined_latex))
 
         with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump({**transcription, "professor_grading": professor_grading}, f, indent=2)
+            json.dump({**transcription, "ai_payload": ai_payload, "mode": mode}, f, indent=2)
+            
         with open(img_path, 'wb') as f:
             f.write(image_data)
             
         from services.compilation import compilation_service
         pdf_path = compilation_service.compile_tex(tex_path)
+        
+        # --- Database Persistence ---
+        note_id = self.add_note(
+            title=title,
+            source_type='handwritten',
+            latex_path=f"notes_output/{final_base}.tex",
+            markdown_path=f"notes_output/{final_base}.md",
+            pdf_path=f"notes_output/{final_base}.pdf" if pdf_path else None,
+            json_meta_path=f"notes_output/{final_base}.json",
+            tags=tags,
+            msc=msc,
+            content_preview=md_content[:1000],
+            processing_mode=mode
+        )
         
         # Cleanup LaTeX auxiliary files
         for ext in ['.aux', '.log', '.out']:
@@ -1594,8 +1748,185 @@ class NoteService:
             "title": title,
             "tex_path": str(tex_path),
             "pdf_path": str(pdf_path) if pdf_path else None,
-            "success": True
+            "success": True,
+            "mode": mode
         }
+
+    def reprocess_note(self, note_id, target_mode):
+        """Changes the mode (B, G, S) of an existing note and recompiles."""
+        note = self.get_note(note_id)
+        if not note or not note.get('json_meta_path'):
+            return {"success": False, "error": "Note or metadata not found."}
+            
+        json_path = Path(note['json_meta_path'])
+        if not json_path.exists():
+            return {"success": False, "error": "Original transcription JSON missing."}
+            
+        with open(json_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+            
+        student_raw = meta.get('latex_source', '')
+        if not student_raw:
+            return {"success": False, "error": "No original student LaTeX found."}
+            
+        import re
+        def clean_latex(text):
+            text = re.sub(r'\\documentclass\{.*?\}', '', text, flags=re.DOTALL)
+            text = re.sub(r'\\usepackage\{.*?\}', '', text, flags=re.DOTALL)
+            text = re.sub(r'\\begin\{document\}', '', text, flags=re.DOTALL)
+            text = re.sub(r'\\end\{document\}', '', text, flags=re.DOTALL)
+            return text.strip()
+
+        student_latex = clean_latex(student_raw).replace('\\n', '\n')
+        safe_title = self.latex_escape(note['title'])
+        target_mode = target_mode.upper()
+        
+        ai_payload = ""
+        doc_subtitle = ""
+        
+        if target_mode == 'B':
+            logger.info(f"Reprocessing {note_id} to B (Blank)")
+            doc_subtitle = "Note Transcription"
+        elif target_mode == 'S':
+            logger.info(f"Reprocessing {note_id} to S (Solve)")
+            ai_payload = self._get_solution(student_latex).replace('\\n', '\n')
+            doc_subtitle = "Exercise Solution"
+        else: # G
+            logger.info(f"Reprocessing {note_id} to G (Grading)")
+            ai_payload = self._get_grading(student_latex).replace('\\n', '\n')
+            doc_subtitle = "Student Work \\& Professor's Feedback"
+
+        # Build Document
+        combined_latex = [
+            "\\documentclass{article}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry,xcolor}",
+            "\\geometry{margin=1in}",
+            "\\newtheorem{theorem}{Theorem}[section]",
+            "\\newtheorem{lemma}[theorem]{Lemma}",
+            "\\newtheorem{proposition}[theorem]{Proposition}",
+            "\\newtheorem{corollary}[theorem]{Corollary}",
+            "\\newtheorem{definition}{Definition}[section]",
+            "\\newtheorem{remark}[theorem]{Remark}",
+            "\\newtheorem{example}[theorem]{Example}",
+            "\\newtheorem{exercise}[theorem]{Exercise}",
+            "\\title{" + safe_title + "}",
+            "\\author{" + doc_subtitle + "}",
+            "\\date{\\today}",
+            "\\begin{document}",
+            "\\maketitle"
+        ]
+
+        if target_mode == 'B':
+            combined_latex.append(student_latex)
+        elif target_mode == 'S':
+            combined_latex.append(ai_payload)
+        else: # G
+            combined_latex.extend([
+                "\\section*{Original Submission}",
+                student_latex,
+                "\\newpage",
+                ai_payload
+            ])
+            
+        combined_latex.append("\\end{document}")
+        
+        # Save new LaTeX
+        tex_path = Path(note['latex_path']) if note.get('latex_path') else Path(NOTES_OUTPUT_DIR) / f"note_{note_id}.tex"
+        with open(tex_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(combined_latex))
+            
+        # Update metadata JSON
+        meta['mode'] = target_mode
+        meta['ai_payload'] = ai_payload
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2)
+            
+        # Update DB
+        self.update_note_metadata(note_id, {"processing_mode": target_mode})
+        
+        # Recompile
+        from services.compilation import compilation_service
+        res = compilation_service.compile_note(note_id)
+        if res.get('success'):
+            return {"success": True, "mode": target_mode, "pdf_path": res.get('pdf_path')}
+        return {"success": False, "error": res.get('error'), "mode": target_mode}
+
+    def extract_master_solution(self, note_id):
+        """Extracts the model solution into a brand new note."""
+        note = self.get_note(note_id)
+        if not note or not note.get('latex_path'):
+            return {"success": False, "error": "Note or LaTeX not found."}
+            
+        tex_path = Path(note['latex_path'])
+        with open(tex_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Try to find the solution block
+        import re
+        match = re.search(r'\\section\*?\{(?:Model Solution|Final Answer|Step-by-Step Solution)\}(.*?)\\end\{document\}', content, re.DOTALL | re.IGNORECASE)
+        if not match:
+            # Fallback: Just grab everything after the last newpage
+            parts = content.split('\\newpage')
+            if len(parts) > 1:
+                solution_text = parts[-1].replace('\\end{document}', '').strip()
+            else:
+                return {"success": False, "error": "Could not identify solution block."}
+        else:
+            solution_text = match.group(1).strip()
+            
+        new_title = f"Solution: {note['title']}"
+        safe_title = self.latex_escape(new_title)
+        
+        filename_base = self.safe_filename(new_title)
+        final_base = filename_base
+        counter = 1
+        while (NOTES_OUTPUT_DIR / f"{final_base}.tex").exists():
+            final_base = f"{filename_base}_{counter}"
+            counter += 1
+            
+        new_tex_path = NOTES_OUTPUT_DIR / f"{final_base}.tex"
+        
+        new_latex = [
+            "\\documentclass{article}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry,xcolor}",
+            "\\geometry{margin=1in}",
+            "\\newtheorem{theorem}{Theorem}[section]",
+            "\\newtheorem{lemma}[theorem]{Lemma}",
+            "\\newtheorem{proposition}[theorem]{Proposition}",
+            "\\newtheorem{corollary}[theorem]{Corollary}",
+            "\\newtheorem{definition}{Definition}[section]",
+            "\\newtheorem{remark}[theorem]{Remark}",
+            "\\newtheorem{example}[theorem]{Example}",
+            "\\newtheorem{exercise}[theorem]{Exercise}",
+            "\\title{" + safe_title + "}",
+            "\\author{Master Solution}",
+            "\\date{\\today}",
+            "\\begin{document}",
+            "\\maketitle",
+            solution_text,
+            "\\end{document}"
+        ]
+        
+        with open(new_tex_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(new_latex))
+            
+        # Compile
+        from services.compilation import compilation_service
+        new_pdf_path = compilation_service.compile_tex(new_tex_path)
+        
+        # Add to DB
+        new_note_id = self.add_note(
+            title=new_title,
+            source_type='handwritten',
+            latex_path=f"notes_output/{final_base}.tex",
+            pdf_path=f"notes_output/{final_base}.pdf" if new_pdf_path else None,
+            tags="solution",
+            processing_mode="B"
+        )
+        
+        return {"success": True, "new_note_id": new_note_id}
 
     def process_uploaded_note(self, transcription, image_data):
         """Saves transcription files and creates a DB record."""

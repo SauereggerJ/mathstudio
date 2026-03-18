@@ -1,0 +1,50 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry}
+\geometry{margin=1in}
+\title{Right Shift Operator on $\ell^2$}
+\author{MathStudio Agentic Researcher}
+\date{\today}
+\begin{document}
+\maketitle
+\section*{Definition and Properties of the Right Shift Operator on $\ell^2$}
+
+The right shift operator is a fundamental example in operator theory, particularly in the study of non-normal operators on Hilbert spaces.
+
+\subsection*{1. Formal Definition}
+Let $H = \ell^2(\mathbb{N})$ (or $\ell^2(\mathbb{Z}_+)$) be the Hilbert space of square-summable sequences of complex numbers. The \textbf{right shift operator} $R: \ell^2 \to \ell^2$ is defined by:
+\[ R(x_1, x_2, x_3, \dots) = (0, x_1, x_2, x_3, \dots) \]
+for any sequence $x = (x_n)_{n=1}^\infty \in \ell^2$.
+
+\subsection*{2. Notation and Adjoint}
+\begin{itemize}
+    \item \textbf{Notation}: Commonly denoted by $R$ or $S$.
+    \item \textbf{Adjoint}: The adjoint of the right shift operator is the \textbf{left shift operator}, denoted by $L$ or $R^*$, defined as:
+    \[ R^*(x_1, x_2, x_3, \dots) = (x_2, x_3, x_4, \dots) \]
+    This relationship is verified by the inner product: $\langle Rx, y \rangle = \langle x, R^*y \rangle$.
+\end{itemize}
+
+\subsection*{3. Basic Properties}
+\begin{itemize}
+    \item \textbf{Isometry}: $R$ is an isometry, meaning $\|Rx\| = \|x\|$ for all $x \in \ell^2$.
+    \item \textbf{Non-Normality}: 
+    \begin{itemize}
+        \item $R^*R = I$ (the identity operator).
+        \item $RR^* \neq I$. Specifically, $RR^*(x_1, x_2, \dots) = (0, x_2, x_3, \dots)$, which is the projection onto the subspace of sequences with the first term equal to zero.
+        \item Since $R^*R \neq RR^*$, the operator is \textbf{not normal} and therefore \textbf{not unitary}.
+    \end{itemize}
+    \item \textbf{Spectrum}:
+    \begin{itemize}
+        \item The spectrum of $R$ is the closed unit disk: $\sigma(R) = \{ \lambda \in \mathbb{C} : |\lambda| \le 1 \}$.
+        \item $R$ has \textbf{no eigenvalues}. If $Rx = \lambda x$, then $(0, x_1, x_2, \dots) = (\lambda x_1, \lambda x_2, \dots)$, which implies $x_n = 0$ for all $n$ if $\lambda \neq 0$, and $x=0$ if $\lambda=0$.
+    \end{itemize}
+    \item \textbf{Range}: The range $\text{ran}(R)$ is a closed subspace of codimension 1, specifically $\{x \in \ell^2 : x_1 = 0\}$.
+\end{itemize}
+
+\subsection*{Sources}
+\begin{itemize}
+    \item \textbf{Barry Simon}, \textit{Operator Theory: A Comprehensive Course in Analysis, Part 4}, p. 68 [KB ID: 19037].
+    \item \textbf{Theo Bühler \& Dietmar A. Salamon}, \textit{Functional Analysis}, p. 242 [KB ID: 21250].
+\end{itemize}
+
+\end{document}

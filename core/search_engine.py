@@ -22,7 +22,7 @@ def create_mathstudio_indices():
                 "summary": {"type": "text", "analyzer": "english"},
                 "description": {"type": "text", "analyzer": "english"},
                 "msc_class": {"type": "keyword"},
-                "tags": {"type": "keyword"},
+                "tags": {"type": "text", "analyzer": "standard"},
                 "zbl_id": {"type": "keyword"},
                 "doi": {"type": "keyword"},
                 "isbn": {"type": "keyword"},

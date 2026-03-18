@@ -1,101 +1,200 @@
 {% extends "base.html" %}
 
-{% block title %}Research Repository - MathStudio{% endblock %}
+{% block title %}Note Hub - MathStudio{% endblock %}
 
 {% block extra_head %}
 <style>
     .notes-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
         gap: 1.5rem;
     }
-    .note-card.selected {
-        border-color: #3b82f6;
-        background-color: #eff6ff;
-        box-shadow: 0 0 0 2px #3b82f6;
+    .note-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(226, 232, 240, 0.8);
     }
-    .badge-handwritten { background-color: #fef3c7; color: #92400e; }
-    .badge-extraction { background-color: #dcfce7; color: #166534; }
+    .note-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+        border-color: #3b82f6;
+    }
+    .mode-badge {
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .mode-G { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .mode-S { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .mode-B { background-color: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    
+    .search-glow:focus {
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-    <div>
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight flex items-center">
-            <i class="fas fa-microscope mr-4 text-blue-600"></i> Research Repository
-        </h1>
-        <p class="text-slate-500 font-medium">Structured mathematical notes and transcriptions.</p>
-    </div>
-    <div class="flex gap-2">
-        <button onclick="syncNotes()" class="px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-all">
-            <i class="fas fa-sync-alt mr-2"></i> Sync Filesystem
-        </button>
-        <button id="deleteSelectedBtn" onclick="deleteSelected()" disabled class="px-4 py-2 text-sm font-bold text-white bg-rose-500 rounded-xl hover:bg-rose-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-rose-500/20">
-            <i class="fas fa-trash-alt mr-2"></i> Purge (<span id="selectedCount">0</span>)
-        </button>
-    </div>
-</div>
-
-<!-- Filter Bar -->
-<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-8 flex flex-col md:flex-row gap-4">
-    <div class="relative flex-grow">
-        <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none text-slate-400">
-            <i class="fas fa-search"></i>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+            <nav class="flex mb-4" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+                    <li class="inline-flex items-center">
+                        <a href="/" class="hover:text-blue-600">MathStudio</a>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <i class="fas fa-chevron-right mx-2 text-[8px]"></i>
+                            <span class="text-slate-900">Note Hub</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+            <h1 class="text-4xl font-black text-slate-900 tracking-tight">
+                Mathematical <span class="text-blue-600">Note Hub</span>
+            </h1>
+            <p class="text-slate-500 mt-2 font-medium max-w-2xl">
+                A centralized laboratory for your handwritten notes, PDF extractions, and AI-assisted research.
+            </p>
         </div>
-        <input type="text" id="searchInput" onkeyup="filterNotes()" class="block w-full p-2.5 ps-10 text-sm text-slate-900 border border-slate-200 rounded-xl bg-slate-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Search your research repository...">
+        <div class="flex items-center gap-3">
+            <button onclick="syncNotes()" class="group flex items-center px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-2xl hover:border-blue-600 hover:text-blue-600 transition-all shadow-sm">
+                <i class="fas fa-sync-alt mr-2 group-hover:rotate-180 transition-transform duration-500"></i> Sync Repository
+            </button>
+            <button id="multiDeleteBtn" onclick="deleteSelected()" disabled class="px-5 py-2.5 bg-rose-500 text-white font-bold text-sm rounded-2xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-500/20 disabled:opacity-0 disabled:pointer-events-none">
+                <i class="fas fa-trash-alt mr-2"></i> Delete Selected (<span id="selectedCount">0</span>)
+            </button>
+        </div>
     </div>
-    <div class="flex gap-2">
-        <a href="/notes" class="px-4 py-2.5 text-sm font-bold rounded-xl {{ 'bg-blue-600 text-white' if not request.args.get('type') else 'bg-slate-50 text-slate-600' }}">All</a>
-        <a href="/notes?type=handwritten" class="px-4 py-2.5 text-sm font-bold rounded-xl {{ 'bg-blue-600 text-white' if request.args.get('type') == 'handwritten' else 'bg-slate-50 text-slate-600' }}">Handwritten</a>
-        <a href="/notes?type=book_extraction" class="px-4 py-2.5 text-sm font-bold rounded-xl {{ 'bg-blue-600 text-white' if request.args.get('type') == 'book_extraction' else 'bg-slate-50 text-slate-600' }}">Extractions</a>
-    </div>
-</div>
 
-<div id="notesGrid" class="notes-grid">
-    {% for note in notes %}
-    <div class="note-item group" data-id="{{ note.id }}" data-title="{{ note.title.lower() }}">
-        <div class="note-card relative bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300">
-            <div class="flex justify-between items-start mb-4">
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" onchange="toggleSelection({{ note.id }})" class="w-5 h-5 text-blue-600 bg-slate-50 border-slate-200 rounded-lg focus:ring-blue-500 cursor-pointer">
-                    <h3 class="font-black text-slate-900 leading-tight">{{ note.title }}</h3>
+    <!-- Toolbar -->
+    <div class="bg-white p-2 rounded-3xl border border-slate-100 shadow-sm mb-10 flex flex-col lg:flex-row items-center gap-2">
+        <form action="/notes" method="GET" class="relative flex-grow w-full lg:w-auto">
+            <div class="absolute inset-y-0 start-0 flex items-center ps-4 pointer-events-none text-slate-400">
+                <i class="fas fa-search"></i>
+            </div>
+            <input type="text" name="q" value="{{ query or '' }}" class="block w-full py-3.5 ps-11 pe-4 text-sm font-medium text-slate-900 border-none rounded-2xl bg-transparent focus:ring-0 search-glow" placeholder="Search by title, tags, or content...">
+            {% if current_type %}<input type="hidden" name="type" value="{{ current_type }}">{% endif %}
+            {% if current_sort %}<input type="hidden" name="sort" value="{{ current_sort }}">{% endif %}
+        </form>
+        
+        <div class="h-8 w-px bg-slate-100 hidden lg:block"></div>
+
+        <div class="flex items-center gap-1 p-1 w-full lg:w-auto overflow-x-auto">
+            <a href="/notes?{{ ('q='+query+'&' if query else '') + ('sort='+current_sort+'&' if current_sort else '') }}" 
+               class="px-4 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap {{ 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' if not current_type else 'text-slate-500 hover:bg-slate-50' }}">
+               All Sources
+            </a>
+            <a href="/notes?type=handwritten{{ ('&q='+query if query else '') + ('&sort='+current_sort if current_sort else '') }}" 
+               class="px-4 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap {{ 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' if current_type == 'handwritten' else 'text-slate-500 hover:bg-slate-50' }}">
+               Handwritten
+            </a>
+            <a href="/notes?type=book_extraction{{ ('&q='+query if query else '') + ('&sort='+current_sort if current_sort else '') }}" 
+               class="px-4 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap {{ 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' if current_type == 'book_extraction' else 'text-slate-500 hover:bg-slate-50' }}">
+               Extractions
+            </a>
+        </div>
+
+        <div class="h-8 w-px bg-slate-100 hidden lg:block"></div>
+
+        <div class="flex items-center gap-2 px-2 w-full lg:w-auto">
+            <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 hidden xl:block">Sort:</span>
+            <select onchange="window.location.href='/notes?sort=' + this.value + '{{ ('&type='+current_type if current_type else '') + ('&q='+query if query else '') }}'" 
+                    class="bg-slate-50 border-none text-slate-900 text-xs font-bold rounded-xl focus:ring-blue-500 block p-2.5 cursor-pointer">
+                <option value="newest" {{ 'selected' if current_sort == 'newest' }}>Newest First</option>
+                <option value="oldest" {{ 'selected' if current_sort == 'oldest' }}>Oldest First</option>
+                <option value="alphabetical" {{ 'selected' if current_sort == 'alphabetical' }}>Alphabetical</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Notes Grid -->
+    <div class="notes-grid">
+        {% for note in notes %}
+        <div class="note-item group relative" data-id="{{ note.id }}">
+            <!-- Selection Checkbox -->
+            <div class="absolute -top-2 -left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <input type="checkbox" onchange="toggleSelection({{ note.id }}, this)" class="w-6 h-6 rounded-lg border-slate-200 text-blue-600 focus:ring-blue-500 shadow-sm cursor-pointer bg-white">
+            </div>
+
+            <div class="note-card bg-white p-6 rounded-3xl h-full flex flex-col">
+                <!-- Meta Row -->
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center gap-2">
+                        {% set mode = 'G' %}
+                        {% if note.json_meta_path %}
+                            {# Simplified heuristic for mode if we don't have it direct in DB yet #}
+                            {% if 'mode' in note.content_preview %}
+                                {% if 'Mode: S' in note.content_preview %}{% set mode = 'S' %}{% endif %}
+                                {% if 'Mode: B' in note.content_preview %}{% set mode = 'B' %}{% endif %}
+                            {% endif %}
+                        {% endif %}
+                        <span class="mode-badge mode-{{ mode }}">
+                            {{ 'Grading' if mode == 'G' else ('Solving' if mode == 'S' else 'Blank') }}
+                        </span>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                        {{ note.created_at | from_unix_timestamp if note.created_at else 'Unknown' }}
+                    </span>
                 </div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                    {{ note.created_at | from_unix_timestamp if note.created_at else 'Unknown' }}
-                </span>
-            </div>
-            
-            <div class="flex flex-wrap gap-1.5 mb-6">
-                {% if note.source_type == 'handwritten' %}
-                <span class="px-2 py-0.5 badge-handwritten text-[10px] font-black rounded uppercase tracking-tighter"><i class="fas fa-pen-nib mr-1"></i> Handwritten</span>
-                {% elif note.source_type == 'book_extraction' %}
-                <span class="px-2 py-0.5 badge-extraction text-[10px] font-black rounded uppercase tracking-tighter"><i class="fas fa-book-open mr-1"></i> Extraction</span>
-                {% endif %}
+
+                <!-- Title & Tags -->
+                <h3 class="text-xl font-black text-slate-900 leading-tight mb-3 group-hover:text-blue-600 transition-colors">
+                    {{ note.title }}
+                </h3>
                 
-                {% if note.pdf_path %}
-                <span class="px-2 py-0.5 bg-rose-50 text-rose-600 text-[10px] font-black rounded uppercase tracking-tighter"><i class="fas fa-file-pdf mr-1"></i> PDF</span>
-                {% endif %}
-            </div>
+                <div class="flex flex-wrap gap-1.5 mb-6">
+                    {% if note.source_type == 'handwritten' %}
+                        <span class="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md uppercase">Analog Scan</span>
+                    {% elif note.source_type == 'book_extraction' %}
+                        <span class="text-[9px] font-bold px-2 py-0.5 bg-green-50 text-green-600 rounded-md uppercase">Book Page</span>
+                    {% endif %}
+                    
+                    {% if note.tags %}
+                        {% for tag in note.tags.split(',') %}
+                            {% if tag.strip() %}
+                            <span class="text-[9px] font-bold px-2 py-0.5 bg-blue-50 text-blue-500 rounded-md uppercase">#{{ tag.strip() }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
 
-            <div class="text-slate-500 text-sm mb-6 line-clamp-3">
-                {{ note.content_preview or 'No preview available.' }}
-            </div>
+                <!-- Preview -->
+                <div class="text-slate-500 text-sm mb-8 line-clamp-4 font-medium leading-relaxed flex-grow">
+                    {{ note.content_preview or 'No detailed preview available.' }}
+                </div>
 
-            <div class="flex gap-2">
-                <a href="/note/{{ note.id }}" class="flex-grow text-center py-2 text-xs font-black uppercase tracking-widest bg-slate-900 text-white rounded-xl hover:bg-blue-600 transition-colors">
-                    Open Note
-                </a>
+                <!-- Actions -->
+                <div class="grid grid-cols-2 gap-2">
+                    <a href="/note/{{ note.id }}" class="flex items-center justify-center py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all">
+                        <i class="fas fa-eye mr-2"></i> View Studio
+                    </a>
+                    <div class="flex gap-2">
+                        {% if note.pdf_path %}
+                        <a href="/pdf-note/{{ note.id }}" target="_blank" class="flex-1 flex items-center justify-center bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all" title="View PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                        {% endif %}
+                        <button onclick="quickDelete({{ note.id }})" class="flex-1 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all" title="Delete">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
+        {% else %}
+        <div class="col-span-full py-32 text-center bg-slate-50/50 rounded-[40px] border-2 border-dashed border-slate-100">
+            <div class="text-slate-200 text-8xl mb-8"><i class="fas fa-feather-alt"></i></div>
+            <h3 class="text-2xl font-black text-slate-400 tracking-tight">THE LAB IS SILENT</h3>
+            <p class="text-slate-400 mt-2 font-medium">No mathematical artifacts found in this sector.</p>
+            <a href="/" class="inline-block mt-8 px-8 py-3 bg-blue-600 text-white font-black text-sm rounded-2xl shadow-xl shadow-blue-600/20 hover:bg-blue-700 transition-all">Start Researching</a>
+        </div>
+        {% endfor %}
     </div>
-    {% else %}
-    <div class="col-span-full text-center py-24">
-        <div class="text-slate-200 text-7xl mb-6"><i class="fas fa-terminal"></i></div>
-        <h3 class="text-xl font-bold text-slate-400 italic uppercase tracking-widest">No field notes detected</h3>
-        <p class="text-slate-400 mt-2 text-sm">Upload images via API or extract pages from books to begin.</p>
-    </div>
-    {% endfor %}
 </div>
 {% endblock %}
 
@@ -103,47 +202,59 @@
 <script>
     let selectedNotes = new Set();
 
-    function toggleSelection(id) {
-        if (selectedNotes.has(id)) selectedNotes.delete(id);
-        else selectedNotes.add(id);
+    function toggleSelection(id, checkbox) {
+        const card = checkbox.closest('.note-card');
+        if (checkbox.checked) {
+            selectedNotes.add(id);
+            card.style.borderColor = '#3b82f6';
+            card.style.backgroundColor = '#eff6ff';
+        } else {
+            selectedNotes.delete(id);
+            card.style.borderColor = '';
+            card.style.backgroundColor = '';
+        }
         updateUI();
     }
 
     function updateUI() {
         document.getElementById('selectedCount').textContent = selectedNotes.size;
-        document.getElementById('deleteSelectedBtn').disabled = selectedNotes.size === 0;
+        document.getElementById('multiDeleteBtn').disabled = selectedNotes.size === 0;
+    }
+
+    async function quickDelete(id) {
+        if (!confirm('Are you sure you want to delete this note?')) return;
+        const res = await fetch(`/note/${id}/delete`, { method: 'POST' });
+        if (res.ok) location.reload();
+        else alert('Failed to delete note.');
     }
 
     async function deleteSelected() {
-        if (!confirm(`Are you sure you want to delete ${selectedNotes.size} selected notes?`)) return;
+        if (!confirm(`Permanently delete ${selectedNotes.size} notes?`)) return;
+        const btn = document.getElementById('multiDeleteBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Purging...';
+        
         for (let id of selectedNotes) {
-            await fetch(`/api/v1/notes/${id}`, { method: 'DELETE' });
+            await fetch(`/note/${id}/delete`, { method: 'POST' });
         }
         location.reload();
     }
 
     async function syncNotes() {
-        const btn = event.target;
+        const btn = event.currentTarget;
+        const original = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Syncing...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing...';
         try {
             const res = await fetch('/api/v1/notes/sync', { method: 'POST' });
             const data = await res.json();
-            alert(`Synced ${data.synced_count} new notes.`);
+            alert(`Discovery complete: ${data.synced_count} artifacts identified.`);
             location.reload();
         } catch (e) {
-            alert("Sync failed.");
+            alert("Sync operation failed.");
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i> Sync Filesystem';
+            btn.innerHTML = original;
         }
-    }
-
-    function filterNotes() {
-        const q = document.getElementById('searchInput').value.toLowerCase();
-        document.querySelectorAll('.note-item').forEach(el => {
-            if (el.dataset.title.includes(q)) el.classList.remove('hidden');
-            else el.classList.add('hidden');
-        });
     }
 </script>
 {% endblock %}

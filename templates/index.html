@@ -84,6 +84,44 @@
                     <span class="ms-3 font-medium"><i class="fas fa-brain mr-1"></i> AI Reranking</span>
                 </label>
             </div>
+            
+            <div class="py-4 border-t border-slate-100 mt-2">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Interactive Filters & Sorting</h3>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-500">MSC Category</label>
+                        <select id="filterMSC" class="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-500">Publisher</label>
+                        <select id="filterPublisher" class="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Publishers</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-500">Year</label>
+                        <select id="filterYear" class="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-500">Keywords</label>
+                        <input type="text" id="filterKeywords" placeholder="e.g. cohomology" 
+                               class="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-500">Sort By</label>
+                        <select id="sortBy" class="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="relevance">Relevance (Score)</option>
+                            <option value="title">Title (A-Z)</option>
+                            <option value="author">Author (A-Z)</option>
+                            <option value="year">Year (Newest First)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -129,13 +167,21 @@
 
 {% block scripts %}
 <script>
+    let allResults = [];
+    let filteredResults = [];
     let currentPage = 1;
-    const limit = 18;
+    const itemsPerPage = 18;
+
+    // Attach interactive listeners
+    ['filterMSC', 'filterPublisher', 'filterYear', 'sortBy'].forEach(id => {
+        document.getElementById(id).onchange = () => { currentPage = 1; applyFiltersAndSort(); };
+    });
+    document.getElementById('filterKeywords').oninput = () => { currentPage = 1; applyFiltersAndSort(); };
 
     document.getElementById('searchBtn').onclick = () => { currentPage = 1; performSearch(); };
     document.getElementById('searchInput').onkeypress = (e) => { if (e.key === 'Enter') { currentPage = 1; performSearch(); } };
-    document.getElementById('prevBtn').onclick = () => { if (currentPage > 1) { currentPage--; performSearch(); } };
-    document.getElementById('nextBtn').onclick = () => { currentPage++; performSearch(); };
+    document.getElementById('prevBtn').onclick = () => { if (currentPage > 1) { currentPage--; renderResults(); } };
+    document.getElementById('nextBtn').onclick = () => { if (currentPage * itemsPerPage < filteredResults.length) { currentPage++; renderResults(); } };
 
     async function performSearch() {
         const query = document.getElementById('searchInput').value;
@@ -155,10 +201,10 @@
         expanded.classList.add('hidden');
         resultsInfo.classList.add('hidden');
 
+        // Fetch up to 1000 results for client-side filtering
         const params = new URLSearchParams({
             q: query,
-            page: currentPage,
-            limit: limit,
+            limit: 1000, 
             fts: document.getElementById('useFTS').checked,
             vec: document.getElementById('useVector').checked,
             trans: document.getElementById('useTranslate').checked,
@@ -179,63 +225,14 @@
 
             if (!data.results || data.results.length === 0) {
                 empty.classList.remove('hidden');
+                allResults = [];
+                filteredResults = [];
                 return;
             }
 
-            resultsInfo.classList.remove('hidden');
-            document.getElementById('hitCount').textContent = `${data.total_count} documents found`;
-
-            resultsDiv.innerHTML = data.results.map(book => `
-                <div class="group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                    <div class="flex gap-4">
-                        <div class="w-24 h-36 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 shadow-inner border border-slate-100 relative">
-                            <img src="${book.cover_url}" alt="Cover" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                                 onerror="this.src='https://via.placeholder.com/150x200?text=No+Cover'">
-                            <div class="absolute top-1 right-1">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-sm shadow-sm">
-                                    ${book.path.split('.').pop().toUpperCase()}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col flex-grow">
-                            <div class="flex justify-between items-start mb-1">
-                                <span class="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                    Score: ${book.score.toFixed(2)}
-                                </span>
-                            </div>
-                            <h3 class="text-lg font-bold text-slate-900 leading-tight mb-1 line-clamp-2 min-h-[2.5rem]">
-                                <a href="/book/${book.id}?q=${encodeURIComponent(query)}" class="hover:text-blue-600">${book.title}</a>
-                            </h3>
-                            <p class="text-sm text-slate-500 italic mb-2 line-clamp-1"><a href="/?author=${encodeURIComponent(book.author || '')}" class="hover:text-blue-600 hover:underline" onclick="event.stopPropagation()">${book.author || 'Unknown Author'}</a></p>
-                            
-                            ${book.index_matches ? `
-                                <div class="mt-auto pt-2 border-t border-slate-50">
-                                    <p class="text-[10px] font-bold text-amber-600 uppercase mb-1">Found in Index:</p>
-                                    <p class="text-[11px] text-slate-600 font-mono leading-tight">${book.index_matches}</p>
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                    <div class="mt-4 flex gap-2">
-                        <a href="/book/${book.id}?q=${encodeURIComponent(query)}" class="flex-grow text-center py-2 text-sm font-semibold text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                            Details
-                        </a>
-                        <a href="/open/${book.path}" target="_blank" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                            Read
-                        </a>
-                    </div>
-                </div>
-            `).join('');
-
-            pagination.classList.remove('hidden');
-            document.getElementById('pageInfo').textContent = `Page ${currentPage}`;
-            document.getElementById('prevBtn').disabled = currentPage === 1;
-            document.getElementById('nextBtn').disabled = data.results.length < limit;
-
-            // Scroll to results top on page change
-            if (currentPage > 1) {
-                resultsDiv.scrollIntoView({ behavior: 'smooth' });
-            }
+            allResults = data.results;
+            updateFilterOptions(allResults);
+            applyFiltersAndSort();
 
         } catch (error) {
             console.error('Search error:', error);
@@ -244,95 +241,164 @@
         }
     }
 
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    let mscDescriptions = {};
+    fetch('/static/msc_codes.json').then(r => r.json()).then(data => { mscDescriptions = data; });
+
+    function updateFilterOptions(results) {
+        const mscSet = new Set();
+        const pubSet = new Set();
+        const yearSet = new Set();
+
+        results.forEach(r => {
+            if (r.msc_class) {
+                r.msc_class.split(',').forEach(m => {
+                    const trimmed = m.trim();
+                    if (trimmed.length >= 2) {
+                        const prefix = trimmed.substring(0, 2);
+                        if (/^\d\d$/.test(prefix)) mscSet.add(prefix);
+                    }
+                });
+            }
+            if (r.publisher) pubSet.add(r.publisher.trim());
+            if (r.year) yearSet.add(r.year);
+        });
+
+        const populateSelect = (id, items, label, isMSC = false) => {
+            const select = document.getElementById(id);
+            const currentVal = select.value;
+            select.innerHTML = `<option value="">All ${label}</option>`;
+            [...items].sort().forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                if (isMSC && mscDescriptions[item]) {
+                    opt.textContent = `${item} — ${mscDescriptions[item]}`;
+                } else {
+                    opt.textContent = item;
+                }
+                if (item == currentVal) opt.selected = true;
+                select.appendChild(opt);
+            });
+        };
+
+        populateSelect('filterMSC', mscSet, 'Categories', true);
+        populateSelect('filterPublisher', pubSet, 'Publishers');
+        populateSelect('filterYear', [...yearSet].sort((a,b) => b-a), 'Years');
     }
 
-    // --- Browse by metadata (URL param detection) ---
-    async function performBrowse(params) {
+    function applyFiltersAndSort() {
+        const msc = document.getElementById('filterMSC').value;
+        const pub = document.getElementById('filterPublisher').value;
+        const year = document.getElementById('filterYear').value;
+        const keywords = document.getElementById('filterKeywords').value.toLowerCase();
+        const sortBy = document.getElementById('sortBy').value;
+
+        filteredResults = allResults.filter(r => {
+            if (msc) {
+                const bookMsc = (r.msc_class || '').toLowerCase();
+                // Check if any of the book's MSC codes start with the selected 2-digit prefix
+                if (!bookMsc.split(',').some(code => code.trim().toLowerCase().startsWith(msc.toLowerCase()))) return false;
+            }
+            if (pub && r.publisher !== pub) return false;
+            if (year && r.year != year) return false;
+            if (keywords) {
+                const searchStr = [r.title, r.author, r.summary, r.index_text, r.tags, r.msc_class]
+                    .map(v => (v || '').toLowerCase())
+                    .join(' ');
+                if (!searchStr.includes(keywords)) return false;
+            }
+            return true;
+        });
+
+        // Sorting
+        filteredResults.sort((a, b) => {
+            let primary = 0;
+            if (sortBy === 'title') primary = a.title.localeCompare(b.title);
+            else if (sortBy === 'author') primary = (a.author || '').localeCompare(b.author || '');
+            else if (sortBy === 'year') primary = (b.year || 0) - (a.year || 0);
+            
+            if (primary !== 0) return primary;
+            return b.score - a.score; // Fallback to relevance
+        });
+
+        document.getElementById('resultsInfo').classList.remove('hidden');
+        document.getElementById('hitCount').textContent = `Showing ${filteredResults.length} of ${allResults.length} documents found`;
+        
+        renderResults();
+    }
+
+    function renderResults() {
         const resultsDiv = document.getElementById('results');
-        const status = document.getElementById('status');
         const pagination = document.getElementById('pagination');
-        const empty = document.getElementById('empty');
-        const resultsInfo = document.getElementById('resultsInfo');
-        const expanded = document.getElementById('expandedQuery');
+        const query = document.getElementById('searchInput').value;
 
-        status.classList.remove('hidden');
-        resultsDiv.innerHTML = '';
-        pagination.classList.add('hidden');
-        empty.classList.add('hidden');
-        expanded.classList.add('hidden');
-        resultsInfo.classList.add('hidden');
+        const start = (currentPage - 1) * itemsPerPage;
+        const paged = filteredResults.slice(start, start + itemsPerPage);
 
-        try {
-            const response = await fetch(`/api/v1/browse?${params}`);
-            const data = await response.json();
-            status.classList.add('hidden');
-
-            if (data.filter) {
-                expanded.classList.remove('hidden');
-                document.getElementById('expandedText').textContent = `Browsing: ${data.filter}`;
-            }
-
-            if (!data.results || data.results.length === 0) {
-                empty.classList.remove('hidden');
-                return;
-            }
-
-            resultsInfo.classList.remove('hidden');
-            document.getElementById('hitCount').textContent = `${data.total_count} documents found`;
-
-            resultsDiv.innerHTML = data.results.map(book => {
-                const extension = book.path ? book.path.split('.').pop().toUpperCase() : 'PDF';
-                const safePath = book.path || '#';
-                return `
-                <div class="group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                    <div class="flex gap-4">
-                        <div class="w-24 h-36 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 shadow-inner border border-slate-100 relative">
-                            <img src="${book.cover_url}" alt="Cover" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                                 onerror="this.src='https://via.placeholder.com/150x200?text=No+Cover'">
-                            <div class="absolute top-1 right-1">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-sm shadow-sm">
-                                    ${extension}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col flex-grow">
-                            <h3 class="text-lg font-bold text-slate-900 leading-tight mb-1 line-clamp-2 min-h-[2.5rem]">
-                                <a href="/book/${book.id}" class="hover:text-blue-600">${book.title}</a>
-                            </h3>
-                            <p class="text-sm text-slate-500 italic mb-2 line-clamp-1"><a href="/?author=${encodeURIComponent(book.author || '')}" class="hover:text-blue-600 hover:underline">${book.author || 'Unknown Author'}</a></p>
-                            ${book.year ? `<span class="text-xs text-slate-400">${book.year}</span>` : ''}
+        resultsDiv.innerHTML = paged.map(book => `
+            <div class="group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div class="flex gap-4">
+                    <div class="w-24 h-36 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 shadow-inner border border-slate-100 relative">
+                        <img src="${book.cover_url}" alt="Cover" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                             onerror="this.src='https://via.placeholder.com/150x200?text=No+Cover'">
+                        <div class="absolute top-1 right-1">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-sm shadow-sm">
+                                ${book.path.split('.').pop().toUpperCase()}
+                            </span>
                         </div>
                     </div>
-                    <div class="mt-4 flex gap-2">
-                        <a href="/book/${book.id}" class="flex-grow text-center py-2 text-sm font-semibold text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                            Details
-                        </a>
-                        <a href="/open/${safePath}" target="_blank" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                            Read
-                        </a>
+                    <div class="flex flex-col flex-grow">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Score: ${book.score.toFixed(2)}
+                            </span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900 leading-tight mb-1 line-clamp-2 min-h-[2.5rem]">
+                            <a href="/book/${book.id}?q=${encodeURIComponent(query)}" class="hover:text-blue-600">${book.title}</a>
+                        </h3>
+                        <p class="text-sm text-slate-500 italic mb-2 line-clamp-1"><a href="/?author=${encodeURIComponent(book.author || '')}" class="hover:text-blue-600 hover:underline" onclick="event.stopPropagation()">${book.author || 'Unknown Author'}</a></p>
+                        <div class="flex items-center gap-2 mt-auto">
+                            ${book.year ? `<span class="text-[10px] font-bold text-slate-400">${book.year}</span>` : ''}
+                            ${book.publisher ? `<span class="text-[10px] text-slate-400 line-clamp-1">| ${book.publisher}</span>` : ''}
+                        </div>
                     </div>
                 </div>
-            `; }).join('');
+                <div class="mt-4 flex gap-2">
+                    <a href="/book/${book.id}?q=${encodeURIComponent(query)}" class="flex-grow text-center py-2 text-sm font-semibold text-slate-700 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                        Details
+                    </a>
+                    <a href="/open/${book.path}" target="_blank" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                        Read
+                    </a>
+                </div>
+            </div>
+        `).join('');
 
-        } catch (error) {
-            console.error('Browse error:', error);
-            status.classList.add('hidden');
-            alert('Browse failed. Check server connection.');
+        pagination.classList.toggle('hidden', filteredResults.length <= itemsPerPage);
+        document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${Math.ceil(filteredResults.length / itemsPerPage)}`;
+        document.getElementById('prevBtn').disabled = currentPage === 1;
+        document.getElementById('nextBtn').disabled = currentPage * itemsPerPage >= filteredResults.length;
+
+        if (currentPage > 1) resultsDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Keep legacy performBrowse compatibility
+    async function performBrowse(params) {
+        currentPage = 1;
+        const response = await fetch(`/api/v1/browse?${params}`);
+        const data = await response.json();
+        if (data.results) {
+            allResults = data.results.map(r => ({...r, score: 0}));
+            updateFilterOptions(allResults);
+            applyFiltersAndSort();
         }
     }
 
-    // On page load: check URL params for browse mode
     (function () {
         const urlParams = new URLSearchParams(window.location.search);
         const author = urlParams.get('author');
         const msc = urlParams.get('msc');
         const year = urlParams.get('year');
         const keyword = urlParams.get('keyword');
-
         if (author || msc || year || keyword) {
             const browseParams = new URLSearchParams();
             if (author) { browseParams.set('author', author); document.getElementById('searchInput').value = `Author: ${author}`; }

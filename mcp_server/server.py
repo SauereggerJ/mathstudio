@@ -256,7 +256,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_within_book",
             description=(
-                "Search for a term or phrase within a specific book's pages. "
+                "Search for a term or phrase within a specific book's index/toc/text. "
                 "Returns page numbers and snippets."
             ),
             inputSchema={
@@ -270,10 +270,27 @@ async def list_tools() -> list[Tool]:
         ),
 
         Tool(
+            name="search_book_latex",
+            description=(
+                "Search the full AI-converted LaTeX content of a specific book. "
+                "This is the most precise way to find technical content in a 'Research-Ready' book."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
+                    "query": {"type": "string", "description": "LaTeX snippet or keyword (e.g., 'Banach\\\\ space')"},
+                    "limit": {"type": "integer", "default": 20}
+                },
+                "required": ["book_id", "query"]
+            }
+        ),
+
+        Tool(
             name="search_latex",
             description=(
-                "Search across ALL AI-converted LaTeX pages in the library. "
-                "Use this for deep technical research across multiple books."
+                "Search across ALL extracted mathematical content in the library (Approved + Drafts). "
+                "Use this for broad technical discovery."
             ),
             inputSchema={
                 "type": "object",
@@ -291,12 +308,12 @@ async def list_tools() -> list[Tool]:
             name="search_kb",
             description=(
                 "Search the Knowledge Base for Gold Standard mathematical results (theorems, definitions, exercises). "
-                "This is the primary source for human-verified, high-precision mathematical data."
+                "Returns only human-verified, high-precision mathematical data."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search term or LaTeX pattern (e.g., '\\int ?f(x) dx')"},
+                    "query": {"type": "string", "description": "Search term or LaTeX pattern (e.g., '\\\\int ?f(x) dx')"},
                     "kind": {"type": "string", "enum": ["theorem", "definition", "lemma", "proposition", "corollary", "example", "remark", "axiom", "notation", "exercise"]},
                     "book_id": {"type": "integer"},
                     "msc": {"type": "string", "description": "MSC 2020 code prefix (e.g. '26')"},
@@ -368,10 +385,27 @@ async def list_tools() -> list[Tool]:
         ),
 
         Tool(
+            name="get_book_pages_latex",
+            description=(
+                "Retrieve high-quality AI-converted LaTeX for specific book pages. "
+                "Use this for deep study of a book's mathematical content."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "book_id": {"type": "integer"},
+                    "pages": {"type": "string", "description": "Page range (e.g., '230-235')"},
+                    "min_quality": {"type": "number", "default": 0.7}
+                },
+                "required": ["book_id", "pages"]
+            }
+        ),
+
+        Tool(
             name="request_book_scan",
             description=(
-                "Request that a book be prioritized for deep indexing and LaTeX conversion. "
-                "Use this when a book you need is not yet 'Research-Ready'."
+                "Queue a full library pipeline scan for a book (ToC, Deep Indexing, LaTeX, KB Extraction). "
+                "This makes a book 'Research-Ready' but takes several minutes per book."
             ),
             inputSchema={
                 "type": "object",
@@ -383,24 +417,11 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
-        # ── NOTES & DRAFTS ────────────────────────────────────────────────────
-
-        Tool(
-            name="search_notes",
-            description="Search previous research notes (LLM-authored or handwritten scans).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search term"},
-                    "limit": {"type": "integer", "default": 20}
-                },
-                "required": ["query"]
-            }
-        ),
+        # ── RESEARCH & DRAFT MANAGEMENT (Autonomous) ──────────────────────────
 
         Tool(
             name="start_research_draft",
-            description="Initialize a persistent workspace for a mathematical report.",
+            description="Initialize a session-long research draft for a mathematical topic.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -412,7 +433,7 @@ async def list_tools() -> list[Tool]:
 
         Tool(
             name="append_to_draft",
-            description="Add LaTeX content or comparisons to the current draft.",
+            description="Add LaTeX content, comparisons, or proofs to the current research draft.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -424,7 +445,7 @@ async def list_tools() -> list[Tool]:
 
         Tool(
             name="publish_research_report",
-            description="Finalize the draft into a persistent note.",
+            description="Finalize and compile the draft into a standalone LaTeX and PDF document in the MCP notes folder.",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -433,41 +454,15 @@ async def list_tools() -> list[Tool]:
         ),
 
         Tool(
-            name="create_note",
-            description="Create a new research note directly.",
+            name="create_standalone_note",
+            description="Directly create a standalone LaTeX and PDF note in the MCP notes folder (outside the draft workflow).",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "title": {"type": "string"},
-                    "markdown": {"type": "string"},
-                    "latex": {"type": "string"},
-                    "tags": {"type": "string"}
+                    "title": {"type": "string", "description": "Title of the note"},
+                    "content": {"type": "string", "description": "Full LaTeX content (body or full document)"}
                 },
-                "required": ["title", "markdown"]
-            }
-        ),
-
-        Tool(
-            name="get_note_content",
-            description="Retrieve Markdown/LaTeX content of a note.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "note_id": {"type": "integer"}
-                },
-                "required": ["note_id"]
-            }
-        ),
-
-        Tool(
-            name="compile_note",
-            description="Compile a note's LaTeX to PDF.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "note_id": {"type": "integer"}
-                },
-                "required": ["note_id"]
+                "required": ["title", "content"]
             }
         ),
 
@@ -480,30 +475,127 @@ async def list_tools() -> list[Tool]:
 
 
 # ---------------------------------------------------------------------------
-# Tool Dispatch
+# Tool Dispatch & State
 # ---------------------------------------------------------------------------
 
+# Simple in-memory session state for the autonomous draft system
+MCP_NOTES_DIR = Path(__file__).parent / "notes"
+MCP_NOTES_DIR.mkdir(exist_ok=True)
+
+class ResearchDraft:
+    def __init__(self, title=""):
+        self.title = title
+        self.sections = []
+        self.active = False
+
+    def reset(self, title):
+        self.title = title
+        self.sections = []
+        self.active = True
+
+    def append(self, content):
+        if not self.active: return False
+        self.sections.append(content)
+        return True
+
+    def get_full_latex(self):
+        safe_title = self.title.replace("_", " ").replace("&", "\\&")
+        header = [
+            "\\documentclass{article}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry}",
+            "\\geometry{margin=1in}",
+            "\\title{" + safe_title + "}",
+            "\\author{MathStudio Agentic Researcher}",
+            "\\date{\\today}",
+            "\\begin{document}",
+            "\\maketitle",
+        ]
+        footer = ["\\end{document}"]
+        return "\n".join(header + self.sections + footer)
+
+_draft_state = ResearchDraft()
+
+def _compile_latex(title, full_latex):
+    import subprocess
+    import re
+    
+    # Generate safe filename
+    base_name = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")[:64]
+    tex_path = MCP_NOTES_DIR / f"{base_name}.tex"
+    pdf_path = MCP_NOTES_DIR / f"{base_name}.pdf"
+    
+    # Save LaTeX
+    tex_path.write_text(full_latex, encoding="utf-8")
+    
+    # Compile PDF
+    try:
+        # Run pdflatex
+        cmd = ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", tex_path.name]
+        result = subprocess.run(cmd, cwd=MCP_NOTES_DIR, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            error_log = result.stdout[-500:]
+            return False, f"⚠ LaTeX saved to {tex_path.name}, but PDF compilation failed:\n\n{error_log}"
+        
+        # Cleanup auxiliary files
+        for ext in [".aux", ".log", ".out"]:
+            aux_file = MCP_NOTES_DIR / f"{base_name}{ext}"
+            if aux_file.exists(): aux_file.unlink()
+            
+        return True, (tex_path.name, pdf_path.name)
+        
+    except Exception as e:
+        return False, f"✗ Error during publication: {e}"
+
 async def start_research_draft(args: dict) -> list[TextContent]:
-    from services.note import sectional_note_service
-    # Use install_id or similar for session persistence
-    session_id = "agent_session" 
-    sectional_note_service.start_draft(session_id, args["title"])
+    _draft_state.reset(args["title"])
     return [TextContent(type="text", text=f"✓ Research draft '{args['title']}' initialized.")]
 
 async def append_to_draft(args: dict) -> list[TextContent]:
-    from services.note import sectional_note_service
-    session_id = "agent_session"
-    if sectional_note_service.append_section(session_id, args["content"]):
+    if _draft_state.append(args["content"]):
         return [TextContent(type="text", text="✓ Section appended to draft.")]
-    return [TextContent(type="text", text="✗ Failed to append. Ensure draft was started.")]
+    return [TextContent(type="text", text="✗ No active draft. Use start_research_draft first.")]
 
 async def publish_research_report(args: dict) -> list[TextContent]:
-    from services.note import sectional_note_service, note_service
-    session_id = "agent_session"
-    note_id = sectional_note_service.finalize_draft(session_id, note_service)
-    if note_id:
-        return [TextContent(type="text", text=f"✓ Report published as Note ID: {note_id}.")]
-    return [TextContent(type="text", text="✗ Failed to publish report.")]
+    if not _draft_state.active:
+        return [TextContent(type="text", text="✗ No active draft to publish.")]
+    
+    success, result = _compile_latex(_draft_state.title, _draft_state.get_full_latex())
+    if success:
+        tex_name, pdf_name = result
+        _draft_state.active = False # Reset session
+        return [TextContent(type="text", text=f"✓ Research report published successfully!\n- LaTeX: {tex_name}\n- PDF: {pdf_name}\n- Location: {MCP_NOTES_DIR}")]
+    else:
+        return [TextContent(type="text", text=result)]
+
+async def create_standalone_note(args: dict) -> list[TextContent]:
+    content = args["content"]
+    # Wrap in document if not already a full document
+    if "\\documentclass" not in content:
+        safe_title = args["title"].replace("_", " ").replace("&", "\\&")
+        header = [
+            "\\documentclass{article}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage{amsmath,amssymb,amsfonts,amsthm,geometry}",
+            "\\geometry{margin=1in}",
+            "\\title{" + safe_title + "}",
+            "\\author{MathStudio Agentic Researcher}",
+            "\\date{\\today}",
+            "\\begin{document}",
+            "\\maketitle",
+        ]
+        footer = ["\\end{document}"]
+        full_latex = "\n".join(header) + "\n" + content + "\n" + "\n".join(footer)
+    else:
+        full_latex = content
+
+    success, result = _compile_latex(args["title"], full_latex)
+    if success:
+        tex_name, pdf_name = result
+        return [TextContent(type="text", text=f"✓ Standalone note created successfully!\n- LaTeX: {tex_name}\n- PDF: {pdf_name}\n- Location: {MCP_NOTES_DIR}")]
+    else:
+        return [TextContent(type="text", text=result)]
 
 
 @app.call_tool()
@@ -515,6 +607,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             "get_book_details": get_book_details,
             "get_book_toc": get_book_toc,
             "search_within_book": search_within_book,
+            "search_book_latex": search_book_latex,
             "search_latex": search_latex,
             # Knowledge Base & Research
             "search_kb": search_kb,
@@ -523,15 +616,13 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             "list_concept_terms": list_concept_terms,
             # Extraction & Monitoring
             "read_pdf_pages": read_pdf_pages,
+            "get_book_pages_latex": get_book_pages_latex,
             "request_book_scan": request_book_scan,
-            # Notes & Synthesis
-            "search_notes": search_notes,
+            # Notes & Synthesis (Autonomous)
             "start_research_draft": start_research_draft,
             "append_to_draft": append_to_draft,
             "publish_research_report": publish_research_report,
-            "create_note": create_note,
-            "get_note_content": get_note_content,
-            "compile_note": compile_note,
+            "create_standalone_note": create_standalone_note,
             "get_system_state": get_system_state,
         }
         fn = dispatch.get(name)
@@ -640,18 +731,40 @@ async def search_within_book(args: dict) -> list[TextContent]:
     return [TextContent(type="text", text=out)]
 
 
-async def search_latex(args: dict) -> list[TextContent]:
+async def search_book_latex(args: dict) -> list[TextContent]:
     params = {"q": args["query"], "limit": args.get("limit", 20)}
+    r = requests.get(f"{API_BASE}/books/{args['book_id']}/search/latex",
+                     params=params, timeout=30)
+    if not r.ok:
+        return [TextContent(type="text", text=f"LaTeX search failed: {r.text}")]
+    data = r.json()
+    results = data.get("results", [])
+    if not results:
+        return [TextContent(type="text", text=f"No LaTeX matches for '{args['query']}' in book {args['book_id']}.")]
+    out = f"LaTeX matches in book {args['book_id']} for '{args['query']}':\n\n"
+    for m in results:
+        out += f"  - p. {m['page']}: {m['snippet']}\n"
+        if m.get("terms"):
+            out += "    Associated terms: " + ", ".join([t['name'] for t in m['terms']]) + "\n"
+    return [TextContent(type="text", text=out)]
+
+
+async def search_latex(args: dict) -> list[TextContent]:
+    params = {
+        "q": args["query"], 
+        "limit": args.get("limit", 20),
+        "status": "" # Empty string bypasses status filter to show Approved + Drafts
+    }
     r = requests.get(f"{API_BASE}/kb/terms/search", params=params, timeout=30)
     r.raise_for_status()
     data = r.json()
     if not data:
-        return [TextContent(type="text", text=f"No LaTeX matches found for '{args['query']}'.")]
-    out = f"LaTeX Search Results for '{args['query']}':\n\n"
+        return [TextContent(type="text", text=f"No mathematical content found for '{args['query']}'.")]
+    out = f"Mathematical content search results for '{args['query']}':\n\n"
     for item in data:
         out += f"### ID: {item['id']} | {item.get('name', '?')} | {item.get('book_author', '?')}, p.{item.get('page_start', '?')}\n"
-        # We don't show full LaTeX here to keep the context window clean; use get_kb_term for that.
-        out += f"Kind: {item.get('term_type', '?')} | Book: {item.get('book_title', '?')}\n\n"
+        status_flag = " [DRAFT]" if item.get("status") == "draft" else ""
+        out += f"Kind: {item.get('term_type', '?')}{status_flag} | Book: {item.get('book_title', '?')} [ID: {item.get('book_id')}]\n\n"
     return [TextContent(type="text", text=out)]
 
 
@@ -745,22 +858,16 @@ async def list_concept_terms(args: dict) -> list[TextContent]:
 
 
 async def request_book_scan(args: dict) -> list[TextContent]:
-    # Non-blocking log request. In a real system this might add to a Redis queue.
-    logger.info(f"USER REQUEST SCAN: Book {args['book_id']} | Reason: {args.get('reason')}")
-    return [TextContent(type="text", text=f"✓ Book {args['book_id']} has been added to the deep-indexing wishlist. Thank you for the feedback!")]
-
-
-async def search_notes(args: dict) -> list[TextContent]:
-    params = {"q": args["query"], "limit": args.get("limit", 20)}
-    r = requests.get(f"{API_BASE}/notes", params=params, timeout=10)
-    r.raise_for_status()
-    notes = r.json()
-    if not notes:
-        return [TextContent(type="text", text=f"No notes matching '{args['query']}' found.")]
-    out = f"Research Notes matching '{args['query']}':\n\n"
-    for n in notes:
-        out += f"- [ID {n['id']}] **{n['title']}** ({n.get('source_type', '?')})\n"
-    return [TextContent(type="text", text=out)]
+    # Call the real background scan queue
+    r = requests.post(f"{API_BASE}/books/{args['book_id']}/scan", timeout=10)
+    if r.status_code == 409:
+        return [TextContent(type="text", text=f"✓ Book {args['book_id']} is already being scanned or in queue.")]
+    if not r.ok:
+        return [TextContent(type="text", text=f"✗ Scan request failed: {r.text}")]
+    
+    data = r.json()
+    pos = data.get("queue_position", "?")
+    return [TextContent(type="text", text=f"✓ Book {args['book_id']} ('{data.get('book_title', '?')}') has been queued for a full pipeline scan. Position in queue: {pos}.")]
 
 
 async def get_kb_term(args: dict) -> list[TextContent]:
@@ -782,33 +889,6 @@ async def get_kb_term(args: dict) -> list[TextContent]:
     out += t.get("latex_content", "% No LaTeX content")
     out += "\n```\n"
     return [TextContent(type="text", text=out)]
-
-
-async def get_note_content(args: dict) -> list[TextContent]:
-    r = requests.get(f"{API_BASE}/notes/{args['note_id']}/content", timeout=10)
-    r.raise_for_status()
-    data = r.json()
-    out = ""
-    if data.get("markdown"):
-        out += "### Markdown\n```markdown\n" + data["markdown"] + "\n```\n\n"
-    if data.get("latex"):
-        out += "### LaTeX\n```latex\n" + data["latex"] + "\n```\n"
-    return [TextContent(type="text", text=out or "Note has no content.")]
-
-
-async def create_note(args: dict) -> list[TextContent]:
-    # In 'strictly consuming' mode, we still allow creating findings/notes.
-    r = requests.post(f"{API_BASE}/notes", json=args, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-    return [TextContent(type="text", text=f"✓ Note created (ID: {data['id']}). Use compile_note to generate PDF.")]
-
-
-async def compile_note(args: dict) -> list[TextContent]:
-    r = requests.post(f"{API_BASE}/notes/{args['note_id']}/compile", timeout=120)
-    if r.ok:
-        return [TextContent(type="text", text=f"✓ PDF compiled successfully.")]
-    return [TextContent(type="text", text=f"✗ Compilation failed: {r.json().get('error', r.text)}")]
 
 
 async def get_system_state(args: dict) -> list[TextContent]:

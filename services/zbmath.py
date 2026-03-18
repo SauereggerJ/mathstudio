@@ -424,6 +424,7 @@ class ZBMathService:
 
         # Sync key fields back to 'books'
         msc = zb_data.get('msc_code', '')
+        keywords = zb_data.get('keywords', '')
         zb_author_str = ", ".join(zb_data.get('authors', []))
 
         with self.db.get_connection() as conn:
@@ -440,11 +441,12 @@ class ZBMathService:
                     author = CASE WHEN author IS NULL OR author = 'Unknown' THEN ? ELSE author END,
                     title = ?,
                     zb_review = ?,
+                    tags = ?,
                     metadata_status = ?,
                     trust_score = ?,
                     last_metadata_refresh = unixepoch()
                 WHERE id = ?
-            """, (zbl_id, msc, zb_author_str, title_to_set, zb_data.get('review_markdown', ''), status, similarity, book_id))
+            """, (zbl_id, msc, zb_author_str, title_to_set, zb_data.get('review_markdown', ''), keywords, status, similarity, book_id))
 
         return {
             "success": True, 

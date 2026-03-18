@@ -8,7 +8,7 @@ import fitz
 from pathlib import Path
 from pypdf import PdfReader
 from core.database import db
-from core.config import LIBRARY_ROOT, IGNORED_FOLDERS
+from core.config import LIBRARY_ROOT, IGNORED_FOLDERS, THUMBNAIL_DIR
 from core.ai import ai
 from core.utils import PDFHandler
 from .bibliography import bibliography_service
@@ -17,6 +17,38 @@ class IndexerService:
     def __init__(self):
         self.db = db
         self.ai = ai
+
+    def generate_thumbnails(self, book_id, force=False):
+        """Generates thumbnails for the first few pages of a book."""
+        with self.db.get_connection() as conn:
+            row = conn.execute("SELECT path FROM books WHERE id = ?", (book_id,)).fetchone()
+        if not row: return False
+        
+        abs_path = LIBRARY_ROOT / row['path']
+        if not abs_path.exists(): return False
+        
+        thumb_dir = THUMBNAIL_DIR / str(book_id)
+        if not force and (thumb_dir / "page_1.png").exists():
+            return True
+            
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        
+        handler = PDFHandler(abs_path)
+        # We only need the first 5 pages for thumbnails
+        doc, t_path = handler._open_source(page_indices=list(range(5)))
+        try:
+            for i in range(min(len(doc), 5)):
+                page = doc[i]
+                # Render to image with 0.5 scale (suitable for thumbnails)
+                pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5))
+                pix.save(str(thumb_dir / f"page_{i+1}.png"))
+        except Exception as e:
+            print(f"  [Indexer] Thumbnail error for {abs_path.name}: {e}")
+            return False
+        finally:
+            doc.close()
+            if t_path and t_path.exists(): t_path.unlink()
+        return True
 
     def extract_full_text(self, file_path):
         """Extracts full text from a PDF/DjVu file with page markers."""
@@ -123,6 +155,12 @@ class IndexerService:
                 helpers.bulk(es_client, actions)
             except Exception as e:
                 print(f"  [ES] Failed to bulk index pages for book {book_id}: {e}")
+
+            # Generate Thumbnails
+            try:
+                self.generate_thumbnails(book_id)
+            except Exception as e:
+                print(f"  [Thumb] Failed to generate thumbnails for book {book_id}: {e}")
             
         return True, f"Deep indexed {len(pages_data)} pages"
     def scan_library(self, force=False):

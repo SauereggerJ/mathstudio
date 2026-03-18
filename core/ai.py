@@ -78,8 +78,14 @@ class GeminiProvider(AIProvider):
 
                 text = response.text
                 
+                # --- Greedy JSON Extraction ---
+                # This finds the outermost { ... } block to skip conversational filler
+                json_match = re.search(r'(\{.*\})', text, re.DOTALL)
+                if json_match:
+                    text = json_match.group(1)
+                
                 try:
-                    with open("/home/jure/nasi_data/math/New_Research_Library/mathstudio/ai_debug_raw.log", "w") as f:
+                    with open(str(Path(__file__).parent.parent / "ai_debug_raw.log"), "w") as f:
                         f.write(text)
                 except:
                     pass

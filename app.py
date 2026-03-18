@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash, abort, send_file
 import os
 import json
 import subprocess
@@ -244,33 +244,99 @@ def open_file(filepath):
 @app.route('/notes')
 def list_notes():
     source_type = request.args.get('type')
-    notes = note_service.list_notes(source_type=source_type, limit=100)
-    return render_template('notes.html', notes=notes)
+    query = request.args.get('q')
+    sort = request.args.get('sort', 'newest')
+    
+    if query:
+        notes = note_service.search_notes(query, limit=100)
+    else:
+        notes = note_service.list_notes(source_type=source_type, limit=100)
+        
+    # Apply manual sorting if needed (beyond DB default)
+    if sort == 'alphabetical':
+        notes.sort(key=lambda x: x['title'].lower())
+    elif sort == 'oldest':
+        notes.sort(key=lambda x: x['created_at'])
+    
+    return render_template('notes.html', notes=notes, current_type=source_type, current_sort=sort, query=query)
+
+@app.route('/note/<int:note_id>/delete', methods=['POST'])
+def delete_note(note_id):
+    if note_service.delete_note(note_id):
+        return jsonify({"success": True})
+    return jsonify({"success": False}), 400
+
+@app.route('/note/<int:note_id>/edit', methods=['POST'])
+def edit_note(note_id):
+    data = request.json
+    if not data: return jsonify({"success": False}), 400
+    
+    # Update Metadata
+    note_service.update_note_metadata(note_id, data)
+    
+    # Update Content if provided
+    if 'content' in data:
+        note_service.update_note_content(note_id, markdown_content=data['content'])
+        
+    return jsonify({"success": True})
+
+@app.route('/pdf-note/<int:note_id>')
+def serve_note_pdf(note_id):
+    note = note_service.get_note(note_id)
+    if not note or not note.get('pdf_path'):
+        abort(404)
+    
+    pdf_path = Path(note['pdf_path'])
+    if not pdf_path.exists():
+        abort(404)
+        
+    return send_file(str(pdf_path), mimetype='application/pdf')
+
+@app.route('/note/<int:note_id>/save', methods=['POST'])
+def save_note_latex(note_id):
+    data = request.json
+    if not data or 'latex' not in data:
+        return jsonify({"success": False, "error": "Missing LaTeX content"}), 400
+    
+    # 1. Update the .tex file on disk
+    if note_service.update_note_content(note_id, latex_content=data['latex']):
+        # 2. Trigger re-compilation
+        from services.compilation import compilation_service
+        res = compilation_service.compile_note(note_id)
+        return jsonify(res)
+    
+    return jsonify({"success": False, "error": "Failed to save LaTeX file"}), 500
+
+@app.route('/note/<int:note_id>/reprocess', methods=['POST'])
+def reprocess_note_route(note_id):
+    data = request.json
+    if not data or 'mode' not in data:
+        return jsonify({"success": False, "error": "Missing target mode"}), 400
+        
+    res = note_service.reprocess_note(note_id, data['mode'])
+    return jsonify(res)
+
+@app.route('/note/<int:note_id>/extract-solution', methods=['POST'])
+def extract_solution_route(note_id):
+    res = note_service.extract_master_solution(note_id)
+    return jsonify(res)
 
 @app.route('/note/<int:note_id>')
 def view_note_by_id(note_id):
     note = note_service.get_note(note_id)
     if not note: abort(404)
     
-    content = ""
-    # Standardize path resolution: remove absolute container prefix if present
-    md_path = note['markdown_path']
-    if md_path:
-        if md_path.startswith('/library/mathstudio/'):
-            md_path = md_path.replace('/library/mathstudio/', '')
-        
-        full_path = Path(app.root_path) / md_path
+    latex_content = ""
+    if note.get('latex_path'):
+        full_path = Path(note['latex_path'])
         if full_path.exists():
             with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                latex_content = f.read()
             
-    # recommendations = note_service.get_recommendations(content) if content else []
-    
     return render_template('view_note.html', 
                            note=note, 
-                           content=content,
-                           has_pdf=note['pdf_path'] and os.path.exists(note['pdf_path']),
-                           has_latex=note['latex_path'] and os.path.exists(note['latex_path']))
+                           latex_content=latex_content,
+                           has_pdf=note['pdf_path'] and os.path.exists(note['pdf_path']))
 
 @app.route('/view-note/<filename>')
 def view_note(filename):
@@ -287,7 +353,7 @@ def view_note(filename):
     return render_template('view_note.html', filename=filename, content=content, has_pdf=(notes_dir / (base_name + ".pdf")).exists(), pdf_filename=base_name + ".pdf", has_markdown=(notes_dir / (base_name + ".md")).exists(), markdown_filename=base_name + ".md", recommendations=meta.get('recommendations', []))
 
 @app.route('/delete-note/<filename>', methods=['POST'])
-def delete_note(filename):
+def delete_note_file(filename):
     base_name = os.path.splitext(filename)[0]
     note_service.delete_note(base_name)
     return redirect(url_for('list_notes'))

@@ -42,6 +42,12 @@ def search_endpoint():
     use_rerank = request.args.get('rank') == 'true'
     field = request.args.get('field', 'all')
     
+    # New Filters and Sorting
+    msc = request.args.get('msc')
+    publisher = request.args.get('publisher')
+    keywords = request.args.get('keywords')
+    sort_by = request.args.get('sort', 'relevance')
+    
     if not query:
         return jsonify({'results': [], 'total_count': 0, 'page': page})
     
@@ -54,7 +60,11 @@ def search_endpoint():
             use_vector=use_vector,
             use_translate=use_translate,
             use_rerank=use_rerank,
-            field=field
+            field=field,
+            msc=msc,
+            publisher=publisher,
+            keywords=keywords,
+            sort_by=sort_by
         )
         results = search_data['results']
         total_count = search_data['total_count']
@@ -954,19 +964,20 @@ def admin_rebuild_fts():
             cursor.execute("DROP TABLE IF EXISTS books_fts")
             cursor.execute('''
                 CREATE VIRTUAL TABLE books_fts USING fts5(
-                    title, author, content, index_content,
+                    title, author, content, index_content, tags,
                     content_rowid='id',
                     tokenize='porter unicode61 remove_diacritics 1'
                 )
             ''')
             # Re-populate from books table
             cursor.execute('''
-                INSERT INTO books_fts(rowid, title, author, content, index_content)
+                INSERT INTO books_fts(rowid, title, author, content, index_content, tags)
                 SELECT id, 
                        COALESCE(title, ''), 
                        COALESCE(author, ''), 
                        COALESCE(summary, ''), 
-                       COALESCE(index_text, '')
+                       COALESCE(index_text, ''),
+                       COALESCE(tags, '')
                 FROM books
             ''')
             count = cursor.rowcount

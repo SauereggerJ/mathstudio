@@ -30,3 +30,5 @@ __pycache__/
 .pytest_cache/
 .docker/
 .git/
+token.json
+client_secret_*.json

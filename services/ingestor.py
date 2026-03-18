@@ -11,6 +11,7 @@ from services.library import library_service
 from services.universal_processor import universal_processor
 from services.zbmath import zbmath_service
 from services.search import search_service
+from services.indexer import indexer_service
 
 class IngestorService:
     def __init__(self):
@@ -24,10 +25,11 @@ class IngestorService:
         # Deep Enrichment
         try:
             zbmath_service.enrich_book(book_id)
-            # Vectorize after enrichment
+            # Vectorize and Deep Index
             search_service.vectorize_book(book_id)
+            indexer_service.deep_index_book(book_id)
         except Exception as e:
-            print(f"Post-Enrichment Warning (zbMATH/Vector): {e}")
+            print(f"Post-Enrichment Warning (zbMATH/Vector/FTS): {e}")
         return result
 
     def preview_metadata_update(self, book_id, ai_care=True):
@@ -74,10 +76,8 @@ class IngestorService:
         # 3b. Deep Enrichment (zbMATH)
         try:
             zbmath_service.enrich_book(book_id)
-            # Vectorize after enrichment to capture full metadata
-            search_service.vectorize_book(book_id)
         except Exception as e:
-            print(f"Post-Enrichment Warning (zbMATH/Vector): {e}")
+            print(f"Post-Enrichment Warning (zbMATH): {e}")
 
         # 4. Final Routing based on Enriched Metadata
         with self.db.get_connection() as conn:
@@ -103,10 +103,19 @@ class IngestorService:
         # 5. Physical Move
         shutil.move(file_path, target_abs)
         
-        # 6. Final DB Update with correct path
-        with self.db.get_connection() as conn:
-            conn.execute("UPDATE books SET path = ?, directory = ?, filename = ? WHERE id = ?", 
-                         (str(target_rel_path), str(target_rel_path.parent), dest_name, book_id))
+        # 6. Final DB Update and Heavy Indexing
+        try:
+            # Update path first so indexer can find it
+            with self.db.get_connection() as conn:
+                conn.execute("UPDATE books SET path = ?, directory = ?, filename = ? WHERE id = ?", 
+                             (str(target_rel_path), str(target_rel_path.parent), dest_name, book_id))
+            
+            # Now run the heavy indexing (FTS and Vector)
+            print(f"Starting Deep Indexing and Vectorization for Book {book_id}...")
+            indexer_service.deep_index_book(book_id)
+            search_service.vectorize_book(book_id)
+        except Exception as e:
+            print(f"Post-Move Indexing Warning (FTS/Vector): {e}")
 
         return {"status": "success", "path": str(target_rel_path), "metadata": data}
 

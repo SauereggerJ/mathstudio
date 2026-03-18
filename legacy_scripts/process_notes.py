@@ -14,7 +14,8 @@ from pathlib import Path
 from datetime import datetime
 
 # Google Libraries for Drive API
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 
@@ -31,7 +32,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(PROJECT_ROOT / "process_notes.log"),
         logging.StreamHandler()
     ]
 )
@@ -39,11 +39,12 @@ logger = logging.getLogger("note-processor")
 
 # --- Configuration ---
 POLL_INTERVAL = 60 # Seconds
-CREDENTIALS_FILE = PROJECT_ROOT / "credentials.json"
+# We now use the generated token.json instead of the service account credentials
+TOKEN_FILE = PROJECT_ROOT / "token.json" 
 
 class DriveMonitor:
-    def __init__(self, credentials_path: Path):
-        self.service = self._authenticate(credentials_path)
+    def __init__(self, token_path: Path):
+        self.service = self._authenticate(token_path)
         if not self.service:
             raise RuntimeError("Could not initialize Google Drive service.")
         
@@ -59,10 +60,23 @@ class DriveMonitor:
         self.output_id = self._find_or_create_folder(self.output_folder_name, self.root_id)
 
     def _authenticate(self, path: Path):
+        creds = None
+        
         try:
-            creds = service_account.Credentials.from_service_account_file(
-                str(path), scopes=['https://www.googleapis.com/auth/drive']
-            )
+            if path.exists():
+                # Load credentials from the file without forcing scopes
+                creds = Credentials.from_authorized_user_file(str(path))
+            
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    logger.info("Refreshing expired OAuth token...")
+                    creds.refresh(Request())
+                    with open(path, 'w') as token:
+                        token.write(creds.to_json())
+                else:
+                    logger.error(f"No valid token found at {path}. Please run the local authentication script first.")
+                    return None
+                    
             return build('drive', 'v3', credentials=creds)
         except Exception as e:
             logger.error(f"Drive Authentication failed: {e}")
@@ -148,7 +162,7 @@ def run_processor():
     logger.info("Starting MathStudio Note Processor...")
     
     try:
-        monitor = DriveMonitor(CREDENTIALS_FILE)
+        monitor = DriveMonitor(TOKEN_FILE)
     except Exception as e:
         logger.critical(f"Initialization failed: {e}")
         return
@@ -183,7 +197,8 @@ def run_processor():
                     result = note_service.process_note_silent(transcription, image_data)
                     
                     if result.get("success"):
-                        logger.info(f"Successfully processed note: {result.get('title')}")
+                        mode = result.get("mode", "G")
+                        logger.info(f"Successfully processed note: {result.get('title')} [Mode: {mode}]")
                         pdf_path = result.get('pdf_path')
                         logger.info(f"Saved to: {pdf_path}")
                         

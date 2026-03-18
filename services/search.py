@@ -118,7 +118,7 @@ class SearchService:
             print(f"[SearchService] MWS Search Error: {e}", file=sys.stderr)
         return []
 
-    def search_books_hybrid(self, query_text, query_vec=None, mws_term_ids=None, limit=50, field='all'):
+    def search_books_hybrid(self, query_text, query_vec=None, mws_term_ids=None, limit=50, field='all', msc=None, publisher=None, keywords=None):
         """Performs a hybrid Elasticsearch query combining vectors and text."""
         
         # 1. Text multi_match with boosts
@@ -129,6 +129,8 @@ class SearchService:
         elif field == 'index': text_fields = ["index_text"]
 
         must_clauses = []
+        filter_clauses = []
+        
         if query_text:
             must_clauses.append({
                 "multi_match": {
@@ -138,29 +140,33 @@ class SearchService:
                 }
             })
 
-        # 2. Vector kNN (if vector available)
+        # 2. Add Filters
+        if msc:
+            filter_clauses.append({"prefix": {"msc_class": msc}})
+        if publisher:
+            filter_clauses.append({"match_phrase": {"publisher": publisher}})
+        if keywords:
+            filter_clauses.append({"multi_match": {"query": keywords, "fields": ["tags", "index_text", "summary"]}})
+
+        # 3. Vector kNN (if vector available)
         knn = None
         if query_vec:
             knn = {
                 "field": "embedding",
                 "query_vector": list(query_vec),
                 "k": limit,
-                "num_candidates": 100,
-                "boost": 0.6 # Adjust vector influence
+                "num_candidates": max(100, limit),
+                "boost": 0.4 # Adjust vector influence
             }
+            if filter_clauses:
+                knn["filter"] = filter_clauses
 
-        # 3. MWS Filtering / Boosting
-        # If MWS returned terms, we can boost books containing these terms
-        if mws_term_ids:
-            # Note: mathstudio_books does not directly store term IDs, 
-            # but we could search mathstudio_terms and aggregate book_ids.
-            # For simplicity, we'll focus on the core metadata search here.
-            pass
-
+        # 4. Final Query Body
         body = {
             "query": {
                 "bool": {
-                    "must": must_clauses
+                    "must": must_clauses,
+                    "filter": filter_clauses
                 }
             },
             "size": limit
@@ -183,6 +189,8 @@ class SearchService:
                     'score': hit['_score'],
                     'summary': source.get('summary', ''),
                     'index_text': source.get('index_text', ''),
+                    'msc_class': source.get('msc_class', ''),
+                    'tags': source.get('tags', ''),
                     'found_by': 'hybrid'
                 })
             
@@ -191,7 +199,7 @@ class SearchService:
                 book_ids = [r['id'] for r in results]
                 placeholders = ','.join(['?'] * len(book_ids))
                 with self.db.get_connection() as conn:
-                    rows = conn.execute(f"SELECT id, path, year, publisher, isbn FROM books WHERE id IN ({placeholders})", book_ids).fetchall()
+                    rows = conn.execute(f"SELECT id, path, year, publisher, isbn, msc_class, tags FROM books WHERE id IN ({placeholders})", book_ids).fetchall()
                     path_map = {row['id']: dict(row) for row in rows}
                     for r in results:
                         if r['id'] in path_map:
@@ -200,6 +208,8 @@ class SearchService:
                             r['year'] = meta['year']
                             r['publisher'] = meta['publisher']
                             r['isbn'] = meta['isbn']
+                            r['msc_class'] = meta['msc_class']
+                            r['tags'] = meta['tags']
             return results
         except Exception as e:
             print(f"[SearchService] ES Hybrid Search Error: {e}", file=sys.stderr)
@@ -350,7 +360,7 @@ class SearchService:
             print(f"[SearchService] Search Within Book Error: {e}", file=sys.stderr)
             return [], False
 
-    def search(self, query, limit=20, offset=0, use_fts=True, use_vector=True, use_translate=False, use_rerank=False, field='all'):
+    def search(self, query, limit=20, offset=0, use_fts=True, use_vector=True, use_translate=False, use_rerank=False, field='all', msc=None, publisher=None, keywords=None, sort_by='relevance'):
         """Main search orchestration using Federated Search (ES + MWS)."""
         search_query = query
         expanded_query = None
@@ -387,8 +397,11 @@ class SearchService:
             query_text=search_query, 
             query_vec=query_vec, 
             mws_term_ids=mws_term_ids, 
-            limit=100, 
-            field=field
+            limit=1000, 
+            field=field,
+            msc=msc,
+            publisher=publisher,
+            keywords=keywords
         )
 
         # 3. Index Lookup & Scoring
@@ -399,8 +412,19 @@ class SearchService:
                     c['index_matches'] = idx_match
                     c['score'] += 0.5
 
-        # 4. Finalize results
-        final_list = sorted(results, key=lambda x: x['score'], reverse=True)
+        # 4. Sorting & Finalizing results
+        # Primary sort: user choice, Secondary sort: relevance (score)
+        if sort_by == 'title':
+            final_list = sorted(results, key=lambda x: (x.get('title', '').lower(), -x['score']))
+        elif sort_by == 'author':
+            final_list = sorted(results, key=lambda x: (x.get('author', '').lower(), -x['score']))
+        elif sort_by == 'year':
+            # Use a very high year for unknown to put them at the end if sorting ASC, 
+            # or very low if DESC. We'll default to DESC year (newest first).
+            final_list = sorted(results, key=lambda x: (-(x.get('year') or 0), -x['score']))
+        else: # relevance
+            final_list = sorted(results, key=lambda x: x['score'], reverse=True)
+
         total_count = len(final_list)
         paged_results = final_list[offset : offset + limit]
 
@@ -414,6 +438,63 @@ class SearchService:
             'expanded_query': expanded_query if expanded_query != query else None,
             'mws_hits': len(mws_term_ids) if mws_term_ids else 0
         }
+
+    def vectorize_book(self, book_id: int) -> bool:
+        """Generates a high-level embedding for a book based on its metadata and TOC."""
+        try:
+            with self.db.get_connection() as conn:
+                book = conn.execute(
+                    "SELECT id, title, author, summary, description, msc_class, tags, zbl_id, doi, isbn, year, publisher, index_text, zb_review FROM books WHERE id = ?", 
+                    (book_id,)
+                ).fetchone()
+                
+                if not book:
+                    return False
+                
+                # Fetch TOC
+                chapters = conn.execute("SELECT title FROM chapters WHERE book_id = ? ORDER BY page ASC", (book_id,)).fetchall()
+                toc_text = "\n".join([c['title'] for c in chapters])
+
+            # Construct representative text for embedding
+            # We combine title, author, summary, and TOC to capture the "semantic soul" of the book
+            text_to_embed = f"Title: {book['title']}\nAuthor: {book['author']}\nSummary: {book['summary']}\nMSC: {book['msc_class']}\nTable of Contents:\n{toc_text}"
+            
+            embedding = self.get_embedding(text_to_embed)
+            if not embedding:
+                return False
+
+            # Update SQLite
+            import numpy as np
+            emb_blob = np.array(embedding, dtype=np.float32).tobytes()
+            with self.db.get_connection() as conn:
+                conn.execute("UPDATE books SET embedding = ? WHERE id = ?", (emb_blob, book_id))
+
+            # Update Elasticsearch
+            from core.search_engine import index_book
+            es_doc = {
+                "id": book['id'],
+                "title": book['title'],
+                "author": book['author'],
+                "summary": book['summary'],
+                "description": book['description'],
+                "msc_class": book['msc_class'],
+                "tags": book['tags'],
+                "zbl_id": book['zbl_id'],
+                "doi": book['doi'],
+                "isbn": book['isbn'],
+                "year": book['year'],
+                "publisher": book['publisher'],
+                "toc": toc_text,
+                "index_text": book['index_text'],
+                "zb_review": book['zb_review'],
+                "embedding": list(embedding)
+            }
+            index_book(es_doc)
+            
+            return True
+        except Exception as e:
+            print(f"[SearchService] Vectorization failed for book {book_id}: {e}", file=sys.stderr)
+            return False
 
 # Global instance
 search_service = SearchService()
